@@ -1,0 +1,5 @@
+.claude
+.serena
+node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/

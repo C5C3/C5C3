@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright 2026 SAP SE or an SAP affiliate company
+# SPDX-License-Identifier: Apache-2.0
+
+---
+# MegaLinter configuration file
+# https://megalinter.io/latest/config-file/
+
+# Disable specific linters
+DISABLE_LINTERS:
+  - MARKDOWN_MARKDOWN_TABLE_FORMATTER
+
+# Lychee configuration
+SPELL_LYCHEE_ARGUMENTS: --exclude 'http://localhost.*' --exclude 'https://localhost.*' --exclude 'http://127\.0\.0\.1.*' --exclude 'https://127\.0\.0\.1.*'

@@ -1,0 +1,165 @@
+# SPDX-FileCopyrightText: Copyright 2026 SAP SE or an SAP affiliate company
+# SPDX-License-Identifier: Apache-2.0
+
+---
+patterns:
+  - name: markdown_code_block
+    pattern: |
+      /
+          ^(\s*)(`{3,}).*$  # match the ``` with optional language
+          [\s\S]*?          # the block of code
+          ^\1\2\s*$         # end of the block (same indentation and backticks)
+      /gmx
+
+languageSettings:
+  - languageId: "*"
+    ignoreRegExpList:
+      - markdown_code_block
+
+ignorePaths:
+  - "**/*.svg"
+  - "**/node_modules/**"
+  - "**/vscode-extension/**"
+  - "**/.git/**"
+  - "**/.pnpm-lock.json"
+  - ".vscode"
+  - "megalinter"
+  - "megalinter-reports/**"
+  - "package-lock.json"
+  - "report"
+  - "src/**"
+
+language: en
+
+noConfigSearch: true
+
+words:
+  - Alertmanager
+  - apiextensions
+  - applicationcredential
+  - APIV
+  - appctl
+  - approle
+  - asctime
+  - authtoken
+  - BAREMETAL
+  - baremetal
+  - Baremetal
+  - binpacking
+  - blockpool
+  - Bxxxx
+  - Bxxxxxxxxxxxxxxxxxxx
+  - CADF
+  - cephfs
+  - cephx
+  - chardev
+  - cobaltcore
+  - controll
+  - controlplane
+  - controlplaneio
+  - corev
+  - cpus
+  - Creds
+  - creds
+  - crds
+  - CROSSPLANE
+  - Crossplane
+  - crossplane
+  - datapath
+  - Descheduling
+  - dogpile
+  - dpdk
+  - DPDK
+  - Endpts
+  - fernet
+  - Fernet
+  - Finalizers
+  - fluxcd
+  - fluxinstance
+  - fluxreport
+  - fsfe
+  - galera
+  - Galera
+  - gardenlinux
+  - Gbps
+  - geneve
+  - Geneve
+  - gitops
+  - Gophercloud
+  - gopsutil
+  - hana
+  - HANA
+  - helmrelease
+  - hypervisorclusters
+  - idempotently
+  - Integr
+  - ironcore
+  - journalctl
+  - Keyspace
+  - KNOWLEDGES
+  - Knowledges
+  - korc
+  - kubeconf
+  - kubeconfig
+  - kubeconfigs
+  - kustomization
+  - Kustomization
+  - Kustomizations
+  - LACP
+  - letsencrypt
+  - levelname
+  - libvirtd
+  - localnet
+  - maint
+  - Memtouch
+  - memtouch
+  - mgmt
+  - Mgmt
+  - msecs
+  - multitenant
+  - mysqld
+  - netdev
+  - northd
+  - NUMA
+  - nvme
+  - objectstore
+  - ofproto
+  - openbao
+  - openstackclusters
+  - openvswitch
+  - OVSDB
+  - ovsd
+  - Placem
+  - Postcopy
+  - Provid
+  - Prysm
+  - pymemcache
+  - pymysql
+  - radosgw
+  - Rados
+  - RADOS
+  - stefanzweifel
+  - storageclusters
+  - traceparent
+  - tracestate
+  - valkey
+  - Valkey
+  - vaultpath
+  - vcpu
+  - vcpus
+  - virsh
+  - vitepress
+  - vswitchd
+  - WSGI
+  - xcontrolplanecluster
+  - xcontrolplaneclusters
+  - xhypervisorcluster
+  - xhypervisorclusters
+  - xlarge
+  - xopenstackcluster
+  - xopenstackclusters
+  - xrds
+  - xstoragecluster
+  - xstorageclusters
+
+version: "0.2"

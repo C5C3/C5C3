@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: SAP SE or an SAP affiliate company
+# SPDX-License-Identifier: Apache-2.0
+version = 1
+SPDX-PackageName = "A Kubernetes-native OpenStack distribution for operating Hosted Control Planes"
+SPDX-PackageDownloadLocation = "https://github.com/C5C3/C5C3"
+
+[[annotations]]
+path = [
+  "package*.json",
+  ".github/CODEOWNERS",
+  ".github/renovate.json",
+  ".gitignore",
+  "docs/.vitepress/**",
+  "docs/**.md",
+]
+SPDX-FileCopyrightText = "SAP SE or an SAP affiliate company"
+SPDX-License-Identifier = "Apache-2.0"
