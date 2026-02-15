@@ -57,7 +57,8 @@ c5c3-gitops/
 │   │   ├── kustomization.yaml
 │   │   ├── infrastructure-operators/  # Kustomization → apps/infrastructure/operators
 │   │   ├── c5c3-operator/        # Kustomization → apps/c5c3-operator
-│   │   └── control-plane-cr/     # Kustomization → apps/control-plane-cr
+│   │   ├── control-plane-cr/     # Kustomization → apps/control-plane-cr
+│   │   └── k-orc/               # Kustomization → apps/k-orc
 │   ├── hypervisor/
 │   │   ├── kustomization.yaml
 │   │   ├── hypervisor-operator/
@@ -90,6 +91,9 @@ c5c3-gitops/
 │   ├── control-plane-cr/         # ControlPlane CRD Instance
 │   │   ├── kustomization.yaml
 │   │   └── controlplane.yaml     # ControlPlane CR (entire config)
+│   ├── k-orc/                    # K-ORC Deployment (Control Plane Cluster)
+│   │   ├── kustomization.yaml
+│   │   └── helmrelease.yaml      # HelmRelease for K-ORC
 │   ├── labels-injector/          # Deployment (Hypervisor Cluster)
 │   │   ├── kustomization.yaml
 │   │   └── helmrelease.yaml

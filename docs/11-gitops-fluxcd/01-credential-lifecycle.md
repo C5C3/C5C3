@@ -85,9 +85,21 @@ Managing credentials in a multi-cluster OpenStack environment requires a thought
 │  └─────────────────────────────────────────────────────────────────────────┘  │
 │                              │                                                │
 │                              ▼                                                │
-│  PHASE 2: Service User, Service & Endpoint Creation (c5c3-operator)           │
+│  PHASE 2: Import Bootstrap Resources & K-ORC Credential Setup                 │
 │  ┌─────────────────────────────────────────────────────────────────────────┐  │
-│  │  c5c3-operator creates via Keystone API:                                │  │
+│  │  c5c3-operator imports bootstrap resources into K-ORC (unmanaged):      │  │
+│  │  • Default Domain, Service Project, Roles                               │  │
+│  │    (created by Keystone Bootstrap Job — K-ORC must see them first)      │  │
+│  │                                                                         │  │
+│  │  c5c3-operator creates K-ORC Service User via Keystone API:             │  │
+│  │  • k-orc user (service project, admin role)                             │  │
+│  │  • K-ORC Application Credential → clouds.yaml → K-ORC Deployment        │  │
+│  └─────────────────────────────────────────────────────────────────────────┘  │
+│                              │                                                │
+│                              ▼                                                │
+│  PHASE 3: Service Users, Services & Endpoints (c5c3-operator via K-ORC)       │
+│  ┌─────────────────────────────────────────────────────────────────────────┐  │
+│  │  c5c3-operator creates via K-ORC (managed):                             │  │
 │  │  ┌───────────────────────────────────────────────────────────────────┐  │  │
 │  │  │ User        │ Project  │ Role         │ Used By                   │  │  │
 │  │  ├─────────────┼──────────┼──────────────┼───────────────────────────│  │  │
@@ -96,17 +108,15 @@ Managing credentials in a multi-cluster OpenStack environment requires a thought
 │  │  │ glance      │ service  │ admin        │ Glance API                │  │  │
 │  │  │ cinder      │ service  │ admin        │ Cinder API, Volume        │  │  │
 │  │  │ placement   │ service  │ admin        │ Placement API             │  │  │
-│  │  │ k-orc       │ service  │ admin        │ K-ORC Controller          │  │  │
 │  │  │ cortex      │ service  │ reader       │ Cortex (read-only)        │  │  │
 │  │  └───────────────────────────────────────────────────────────────────┘  │  │
 │  │                                                                         │  │
-│  │  c5c3-operator creates via K-ORC:                                       │  │
 │  │  • Keystone Service entries (glance, nova, neutron, etc.)               │  │
 │  │  • Endpoints (public + internal) for each service                       │  │
 │  └─────────────────────────────────────────────────────────────────────────┘  │
 │                              │                                                │
 │                              ▼                                                │
-│  PHASE 3: Application Credentials (Optional, recommended)                     │
+│  PHASE 4: Application Credentials (Optional, recommended)                     │
 │  ┌─────────────────────────────────────────────────────────────────────────┐  │
 │  │  For K-ORC, Cortex and external tools:                                  │  │
 │  │  • Cannot be used to create additional credentials                      │  │
@@ -116,7 +126,7 @@ Managing credentials in a multi-cluster OpenStack environment requires a thought
 │  └─────────────────────────────────────────────────────────────────────────┘  │
 │                              │                                                │
 │                              ▼                                                │
-│  PHASE 4: Config Rendering & Secret Sync                                      │
+│  PHASE 5: Config Rendering & Secret Sync                                      │
 │  ┌─────────────────────────────────────────────────────────────────────────┐  │
 │  │  • c5c3-operator renders service configs with all credentials           │  │
 │  │  • PushSecrets write generated credentials to OpenBao                   │  │
@@ -215,9 +225,18 @@ The following sequence diagram shows the complete bootstrap process from the fir
 │    │          │          │           │            │  Ready       │              │             │             │
 │    │          │          │           │            │              │              │             │             │
 │ ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ │
-│ PHASE 3: Service Users, Services, Endpoints & Credential Creation                                           │
+│ PHASE 3: Import Bootstrap Resources, K-ORC Setup & Credential Creation                                      │
 │          (keystone-Op column = K-ORC in this phase)                                                         │
 │ ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ │
+│    │          │          │           │            │              │              │             │             │
+│    │          │          │           │            │─────┐        │              │             │             │
+│    │          │          │           │            │     │Import  │              │             │             │
+│    │          │          │           │            │     │bootstrap              │             │             │
+│    │          │          │           │            │     │resources              │             │             │
+│    │          │          │           │            │     │(unmanaged):           │             │             │
+│    │          │          │           │            │     │Domain,  │             │             │             │
+│    │          │          │           │            │     │Projects,│             │             │             │
+│    │          │          │           │            │◀────┘Roles   │              │             │             │
 │    │          │          │           │            │              │              │             │             │
 │    │          │          │           │            │──────────────▶              │             │             │
 │    │          │          │           │            │ K-ORC User   │              │             │             │
@@ -321,21 +340,12 @@ The following sequence diagram shows the complete bootstrap process from the fir
 │    │          │          │           │            │ Synced       │              │             │             │
 │    │          │          │           │            │              │              │             │             │
 │ ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ │
-│ PHASE 7: Optional Components (Cortex) & K-ORC Bootstrap                                                     │
+│ PHASE 7: Optional Components (Cortex)                                                                       │
 │ ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ │
 │    │          │          │           │            │              │              │             │             │
 │    │          │          │           │            │──────────────┼──────────────▶             │             │
 │    │          │          │           │            │ Cortex CR    │              │             │             │
 │    │          │          │           │            │ (if enabled) │              │             │             │
-│    │          │          │           │            │              │              │             │             │
-│    │          │          │           │            │─────┐        │              │             │             │
-│    │          │          │           │            │     │Create  │              │             │             │
-│    │          │          │           │            │     │K-ORC   │              │             │             │
-│    │          │          │           │            │     │Bootstrap              │             │             │
-│    │          │          │           │            │     │Resources              │             │             │
-│    │          │          │           │            │◀────┘(Domains,              │             │             │
-│    │          │          │           │            │      Projects,              │             │             │
-│    │          │          │           │            │      Flavors)│              │             │             │
 │    │          │          │           │            │              │              │             │             │
 │ ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ │
 │ COMPLETE: ControlPlane CR Status = Ready                                                                    │
@@ -356,17 +366,17 @@ The following sequence diagram shows the complete bootstrap process from the fir
 
 **Bootstrap Times (typical):**
 
-| Phase                       | Duration        | Description                                 |
-| --------------------------- | --------------- | ------------------------------------------- |
-| Phase 0: GitOps Bootstrap   | \~1 min         | FluxCD Reconcile, ESO Secret Sync           |
-| Phase 1: Infrastructure     | \~5-10 min      | MariaDB Galera, RabbitMQ, Valkey Sentinel   |
-| Phase 2: Keystone Bootstrap | \~2-3 min       | Keystone Deploy + Bootstrap Job             |
-| Phase 3: Credentials        | \~1-2 min       | Service Users + App Credentials (via K-ORC) |
-| Phase 4: Core Services      | \~2-3 min       | Glance, Placement (parallel)                |
-| Phase 5: Compute Services   | \~3-5 min       | Nova, Neutron, Cinder (parallel)            |
-| Phase 6: Cross-Cluster Sync | \~1-2 min       | ESO Secret Sync (OpenBao → all clusters)    |
-| Phase 7: Optional + K-ORC   | \~2-3 min       | Cortex, K-ORC Bootstrap Resources           |
-| **Total**                   | **\~17-29 min** | Complete Control Plane                      |
+| Phase                       | Duration        | Description                                                             |
+| --------------------------- | --------------- | ----------------------------------------------------------------------- |
+| Phase 0: GitOps Bootstrap   | \~1 min         | FluxCD Reconcile, ESO Secret Sync                                       |
+| Phase 1: Infrastructure     | \~5-10 min      | MariaDB Galera, RabbitMQ, Valkey Sentinel                               |
+| Phase 2: Keystone Bootstrap | \~2-3 min       | Keystone Deploy + Bootstrap Job                                         |
+| Phase 3: Credentials        | \~1-2 min       | Import bootstrap resources, Service Users + App Credentials (via K-ORC) |
+| Phase 4: Core Services      | \~2-3 min       | Glance, Placement (parallel)                                            |
+| Phase 5: Compute Services   | \~3-5 min       | Nova, Neutron, Cinder (parallel)                                        |
+| Phase 6: Cross-Cluster Sync | \~1-2 min       | ESO Secret Sync (OpenBao → all clusters)                                |
+| Phase 7: Optional           | \~2-3 min       | Cortex (if enabled)                                                     |
+| **Total**                   | **\~17-29 min** | Complete Control Plane                                                  |
 
 **Failure Recovery:**
 
@@ -505,6 +515,8 @@ status:
           credentialID: "ghi789..."
           expiresAt: "2024-04-15T00:00:00Z"
 ```
+
+> **See also:** [K-ORC section](../03-components/01-control-plane.md#openstack-resource-controller-k-orc) for K-ORC architecture, CRD types, management policies, and deployment details.
 
 ## K-ORC Credential Flow
 

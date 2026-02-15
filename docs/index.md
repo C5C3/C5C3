@@ -40,21 +40,22 @@
 
 > **Naming Convention for OpenStack Services:** `<service>.openstack.c5c3.io` — extensible for future services (e.g., Ceilometer, Limes)
 
-| API Group                     | Version      | CRDs                                                      | Usage                                             |
-| ----------------------------- | ------------ | --------------------------------------------------------- | ------------------------------------------------- |
-| `c5c3.io`                     | v1alpha1     | ControlPlane, SecretAggregate, CredentialRotation         | Orchestration, Dependencies, Credential Lifecycle |
-| `keystone.openstack.c5c3.io`  | v1alpha1     | Keystone                                                  | Identity Service                                  |
-| `glance.openstack.c5c3.io`    | v1alpha1     | Glance                                                    | Image Service                                     |
-| `placement.openstack.c5c3.io` | v1alpha1     | Placement                                                 | Resource Tracking                                 |
-| `nova.openstack.c5c3.io`      | v1alpha1     | Nova                                                      | Compute Service                                   |
-| `neutron.openstack.c5c3.io`   | v1alpha1     | Neutron                                                   | Network Service                                   |
-| `cinder.openstack.c5c3.io`    | v1alpha1     | Cinder                                                    | Block Storage                                     |
-| `ovn.c5c3.io`                 | v1alpha1     | OVNCluster, OVNChassis                                    | OVN SDN Backend                                   |
-| `ovs.c5c3.io`                 | v1alpha1     | OVSNode                                                   | OVS Node Status                                   |
-| `kvm.c5c3.io`                 | v1, v1alpha1 | Hypervisor, Eviction, Migration                           | Hypervisor Lifecycle                              |
-| `ceph.c5c3.io`                | v1alpha1     | RemoteCluster, RemoteArbiter                              | Ceph Stretched Cluster Arbiter                    |
-| `cortex.c5c3.io`              | v1alpha1     | Cortex                                                    | Intelligent Scheduler (optional)                  |
-| `crossplane.c5c3.io`          | v1alpha1     | XControlPlaneCluster, XHypervisorCluster, XStorageCluster | Consumer Interface (Crossplane XRDs)              |
+| API Group                     | Version      | CRDs                                                                         | Usage                                             |
+| ----------------------------- | ------------ | ---------------------------------------------------------------------------- | ------------------------------------------------- |
+| `c5c3.io`                     | v1alpha1     | ControlPlane, SecretAggregate, CredentialRotation                            | Orchestration, Dependencies, Credential Lifecycle |
+| `keystone.openstack.c5c3.io`  | v1alpha1     | Keystone                                                                     | Identity Service                                  |
+| `glance.openstack.c5c3.io`    | v1alpha1     | Glance                                                                       | Image Service                                     |
+| `placement.openstack.c5c3.io` | v1alpha1     | Placement                                                                    | Resource Tracking                                 |
+| `nova.openstack.c5c3.io`      | v1alpha1     | Nova                                                                         | Compute Service                                   |
+| `neutron.openstack.c5c3.io`   | v1alpha1     | Neutron                                                                      | Network Service                                   |
+| `cinder.openstack.c5c3.io`    | v1alpha1     | Cinder                                                                       | Block Storage                                     |
+| `ovn.c5c3.io`                 | v1alpha1     | OVNCluster, OVNChassis                                                       | OVN SDN Backend                                   |
+| `ovs.c5c3.io`                 | v1alpha1     | OVSNode                                                                      | OVS Node Status                                   |
+| `kvm.c5c3.io`                 | v1, v1alpha1 | Hypervisor, Eviction, Migration                                              | Hypervisor Lifecycle                              |
+| `ceph.c5c3.io`                | v1alpha1     | RemoteCluster, RemoteArbiter                                                 | Ceph Stretched Cluster Arbiter                    |
+| `cortex.c5c3.io`              | v1alpha1     | Cortex                                                                       | Intelligent Scheduler (optional)                  |
+| `openstack.k-orc.cloud`       | v1alpha1     | Domain, Project, Role, Group, Service, Endpoint, User, ApplicationCredential | Keystone Resource Management (K-ORC)              |
+| `crossplane.c5c3.io`          | v1alpha1     | XControlPlaneCluster, XHypervisorCluster, XStorageCluster                    | Consumer Interface (Crossplane XRDs)              |
 
 ## Repositories
 

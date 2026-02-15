@@ -296,4 +296,211 @@ status:
       status: "True"
 ```
 
+## K-ORC Keystone CRDs (`openstack.k-orc.cloud/v1alpha1`)
+
+K-ORC (Kubernetes OpenStack Resource Controller) provides CRDs for declarative management of Keystone resources. These CRDs are essential for the bootstrap process — without them, OpenStack services cannot register in the service catalog or authenticate.
+
+**Common Fields:**
+
+All K-ORC CRDs share the following fields:
+
+| Field | Description |
+| ----- | ----------- |
+| `spec.cloudCredentialsRef.cloudName` | Cloud name from `clouds.yaml` |
+| `spec.cloudCredentialsRef.secretName` | Kubernetes Secret containing `clouds.yaml` |
+| `spec.managementPolicy` | `managed` (full lifecycle) or `unmanaged` (read-only import) |
+
+### Service CRD
+
+Registers an OpenStack service in the Keystone service catalog.
+
+```yaml
+apiVersion: openstack.k-orc.cloud/v1alpha1
+kind: Service
+metadata:
+  name: nova-service
+  namespace: openstack
+spec:
+  cloudCredentialsRef:
+    cloudName: openstack
+    secretName: k-orc-clouds-yaml
+  managementPolicy: managed
+  resource:
+    name: nova
+    type: compute
+    description: "OpenStack Compute Service"
+```
+
+### Endpoint CRD
+
+Registers a service endpoint (public or internal) in the Keystone service catalog.
+
+```yaml
+apiVersion: openstack.k-orc.cloud/v1alpha1
+kind: Endpoint
+metadata:
+  name: nova-public
+  namespace: openstack
+spec:
+  cloudCredentialsRef:
+    cloudName: openstack
+    secretName: k-orc-clouds-yaml
+  managementPolicy: managed
+  resource:
+    serviceRef: nova-service
+    interface: public
+    url: "https://compute.example.com"
+    region: RegionOne
+
+---
+apiVersion: openstack.k-orc.cloud/v1alpha1
+kind: Endpoint
+metadata:
+  name: nova-internal
+  namespace: openstack
+spec:
+  cloudCredentialsRef:
+    cloudName: openstack
+    secretName: k-orc-clouds-yaml
+  managementPolicy: managed
+  resource:
+    serviceRef: nova-service
+    interface: internal
+    url: "http://nova-api.openstack.svc:8774"
+    region: RegionOne
+```
+
+### User CRD
+
+Creates a service user in Keystone for service-to-service authentication.
+
+```yaml
+apiVersion: openstack.k-orc.cloud/v1alpha1
+kind: User
+metadata:
+  name: nova-service-user
+  namespace: openstack
+spec:
+  cloudCredentialsRef:
+    cloudName: openstack
+    secretName: k-orc-clouds-yaml
+  managementPolicy: managed
+  resource:
+    name: nova
+    domainRef: default
+    passwordSecretRef:
+      name: openstack-service-passwords
+      key: nova-password
+```
+
+### ApplicationCredential CRD
+
+Creates an Application Credential for secure, restricted authentication.
+
+```yaml
+apiVersion: openstack.k-orc.cloud/v1alpha1
+kind: ApplicationCredential
+metadata:
+  name: k-orc-app-credential
+  namespace: openstack
+spec:
+  cloudCredentialsRef:
+    cloudName: openstack
+    secretName: k-orc-clouds-yaml
+  managementPolicy: managed
+  resource:
+    name: k-orc-app-credential
+    userRef: k-orc-service-user
+    roles:
+      - admin
+    expiresAt: "2025-04-15T00:00:00Z"
+    secretRef:
+      name: k-orc-app-credential-secret
+```
+
+### Domain CRD
+
+Manages Keystone identity domains.
+
+```yaml
+apiVersion: openstack.k-orc.cloud/v1alpha1
+kind: Domain
+metadata:
+  name: default-domain
+  namespace: openstack
+spec:
+  cloudCredentialsRef:
+    cloudName: openstack
+    secretName: k-orc-clouds-yaml
+  managementPolicy: managed
+  resource:
+    name: Default
+    description: "Default domain"
+    enabled: true
+```
+
+### Project CRD
+
+Manages Keystone projects within a domain.
+
+```yaml
+apiVersion: openstack.k-orc.cloud/v1alpha1
+kind: Project
+metadata:
+  name: service-project
+  namespace: openstack
+spec:
+  cloudCredentialsRef:
+    cloudName: openstack
+    secretName: k-orc-clouds-yaml
+  managementPolicy: managed
+  resource:
+    name: service
+    domainRef: default-domain
+    description: "Service project for OpenStack services"
+    enabled: true
+    tags: ["infrastructure", "service"]
+```
+
+### Role CRD
+
+Manages RBAC roles in Keystone.
+
+```yaml
+apiVersion: openstack.k-orc.cloud/v1alpha1
+kind: Role
+metadata:
+  name: admin-role
+  namespace: openstack
+spec:
+  cloudCredentialsRef:
+    cloudName: openstack
+    secretName: k-orc-clouds-yaml
+  managementPolicy: managed
+  resource:
+    name: admin
+    description: "Admin role"
+```
+
+### Group CRD
+
+Manages user groups in Keystone.
+
+```yaml
+apiVersion: openstack.k-orc.cloud/v1alpha1
+kind: Group
+metadata:
+  name: service-admins
+  namespace: openstack
+spec:
+  cloudCredentialsRef:
+    cloudName: openstack
+    secretName: k-orc-clouds-yaml
+  managementPolicy: managed
+  resource:
+    name: service-admins
+    domainRef: default-domain
+    description: "Group for service administrators"
+```
+
 ***

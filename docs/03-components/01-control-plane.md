@@ -56,6 +56,14 @@ The Control Plane consists of a **modular operator architecture** where each Ope
 │  └─────────────┘       └─────────────┘        └─────────────┘               │
 │                                                                             │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                    K-ORC (Namespace: orc-system)                     │   │
+│  │                                                                      │   │
+│  │   Declarative Keystone Resource Management                           │   │
+│  │   (Services, Endpoints, Users, ApplicationCredentials,               │   │
+│  │    Domains, Projects, Roles, Groups)                                 │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │                    ovn-operator (Namespace: ovn-system)              │   │
 │  │                                                                      │   │
 │  │   ┌─────────────┐  ┌─────────────┐                                   │   │
@@ -114,10 +122,13 @@ The **c5c3-operator** is the central orchestration operator. It manages dependen
 │     └── Readiness aggregation                                   │
 │                                                                 │
 │  3. Credential & Service Catalog Orchestration                  │
-│     ├── Create K-ORC CRs for Keystone Services                  │
-│     ├── Create K-ORC CRs for Endpoints                          │
-│     ├── Create K-ORC CRs for Service Users (after Keystone)     │
-│     ├── Create K-ORC CRs for Application Credentials            │
+│     ├── Import bootstrap resources into K-ORC (unmanaged):      │
+│     │   Domain, Service Project, Roles (created by Keystone     │
+│     │   Bootstrap Job — must be imported before K-ORC can act)  │
+│     ├── Create K-ORC CRs for Keystone Services (managed)        │
+│     ├── Create K-ORC CRs for Endpoints (managed)                │
+│     ├── Create K-ORC CRs for Service Users (managed)            │
+│     ├── Create K-ORC CRs for Application Credentials (managed)  │
 │     ├── Manage SecretAggregate CRs                              │
 │     └── Coordinate CredentialRotation                           │
 │                                                                 │
@@ -130,10 +141,6 @@ The **c5c3-operator** is the central orchestration operator. It manages dependen
 │     ├── Creates Cinder CR → cinder-operator                     │
 │     ├── Creates Cortex CR → cortex-operator (optional)          │
 │     └── Creates Tempest CR → tempest-operator (optional)        │
-│                                                                 │
-│  5. K-ORC Bootstrap                                             │
-│     ├── Creates K-ORC CRs for base resources                    │
-│     └── (Domains, Projects, Flavors)                            │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -218,7 +225,6 @@ spec:
     bootstrapResources:
       - domains
       - projects
-      - flavors
 
   # Global Settings
   global:
@@ -251,40 +257,52 @@ spec:
 │                       │Keystone │  depends: MariaDB, Memcached              │
 │                       └────┬────┘                                           │
 │                            │                                                │
-│              ┌─────────────┼─────────────┐                                  │
-│              ▼             ▼             ▼                                  │
-│  Phase 3: ┌───────┐  ┌───────────┐  ┌─────────┐                             │
-│  Core     │ Glance│  │ Placement │  │ K-ORC   │  depends: Keystone          │
-│           └───┬───┘  └─────┬─────┘  │ Users,  │                             │
-│               │            │        │Services,│                             │
-│               │            │        │Endpoints│                             │
-│               │            │        └────┬────┘                             │
-│               │            │             │                                  │
-│               └────────────┴──────┬──────┘                                  │
-│                                   │                                         │
-│              ┌────────────────────┼────────────────────┐                    │
-│              ▼                    ▼                    ▼                    │
-│  Phase 4: ┌──────┐          ┌─────────┐          ┌────────┐                 │
-│  Compute  │ Nova │          │ Neutron │          │ Cinder │                 │
-│           └──┬───┘          └────┬────┘          └───┬────┘                 │
-│              │  depends:         │                   │                      │
-│              │  Keystone,        │                   │                      │
-│              │  Placement,       │                   │                      │
-│              │  RabbitMQ,        │                   │                      │
-│              │  Glance           │                   │                      │
-│              └───────────────────┴───────────────────┘                      │
-│                                  │                                          │
-│                                  ▼                                          │
-│  Phase 5: (optional)       ┌────────┐                                       │
+│                            ▼                                                │
+│  Phase 3:          ┌──────────────┐                                         │
+│  Service Catalog   │    K-ORC     │  depends: Keystone                      │
+│                    │              │                                         │
+│                    │ 1. Import    │  Import bootstrap resources             │
+│                    │    bootstrap │  (Domain, Project, Roles)               │
+│                    │    (unmanaged│  from Keystone Bootstrap Job            │
+│                    │              │                                         │
+│                    │ 2. Create    │  Register Services + Endpoints          │
+│                    │    Services, │  for Glance, Nova, Neutron,             │
+│                    │    Endpoints │  Cinder, Placement                      │
+│                    │    (managed) │                                         │
+│                    │              │                                         │
+│                    │ 3. Create    │  Service Users +                        │
+│                    │    Users,    │  Application Credentials                │
+│                    │    AppCreds  │  for all OpenStack services             │
+│                    │    (managed) │                                         │
+│                    └──────┬───────┘                                         │
+│                           │                                                 │
+│                ┌──────────┴──────────┐                                      │
+│                ▼                     ▼                                      │
+│  Phase 4: ┌───────┐           ┌───────────┐                                 │
+│  Core     │ Glance│           │ Placement │  depends: Keystone, K-ORC       │
+│           └───┬───┘           └─────┬─────┘  (needs Service Catalog entries)│
+│               │                     │                                       │
+│               └──────────┬──────────┘                                       │
+│                          │                                                  │
+│              ┌───────────┼───────────┐                                      │
+│              ▼           ▼           ▼                                      │
+│  Phase 5: ┌──────┐  ┌─────────┐  ┌────────┐                                 │
+│  Compute  │ Nova │  │ Neutron │  │ Cinder │                                 │
+│           └──┬───┘  └─────┬───┘  └───┬────┘                                 │
+│              │  depends:  │          │                                      │
+│              │  Keystone, │          │                                      │
+│              │  K-ORC,    │          │                                      │
+│              │  Placement,│          │                                      │
+│              │  RabbitMQ, │          │                                      │
+│              │  Glance    │          │                                      │
+│              └────────────┴──────────┘                                      │
+│                                │                                            │
+│                                ▼                                            │
+│  Phase 6: (optional)       ┌────────┐                                       │
 │  Scheduler                 │ Cortex │  depends: Nova, Cinder                │
 │                            └───┬────┘                                       │
 │                                │                                            │
 │                                ▼                                            │
-│  Phase 6:                 ┌────────┐                                        │
-│  Bootstrap                │ K-ORC  │  Bootstrap Resources                   │
-│                           └───┬────┘                                        │
-│                               │                                             │
-│                               ▼                                             │
 │  Phase 7: (optional)     ┌─────────┐                                        │
 │  Testing                 │ Tempest │  depends: Nova, Neutron, Cinder,       │
 │                          └─────────┘  Glance, Keystone                      │
@@ -1362,14 +1380,11 @@ topology.kubernetes.io/zone          # Zone topology
 
 K-ORC (Kubernetes OpenStack Resource Controller) enables **declarative management of OpenStack resources via Kubernetes CRDs**. It follows the Infrastructure-as-Code pattern and integrates seamlessly into GitOps workflows.
 
-**Supported OpenStack Services:**
+**Supported OpenStack Services (in CobaltCore):**
 
 | Service                 | Resources                                                                    |
 | ----------------------- | ---------------------------------------------------------------------------- |
 | **Keystone** (Identity) | Domain, Project, Role, Group, Service, Endpoint, User, ApplicationCredential |
-| **Nova** (Compute)      | Flavor, Image, KeyPair, Server, ServerGroup                                  |
-| **Neutron** (Network)   | Network, Subnet, Port, Router, RouterInterface, SecurityGroup, FloatingIP    |
-| **Cinder** (Storage)    | Volume, VolumeType                                                           |
 
 **Architecture:**
 
@@ -1383,17 +1398,14 @@ K-ORC (Kubernetes OpenStack Resource Controller) enables **declarative managemen
 │  │                    (orc-system Namespace)                   │  │
 │  │                                                             │  │
 │  │  Reconciliation Controllers:                                │  │
-│  │  ├── Keystone: Domain, Project, Role, Group, Service,       │  │
-│  │  │            User, ApplicationCredential                   │  │
-│  │  ├── Nova:     Flavor, Image, KeyPair, Server, ServerGroup  │  │
-│  │  ├── Neutron:  Network, Subnet, Port, Router, SecurityGroup │  │
-│  │  └── Cinder:   Volume, VolumeType                           │  │
+│  │  └── Keystone: Domain, Project, Role, Group, Service,       │  │
+│  │               Endpoint, User, ApplicationCredential         │  │
 │  └─────────────────────────────────────────────────────────────┘  │
 │                              │                                    │
 │                              │ Gophercloud SDK                    │
 │                              ▼                                    │
 │  ┌─────────────────────────────────────────────────────────────┐  │
-│  │  OpenStack APIs (Keystone, Nova, Neutron, Cinder, Glance)   │  │
+│  │             Keystone Identity API                           │  │
 │  └─────────────────────────────────────────────────────────────┘  │
 │                                                                   │
 └───────────────────────────────────────────────────────────────────┘
@@ -1401,7 +1413,7 @@ K-ORC (Kubernetes OpenStack Resource Controller) enables **declarative managemen
 
 **Key Features:**
 
-* **21 CRD types** for comprehensive OpenStack resource management
+* **8 CRD types** for declarative Keystone resource management
 * **Management Policies**: `managed` (full lifecycle) or `unmanaged` (read-only import)
 * **Import existing resources** via filters (Name, Tags, ID)
 * **Credential Management** via `clouds.yaml` in Kubernetes Secrets
@@ -1465,10 +1477,82 @@ spec:
 
 **Use Cases in CobaltCore:**
 
+* Declarative management of Keystone services, endpoints, and users
+* Automated provisioning of service accounts and application credentials
 * Declarative management of Keystone domains, projects, and roles
-* Automated provisioning of network infrastructure (Networks, Subnets, Routers)
-* GitOps integration for Infrastructure-as-Code
+* GitOps integration for Identity-as-Code
 * Multi-tenant setup with reproducible configurations
+
+**Management Policies:**
+
+* **`managed`**: K-ORC creates, updates, and deletes the OpenStack resource (full lifecycle).
+  Finalizers prevent Kubernetes deletion until the OpenStack resource is removed.
+  Use for: All bootstrap resources, new service registrations.
+
+* **`unmanaged`**: K-ORC imports an existing OpenStack resource as read-only via filters (name, tags, ID).
+  K-ORC does not modify or delete the resource. Status reflects the external state.
+  Use for: Brownfield deployments, shared resources managed by other tools.
+
+**Deployment (HelmRelease):**
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: k-orc
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://k-orc.github.io/openstack-resource-controller
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openstack-resource-controller
+  namespace: orc-system
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: openstack-resource-controller
+      version: ">=0.1.0"
+      sourceRef:
+        kind: HelmRepository
+        name: k-orc
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+  upgrade:
+    crds: CreateReplace
+```
+
+**Bootstrap Resources (Chicken-and-Egg Problem):**
+
+The Keystone Bootstrap Job creates foundational resources (Admin User, Default Domain,
+Service Project, Roles) directly via the Keystone API — before K-ORC has credentials.
+These resources must be **imported into K-ORC** (`managementPolicy: unmanaged`) so that
+K-ORC can reference them when creating dependent resources (Services, Endpoints, Users).
+
+When `spec.korc.bootstrapResources` is configured in the ControlPlane CR, the c5c3-operator
+creates K-ORC CRs with `managementPolicy: unmanaged` to import existing bootstrap resources:
+
+* **domains**: Default domain (created by Keystone Bootstrap Job)
+* **projects**: Service project, admin project (created by Keystone Bootstrap Job)
+
+Only after these imports are visible in K-ORC can the c5c3-operator create new resources
+(Services, Endpoints, Service Users, Application Credentials) with `managementPolicy: managed`.
+
+**Troubleshooting:**
+
+Common issues and diagnostic commands:
+
+| Issue | Diagnostic | Resolution |
+| ----- | ---------- | ---------- |
+| K-ORC cannot reach Keystone | `kubectl logs -n orc-system -l app=openstack-resource-controller` | Verify `clouds.yaml` secret and Keystone endpoint |
+| `clouds.yaml` secret missing | `kubectl get secret k-orc-clouds-yaml -n orc-system` | Check ESO/PushSecret pipeline |
+| Service already exists | Check K-ORC CRD status conditions | Use `managementPolicy: unmanaged` to import |
+| CRD stuck in Creating | `kubectl describe <crd-kind> <name> -n openstack` | Check dependency ordering and Keystone availability |
 
 ## Infrastructure Service Operators
 
