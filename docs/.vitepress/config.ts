@@ -63,6 +63,7 @@ export default defineConfig({
           { text: 'Libvirt Telemetry', link: '/15-observability/04-libvirt-telemetry' },
         ]
       },
+      { text: 'Brownfield Integration', link: '/16-brownfield-integration' },
       { text: 'Related Projects', link: '/A1-related-projects' },
     ],
     socialLinks: [

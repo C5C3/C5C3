@@ -106,34 +106,34 @@ The External Secrets Operator (ESO) runs in each cluster and synchronizes secret
 
 ## Complete Secret Inventory
 
-| Secret Type                   | OpenBao Path                            | Engine | Consumer(s)                           | Cluster       |
-| ----------------------------- | --------------------------------------- | ------ | ------------------------------------- | ------------- |
-| Keystone Admin Password       | `kv-v2/bootstrap/keystone-admin`        | KV v2  | Keystone Bootstrap Job                | Control Plane |
-| Service User Passwords        | `kv-v2/bootstrap/service-passwords`     | KV v2  | c5c3-operator                         | Control Plane |
-| K-ORC Service User Password   | `kv-v2/openstack/k-orc/credentials`     | KV v2  | c5c3-operator (creates Keystone User) | Control Plane |
-| MariaDB Root Credentials      | `kv-v2/infrastructure/mariadb`          | KV v2  | MariaDB Operator                      | Control Plane |
-| RabbitMQ Credentials          | `kv-v2/infrastructure/rabbitmq`         | KV v2  | RabbitMQ Operator                     | Control Plane |
-| Valkey Auth                   | `kv-v2/infrastructure/valkey`           | KV v2  | Valkey Operator                       | Control Plane |
-| Nova DB Credentials           | `kv-v2/openstack/nova/db`               | KV v2  | Nova API                              | Control Plane |
-| Neutron DB Credentials        | `kv-v2/openstack/neutron/db`            | KV v2  | Neutron API                           | Control Plane |
-| Glance DB Credentials         | `kv-v2/openstack/glance/db`             | KV v2  | Glance API                            | Control Plane |
-| Cinder DB Credentials         | `kv-v2/openstack/cinder/db`             | KV v2  | Cinder API                            | Control Plane |
-| Nova Application Credential      | `kv-v2/openstack/nova/app-credential`      | KV v2  | nova-operator (via c5c3-operator)     | Control Plane |
-| Neutron Application Credential   | `kv-v2/openstack/neutron/app-credential`   | KV v2  | neutron-operator (via c5c3-operator)  | Control Plane |
-| Glance Application Credential    | `kv-v2/openstack/glance/app-credential`    | KV v2  | glance-operator (via c5c3-operator)   | Control Plane |
-| Cinder Application Credential    | `kv-v2/openstack/cinder/app-credential`    | KV v2  | cinder-operator (via c5c3-operator)   | Control Plane |
-| Placement Application Credential | `kv-v2/openstack/placement/app-credential` | KV v2  | placement-operator (via c5c3-operator)| Control Plane |
-| K-ORC Application Credential     | `kv-v2/openstack/k-orc/app-credential`     | KV v2  | K-ORC Controller                      | Control Plane |
-| Cortex Application Credential    | `kv-v2/openstack/cortex/app-credential`    | KV v2  | Cortex                                | Control Plane |
-| Ceph Client Key (Nova)        | `kv-v2/ceph/client-nova`                | KV v2  | Nova Compute, KVM Node Agent          | Hypervisor    |
-| Ceph Client Key (Cinder)      | `kv-v2/ceph/client-cinder`              | KV v2  | Cinder Volume                         | Control Plane |
-| Ceph Client Key (Glance)      | `kv-v2/ceph/client-glance`              | KV v2  | Glance API                            | Control Plane |
-| Nova Compute Credentials      | `kv-v2/openstack/nova/compute-config`   | KV v2  | Nova Compute Agent                    | Hypervisor    |
-| OVN Config                    | `kv-v2/openstack/ovn/config`            | KV v2  | ovn-controller                        | Hypervisor    |
-| Kubeconfig Control Plane      | `kv-v2/infrastructure/kubeconfig-cp`    | KV v2  | FluxCD                                | Management    |
-| Kubeconfig Hypervisor         | `kv-v2/infrastructure/kubeconfig-hv`    | KV v2  | FluxCD                                | Management    |
-| Kubeconfig Storage            | `kv-v2/infrastructure/kubeconfig-st`    | KV v2  | FluxCD                                | Management    |
-| TLS Certificates              | `pki/issue/openstack-internal`          | PKI    | OpenStack APIs                        | Control Plane |
+| Secret Type                      | OpenBao Path                               | Engine | Consumer(s)                            | Cluster       |
+| -------------------------------- | ------------------------------------------ | ------ | -------------------------------------- | ------------- |
+| Keystone Admin Password          | `kv-v2/bootstrap/keystone-admin`           | KV v2  | Keystone Bootstrap Job                 | Control Plane |
+| Service User Passwords           | `kv-v2/bootstrap/service-passwords`        | KV v2  | c5c3-operator                          | Control Plane |
+| K-ORC Service User Password      | `kv-v2/openstack/k-orc/credentials`        | KV v2  | c5c3-operator (creates Keystone User)  | Control Plane |
+| MariaDB Root Credentials         | `kv-v2/infrastructure/mariadb`             | KV v2  | MariaDB Operator                       | Control Plane |
+| RabbitMQ Credentials             | `kv-v2/infrastructure/rabbitmq`            | KV v2  | RabbitMQ Operator                      | Control Plane |
+| Valkey Auth                      | `kv-v2/infrastructure/valkey`              | KV v2  | Valkey Operator                        | Control Plane |
+| Nova DB Credentials              | `kv-v2/openstack/nova/db`                  | KV v2  | Nova API                               | Control Plane |
+| Neutron DB Credentials           | `kv-v2/openstack/neutron/db`               | KV v2  | Neutron API                            | Control Plane |
+| Glance DB Credentials            | `kv-v2/openstack/glance/db`                | KV v2  | Glance API                             | Control Plane |
+| Cinder DB Credentials            | `kv-v2/openstack/cinder/db`                | KV v2  | Cinder API                             | Control Plane |
+| Nova Application Credential      | `kv-v2/openstack/nova/app-credential`      | KV v2  | nova-operator (via c5c3-operator)      | Control Plane |
+| Neutron Application Credential   | `kv-v2/openstack/neutron/app-credential`   | KV v2  | neutron-operator (via c5c3-operator)   | Control Plane |
+| Glance Application Credential    | `kv-v2/openstack/glance/app-credential`    | KV v2  | glance-operator (via c5c3-operator)    | Control Plane |
+| Cinder Application Credential    | `kv-v2/openstack/cinder/app-credential`    | KV v2  | cinder-operator (via c5c3-operator)    | Control Plane |
+| Placement Application Credential | `kv-v2/openstack/placement/app-credential` | KV v2  | placement-operator (via c5c3-operator) | Control Plane |
+| K-ORC Application Credential     | `kv-v2/openstack/k-orc/app-credential`     | KV v2  | K-ORC Controller                       | Control Plane |
+| Cortex Application Credential    | `kv-v2/openstack/cortex/app-credential`    | KV v2  | Cortex                                 | Control Plane |
+| Ceph Client Key (Nova)           | `kv-v2/ceph/client-nova`                   | KV v2  | Nova Compute, KVM Node Agent           | Hypervisor    |
+| Ceph Client Key (Cinder)         | `kv-v2/ceph/client-cinder`                 | KV v2  | Cinder Volume                          | Control Plane |
+| Ceph Client Key (Glance)         | `kv-v2/ceph/client-glance`                 | KV v2  | Glance API                             | Control Plane |
+| Nova Compute Credentials         | `kv-v2/openstack/nova/compute-config`      | KV v2  | Nova Compute Agent                     | Hypervisor    |
+| OVN Config                       | `kv-v2/openstack/ovn/config`               | KV v2  | ovn-controller                         | Hypervisor    |
+| Kubeconfig Control Plane         | `kv-v2/infrastructure/kubeconfig-cp`       | KV v2  | FluxCD                                 | Management    |
+| Kubeconfig Hypervisor            | `kv-v2/infrastructure/kubeconfig-hv`       | KV v2  | FluxCD                                 | Management    |
+| Kubeconfig Storage               | `kv-v2/infrastructure/kubeconfig-st`       | KV v2  | FluxCD                                 | Management    |
+| TLS Certificates                 | `pki/issue/openstack-internal`             | PKI    | OpenStack APIs                         | Control Plane |
 
 ## Multi-Cluster Secret Distribution
 
