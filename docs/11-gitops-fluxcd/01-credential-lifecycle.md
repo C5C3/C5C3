@@ -620,7 +620,7 @@ K-ORC creates Application Credentials not only for its own authentication but fo
 
 * **Least Privilege**: Application Credentials cannot create further credentials
 * **Rotatable**: Automatic rotation via `CredentialRotation` CRD with zero-downtime
-* **Expirable**: Built-in expiration dates enforced by Keystone
+* **Time-limited**: Built-in expiration dates enforced by Keystone
 * **Revocable**: Instant revocation without deleting the service user
 * **Auditable**: Every credential stored and versioned in OpenBao KV v2
 

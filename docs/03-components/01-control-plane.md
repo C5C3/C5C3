@@ -1543,7 +1543,7 @@ spec:
 
 * **`unmanaged`**: K-ORC imports an existing OpenStack resource as read-only via filters (name, tags, ID).
   K-ORC does not modify or delete the resource. Status reflects the external state.
-  Use for: Brownfield deployments, shared resources managed by other tools.
+  Use for: Brownfield deployments (see [Brownfield Integration](../16-brownfield-integration.md)), shared resources managed by other tools.
 
 **Deployment (HelmRelease):**
 
