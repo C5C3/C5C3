@@ -458,8 +458,9 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    serviceUserRef:
-      name: glance
+    # Application Credential from K-ORC via OpenBao + ESO
+    appCredentialRef:
+      secretName: glance-keystone-credentials  # Created by ExternalSecret
 
   storage:
     backend: rbd
@@ -527,8 +528,9 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    serviceUserRef:
-      name: placement
+    # Application Credential from K-ORC via OpenBao + ESO
+    appCredentialRef:
+      secretName: placement-keystone-credentials  # Created by ExternalSecret
 
   dependsOn:
     - kind: Keystone
@@ -599,8 +601,9 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    serviceUserRef:
-      name: nova
+    # Application Credential from K-ORC via OpenBao + ESO
+    appCredentialRef:
+      secretName: nova-keystone-credentials  # Created by ExternalSecret
 
   # Service-to-Service Authentication
   serviceAuth:
@@ -694,8 +697,9 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    serviceUserRef:
-      name: neutron
+    # Application Credential from K-ORC via OpenBao + ESO
+    appCredentialRef:
+      secretName: neutron-keystone-credentials  # Created by ExternalSecret
 
   # OVN Backend Configuration
   ovn:
@@ -1038,8 +1042,9 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    serviceUserRef:
-      name: cinder
+    # Application Credential from K-ORC via OpenBao + ESO
+    appCredentialRef:
+      secretName: cinder-keystone-credentials  # Created by ExternalSecret
 
   # Ceph RBD Backend
   backends:
