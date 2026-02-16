@@ -533,10 +533,10 @@ K-ORC requires credentials for accessing OpenStack APIs. Using Application Crede
 │  2. c5c3-operator reads password                                              │
 │     └──▶ Creates Keystone User "k-orc" with password                          │
 │                                                                               │
-│  3. c5c3-operator creates Application Credential                              │
-│     └──▶ Keystone returns credential ID + secret                              │
+│  3. c5c3-operator creates K-ORC ApplicationCredential CR                      │
+│     └──▶ K-ORC reconciles → Keystone returns credential ID + secret           │
 │                                                                               │
-│  4. K-ORC writes credential to Kubernetes Secret                              │
+│  4. K-ORC writes clouds.yaml to Kubernetes Secret                             │
 │     └──▶ Secret: k-orc-app-credential (namespace: openstack)                  │
 │                                                                               │
 │  5. PushSecret writes Secret to OpenBao                                       │
@@ -564,6 +564,8 @@ K-ORC requires credentials for accessing OpenStack APIs. Using Application Crede
 │                                                                               │
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
+
+> **See also:** [K-ORC Credential Management](../03-components/01-control-plane.md#openstack-resource-controller-k-orc) for the concrete PushSecret and ExternalSecret manifests that implement steps 5–6.
 
 ## Cross-Cluster Secret Synchronization
 
