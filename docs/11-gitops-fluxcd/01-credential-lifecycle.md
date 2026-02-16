@@ -44,19 +44,20 @@ Managing credentials in a multi-cluster OpenStack environment requires a thought
 
 ## Credential Types and Sources
 
-| Secret Type              | Source         | Created By                  | Distributed By   | Consumer             |
-| ------------------------ | -------------- | --------------------------- | ---------------- | -------------------- |
-| Admin Password           | OpenBao        | Manual / CI-CD              | ESO              | Keystone Bootstrap   |
-| Service User Passwords   | OpenBao        | Manual / CI-CD              | ESO              | c5c3-operator        |
-| Service Users (Keystone) | Keystone       | c5c3-operator               | -                | OpenStack Services   |
-| Application Credentials  | Keystone       | c5c3-operator (via K-ORC)   | PushSecret + ESO | K-ORC, Cortex        |
-| clouds.yaml (K-ORC)      | K-ORC          | K-ORC                       | PushSecret + ESO | K-ORC Controller     |
-| Keystone Services        | Keystone       | c5c3-operator (via K-ORC)   | -                | Service Catalog      |
-| Keystone Endpoints       | Keystone       | c5c3-operator (via K-ORC)   | -                | Service Catalog      |
-| clouds.yaml (Compute)    | c5c3-operator  | c5c3-operator               | ESO              | Nova Compute         |
-| Ceph Auth Keys           | Rook           | Rook Operator               | PushSecret + ESO | Cinder, Glance, Nova |
-| Libvirt Ceph Secret      | KVM Node Agent | KVM Node Agent              | -                | LibVirt/KVM          |
-| Infrastructure Secrets   | Operators      | MariaDB/RabbitMQ/Valkey Op. | c5c3-operator    | OpenStack Services   |
+| Secret Type                     | Source         | Created By                  | Distributed By   | Consumer                                   |
+| ------------------------------- | -------------- | --------------------------- | ---------------- | ------------------------------------------ |
+| Admin Password                  | OpenBao        | Manual / CI-CD              | ESO              | Keystone Bootstrap                         |
+| Service User Passwords          | OpenBao        | Manual / CI-CD              | ESO              | c5c3-operator (initial user creation only) |
+| Service Users (Keystone)        | Keystone       | K-ORC                       | -                | OpenStack Services                         |
+| Service Application Credentials | Keystone       | K-ORC                       | PushSecret + ESO | Service Operators (Glance, Nova, …)        |
+| K-ORC Application Credential    | Keystone       | K-ORC                       | PushSecret + ESO | K-ORC Controller                           |
+| Cortex Application Credential   | Keystone       | K-ORC                       | PushSecret + ESO | Cortex                                     |
+| Keystone Services               | Keystone       | K-ORC                       | -                | Service Catalog                            |
+| Keystone Endpoints              | Keystone       | K-ORC                       | -                | Service Catalog                            |
+| clouds.yaml (Compute)           | c5c3-operator  | c5c3-operator               | ESO              | Nova Compute                               |
+| Ceph Auth Keys                  | Rook           | Rook Operator               | PushSecret + ESO | Cinder, Glance, Nova                       |
+| Libvirt Ceph Secret             | KVM Node Agent | KVM Node Agent              | -                | LibVirt/KVM                                |
+| Infrastructure Secrets          | Operators      | MariaDB/RabbitMQ/Valkey Op. | c5c3-operator    | OpenStack Services                         |
 
 ## Bootstrap Problem and Solution Architecture
 
@@ -434,7 +435,10 @@ spec:
             name: keystone-admin-credentials
             key: password
 
-        # Service Users automatically created
+        # Service Users — each gets an Application Credential via K-ORC.
+        # The passwordSecretRef is only used for initial user creation;
+        # all runtime authentication uses Application Credentials
+        # distributed via PushSecret → OpenBao → ESO.
         serviceUsers:
           - name: nova
             project: service
@@ -442,6 +446,12 @@ spec:
             passwordSecretRef:
               name: openstack-service-passwords
               key: nova-password
+            applicationCredential:
+              enabled: true
+              name: nova-app-credential
+              targetSecretRef:
+                name: nova-app-credential
+                namespace: openstack
 
           - name: neutron
             project: service
@@ -449,6 +459,12 @@ spec:
             passwordSecretRef:
               name: openstack-service-passwords
               key: neutron-password
+            applicationCredential:
+              enabled: true
+              name: neutron-app-credential
+              targetSecretRef:
+                name: neutron-app-credential
+                namespace: openstack
 
           - name: glance
             project: service
@@ -456,6 +472,12 @@ spec:
             passwordSecretRef:
               name: openstack-service-passwords
               key: glance-password
+            applicationCredential:
+              enabled: true
+              name: glance-app-credential
+              targetSecretRef:
+                name: glance-app-credential
+                namespace: openstack
 
           - name: cinder
             project: service
@@ -463,6 +485,12 @@ spec:
             passwordSecretRef:
               name: openstack-service-passwords
               key: cinder-password
+            applicationCredential:
+              enabled: true
+              name: cinder-app-credential
+              targetSecretRef:
+                name: cinder-app-credential
+                namespace: openstack
 
           - name: placement
             project: service
@@ -470,8 +498,14 @@ spec:
             passwordSecretRef:
               name: openstack-service-passwords
               key: placement-password
+            applicationCredential:
+              enabled: true
+              name: placement-app-credential
+              targetSecretRef:
+                name: placement-app-credential
+                namespace: openstack
 
-          # K-ORC Service User with Application Credential
+          # K-ORC Service User
           - name: k-orc
             project: service
             roles: [admin]
@@ -507,6 +541,17 @@ status:
       - name: nova
         status: Ready
         userID: "abc123..."
+        applicationCredential:
+          status: Ready
+          credentialID: "aaa111..."
+          expiresAt: "2024-04-15T00:00:00Z"
+      - name: glance
+        status: Ready
+        userID: "bbb222..."
+        applicationCredential:
+          status: Ready
+          credentialID: "ccc333..."
+          expiresAt: "2024-04-15T00:00:00Z"
       - name: k-orc
         status: Ready
         userID: "def456..."
@@ -566,6 +611,179 @@ K-ORC requires credentials for accessing OpenStack APIs. Using Application Crede
 ```
 
 > **See also:** [K-ORC Credential Management](../03-components/01-control-plane.md#openstack-resource-controller-k-orc) for the concrete PushSecret and ExternalSecret manifests that implement steps 5–6.
+
+## Application Credential Distribution to Service Operators
+
+K-ORC creates Application Credentials not only for its own authentication but for **all OpenStack service users** (Glance, Nova, Neutron, Cinder, Placement). These flow through OpenBao + ESO to the service operator deployments. The service user passwords from OpenBao are only used for initial user creation in Keystone — all runtime authentication uses Application Credentials.
+
+**Advantages over direct password auth:**
+
+* **Least Privilege**: Application Credentials cannot create further credentials
+* **Rotatable**: Automatic rotation via `CredentialRotation` CRD with zero-downtime
+* **Expirable**: Built-in expiration dates enforced by Keystone
+* **Revocable**: Instant revocation without deleting the service user
+* **Auditable**: Every credential stored and versioned in OpenBao KV v2
+
+```text
+┌───────────────────────────────────────────────────────────────────────────────┐
+│        APPLICATION CREDENTIAL DISTRIBUTION (K-ORC → OpenBao → Service)        │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  CONTROL PLANE CLUSTER                                                        │
+│                                                                               │
+│  ┌──────────────────────┐     ┌──────────────────────┐                        │
+│  │ c5c3-operator        │     │ K-ORC                │                        │
+│  │                      │     │ (orc-system)         │                        │
+│  │ Creates K-ORC CRs:   │     │                      │                        │
+│  │ ApplicationCredential│────▶│ Reconciles CRs:      │                        │
+│  │ for each service     │     │ Creates AppCred in   │                        │
+│  │ (nova, glance, ...)  │     │ Keystone, writes     │                        │
+│  │                      │     │ result to K8s Secret │                        │
+│  └──────────────────────┘     └──────────┬───────────┘                        │
+│                                          │                                    │
+│              K8s Secrets (namespace: openstack):                              │
+│              nova-app-credential, glance-app-credential,                      │
+│              neutron-app-credential, cinder-app-credential, ...               │
+│                                          │                                    │
+│                                          ▼                                    │
+│  ┌───────────────────────────────────────────────────────────────────────┐    │
+│  │                    PushSecrets (per service)                          │    │
+│  │                                                                       │    │
+│  │  nova-app-credential     ──▶  kv-v2/openstack/nova/app-credential     │    │
+│  │  glance-app-credential   ──▶  kv-v2/openstack/glance/app-credential   │    │
+│  │  neutron-app-credential  ──▶  kv-v2/openstack/neutron/app-credential  │    │
+│  │  cinder-app-credential   ──▶  kv-v2/openstack/cinder/app-credential   │    │
+│  │  placement-app-credential──▶  kv-v2/openstack/placement/app-credential│    │
+│  │  k-orc-app-credential    ──▶  kv-v2/openstack/k-orc/app-credential    │    │
+│  │  cortex-app-credential   ──▶  kv-v2/openstack/cortex/app-credential   │    │
+│  └───────────────────────────────────────┬───────────────────────────────┘    │
+│                                          │                                    │
+└──────────────────────────────────────────┼────────────────────────────────────┘
+                                           │
+                                           ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                         OpenBao (Management Cluster)                          │
+│                                                                               │
+│  kv-v2/openstack/nova/app-credential                                          │
+│  kv-v2/openstack/glance/app-credential                                        │
+│  kv-v2/openstack/neutron/app-credential                                       │
+│  kv-v2/openstack/cinder/app-credential                                        │
+│  kv-v2/openstack/placement/app-credential                                     │
+│  kv-v2/openstack/k-orc/app-credential                                         │
+│  kv-v2/openstack/cortex/app-credential                                        │
+│                                                                               │
+└───────────────────────────────────────────┬───────────────────────────────────┘
+                                            │
+                                            ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                    ESO ExternalSecrets (per service)                          │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  CONTROL PLANE CLUSTER                                                        │
+│  ┌───────────────────────────────────────────────────────────────────────┐    │
+│  │  ExternalSecret → K8s Secret (namespace: openstack)                   │    │
+│  │                                                                       │    │
+│  │  nova-keystone-credentials      ← kv-v2/openstack/nova/app-credential │    │
+│  │  glance-keystone-credentials    ← kv-v2/openstack/glance/app-cred.    │    │
+│  │  neutron-keystone-credentials   ← kv-v2/openstack/neutron/app-cred.   │    │
+│  │  cinder-keystone-credentials    ← kv-v2/openstack/cinder/app-cred.    │    │
+│  │  placement-keystone-credentials ← kv-v2/openstack/placement/app-cred. │    │
+│  └───────────────────────────────────────────────────────────────────────┘    │
+│                                          │                                    │
+│                                          ▼                                    │
+│  ┌───────────────────────────────────────────────────────────────────────┐    │
+│  │  c5c3-operator: Config Rendering                                      │    │
+│  │                                                                       │    │
+│  │  Reads Application Credential from K8s Secret                         │    │
+│  │  Renders [keystone_authtoken] with:                                   │    │
+│  │    auth_type = v3applicationcredential                                │    │
+│  │    application_credential_id = <from secret>                          │    │
+│  │    application_credential_secret = <from secret>                      │    │
+│  └───────────────────────────────────────────────────────────────────────┘    │
+│                                          │                                    │
+│                                          ▼                                    │
+│  ┌───────────────────────────────────────────────────────────────────────┐    │
+│  │  Service Operators deploy with rendered config                        │    │
+│  │                                                                       │    │
+│  │  glance-operator  → Glance API Pods (glance-api.conf)                 │    │
+│  │  nova-operator    → Nova API/Scheduler/Conductor Pods (nova.conf)     │    │
+│  │  neutron-operator → Neutron API Pods (neutron.conf)                   │    │
+│  │  cinder-operator  → Cinder API/Scheduler Pods (cinder.conf)           │    │
+│  └───────────────────────────────────────────────────────────────────────┘    │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Concrete Example — Glance Application Credential:**
+
+```yaml
+# 1. c5c3-operator creates K-ORC ApplicationCredential CR
+apiVersion: openstack.k-orc.cloud/v1alpha1
+kind: ApplicationCredential
+metadata:
+  name: glance-app-credential
+  namespace: openstack
+spec:
+  cloudCredentialsRef:
+    cloudName: openstack
+    secretName: k-orc-clouds-yaml
+  resource:
+    name: glance-app-credential
+    description: "Glance service authentication"
+    userRef:
+      name: glance  # K-ORC User CR
+    roles:
+      - name: admin
+      - name: service
+
+---
+# 2. PushSecret pushes K-ORC-created Secret to OpenBao
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: glance-app-credential
+  namespace: openstack
+spec:
+  secretStoreRefs:
+    - name: openbao-cluster-store
+      kind: ClusterSecretStore
+  selector:
+    secret:
+      name: glance-app-credential  # Written by K-ORC
+  data:
+    - match:
+        secretKey: clouds.yaml
+        remoteRef:
+          remoteKey: kv-v2/data/openstack/glance/app-credential
+          property: clouds.yaml
+
+---
+# 3. ExternalSecret reads from OpenBao → K8s Secret for glance-operator
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: glance-keystone-credentials
+  namespace: openstack
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: openbao-cluster-store
+    kind: ClusterSecretStore
+  target:
+    name: glance-keystone-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: application_credential_id
+      remoteRef:
+        key: kv-v2/data/openstack/glance/app-credential
+        property: application_credential_id
+    - secretKey: application_credential_secret
+      remoteRef:
+        key: kv-v2/data/openstack/glance/app-credential
+        property: application_credential_secret
+```
+
+The c5c3-operator watches `glance-keystone-credentials` and renders the Glance configuration with Application Credential auth. The glance-operator then deploys the Glance API pods with the rendered configuration. The same pattern applies to all OpenStack service operators.
 
 ## Cross-Cluster Secret Synchronization
 
@@ -722,7 +940,7 @@ The c5c3-operator aggregates all secrets and renders OpenStack configuration fil
 │  │      data := map[string]interface{}{                                    │  │
 │  │          "Database":  r.secretStore.Get("mariadb"),                     │  │
 │  │          "RabbitMQ":  r.secretStore.Get("rabbitmq"),                    │  │
-│  │          "Keystone":  r.secretStore.Get("keystone-service-user"),       │  │
+│  │          "AppCred":   r.secretStore.Get("nova-keystone-credentials"),   │  │
 │  │          "Ceph":      r.secretStore.Get("ceph-client-nova"),            │  │
 │  │          "Spec":      r.controlPlane.Spec.OpenStack.Nova,               │  │
 │  │      }                                                                  │  │
@@ -748,9 +966,10 @@ The c5c3-operator aggregates all secrets and renders OpenStack configuration fil
 │  │      rabbit_password = yyyyy                                            │  │
 │  │                                                                         │  │
 │  │      [keystone_authtoken]                                               │  │
-│  │      auth_url = http://keystone:5000                                    │  │
-│  │      username = nova                                                    │  │
-│  │      password = zzzzz                                                   │  │
+│  │      auth_url = https://keystone:5000                                   │  │
+│  │      auth_type = v3applicationcredential                                │  │
+│  │      application_credential_id = abc123...                              │  │
+│  │      application_credential_secret = xyz789...                          │  │
 │  │                                                                         │  │
 │  │      [libvirt]                                                          │  │
 │  │      rbd_user = nova                                                    │  │
@@ -873,26 +1092,27 @@ status:
 │  • k-orc-password, cortex-password                                            │
 │  • Versioned in KV v2, audit log, policy-based access control                 │
 │                                                                               │
-│  LAYER 2: c5c3-operator (Keystone Integration)                                │
-│  ─────────────────────────────────────────────                                │
+│  LAYER 2: K-ORC + c5c3-operator (Keystone Integration)                        │
+│  ─────────────────────────────────────────────────────                        │
 │  • Bootstrap Keystone (Admin, Service Project, Roles)                         │
-│  • Create Keystone Services + Endpoints for all OpenStack services            │
-│  • Create/Update Service Users with passwords from OpenBao (via ESO)          │
-│  • Create Application Credentials for K-ORC, Cortex, etc.                     │
+│  • K-ORC creates Keystone Services + Endpoints                                │
+│  • K-ORC creates Service Users (passwords only for initial creation)          │
+│  • K-ORC creates Application Credentials for ALL services                     │
 │  • PushSecrets write AppCredentials to OpenBao                                │
 │  • ESO provides AppCredential secrets in target namespaces                    │
-│  • Manage Credential Rotation                                                 │
+│  • c5c3-operator renders service configs with AppCredential auth              │
+│  • CredentialRotation CRD manages automatic rotation                          │
 │                                                                               │
 │  LAYER 3: ESO + OpenBao (Cross-Cluster Sync)                                  │
 │  ────────────────────────────────────────────                                 │
-│  • PushSecret: Operator-generated Secrets → OpenBao                           │
+│  • PushSecret: K-ORC AppCredentials + Operator Secrets → OpenBao              │
 │  • ExternalSecret: OpenBao → K8s Secrets in target clusters                   │
-│  • Sync clouds.yaml, nova-compute-credentials, ceph-client-*                  │
+│  • Sync AppCredentials, nova-compute-credentials, ceph-client-*               │
 │                                                                               │
 │  LAYER 4: Config Rendering (c5c3-operator)                                    │
 │  ─────────────────────────────────────────                                    │
-│  • Aggregates all Secrets (Infrastructure + Ceph + Service Users)             │
-│  • Renders nova.conf, neutron.conf, etc. with credentials                     │
+│  • Aggregates all Secrets (Infrastructure + Ceph + AppCredentials)            │
+│  • Renders nova.conf, neutron.conf, etc. with AppCredential auth              │
 │  • Injects rendered configs into Service Pods                                 │
 │                                                                               │
 └───────────────────────────────────────────────────────────────────────────────┘

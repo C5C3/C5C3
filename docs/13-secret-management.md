@@ -118,8 +118,13 @@ The External Secrets Operator (ESO) runs in each cluster and synchronizes secret
 | Neutron DB Credentials        | `kv-v2/openstack/neutron/db`            | KV v2  | Neutron API                           | Control Plane |
 | Glance DB Credentials         | `kv-v2/openstack/glance/db`             | KV v2  | Glance API                            | Control Plane |
 | Cinder DB Credentials         | `kv-v2/openstack/cinder/db`             | KV v2  | Cinder API                            | Control Plane |
-| K-ORC Application Credential  | `kv-v2/openstack/k-orc/app-credential`  | KV v2  | K-ORC Controller                      | Control Plane |
-| Cortex Application Credential | `kv-v2/openstack/cortex/app-credential` | KV v2  | Cortex                                | Control Plane |
+| Nova Application Credential      | `kv-v2/openstack/nova/app-credential`      | KV v2  | nova-operator (via c5c3-operator)     | Control Plane |
+| Neutron Application Credential   | `kv-v2/openstack/neutron/app-credential`   | KV v2  | neutron-operator (via c5c3-operator)  | Control Plane |
+| Glance Application Credential    | `kv-v2/openstack/glance/app-credential`    | KV v2  | glance-operator (via c5c3-operator)   | Control Plane |
+| Cinder Application Credential    | `kv-v2/openstack/cinder/app-credential`    | KV v2  | cinder-operator (via c5c3-operator)   | Control Plane |
+| Placement Application Credential | `kv-v2/openstack/placement/app-credential` | KV v2  | placement-operator (via c5c3-operator)| Control Plane |
+| K-ORC Application Credential     | `kv-v2/openstack/k-orc/app-credential`     | KV v2  | K-ORC Controller                      | Control Plane |
+| Cortex Application Credential    | `kv-v2/openstack/cortex/app-credential`    | KV v2  | Cortex                                | Control Plane |
 | Ceph Client Key (Nova)        | `kv-v2/ceph/client-nova`                | KV v2  | Nova Compute, KVM Node Agent          | Hypervisor    |
 | Ceph Client Key (Cinder)      | `kv-v2/ceph/client-cinder`              | KV v2  | Cinder Volume                         | Control Plane |
 | Ceph Client Key (Glance)      | `kv-v2/ceph/client-glance`              | KV v2  | Glance API                            | Control Plane |
