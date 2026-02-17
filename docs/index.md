@@ -72,6 +72,8 @@ ghcr.io/c5c3/<service>:<upstream-version>
 
 OpenStack Release: **2025.2 (Flamingo)**
 
+Container images are built as Multi-Stage OCI images using `uv` as the Python package manager. They support structured patching (Service-Patches, Library-Patches, Constraint-Overrides) without requiring repository forks. Details: [Container Images](./17-container-images/).
+
 Container images are tagged with the **upstream project version** (not the release series). The following table shows the currently integrated components (exemplary, additional services will be added incrementally):
 
 | Component  | Upstream Version | Image                           |
