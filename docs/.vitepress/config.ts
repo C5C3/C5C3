@@ -75,7 +75,13 @@ export default defineConfig({
           { text: 'SBOM', link: '/17-container-images/04-sbom' },
         ]
       },
-      { text: 'Related Projects', link: '/A1-related-projects' },
+      {
+        text: 'Appendix',
+        collapsed: false,
+        items: [
+          { text: 'Related Projects', link: '/A1-related-projects' },
+        ]
+      },
     ],
     socialLinks: [
       { icon: 'github', link: 'https://github.com/C5C3/C5C3' },
