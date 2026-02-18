@@ -417,6 +417,8 @@ status:
   endpoint: https://keystone.openstack.svc.cluster.local:5000
 ```
 
+> **Note:** The `image.tag` field accepts upstream version tags (e.g., `28.0.0`), patch revision tags (e.g., `28.0.0-p1`), branch tags (e.g., `stable-2025.2`), and commit SHA tags (e.g., `a1b2c3d`). For the full tag schema and versioning details, see [Container Images — Tag Schema](../17-container-images/02-versioning.md#tag-schema).
+>
 > **Note:** Service users, application credentials, Keystone services, and endpoints are
 > not managed by the keystone-operator, but via K-ORC CRs (see [K-ORC](#openstack-resource-controller-k-orc)).
 
@@ -1765,7 +1767,7 @@ spec:
 
 ## Memcached (StatefulSet)
 
-**Note:** There is no mature production-ready operator for Memcached. Instead, a simple StatefulSet or Deployment is used.
+**Note:** There is no mature production-ready operator for Memcached. Instead, a simple StatefulSet or Deployment is used. Memcached uses the upstream Docker Hub image (`memcached:1.6`) directly — infrastructure services like Memcached, MariaDB, RabbitMQ, and Valkey are not built by C5C3 (see [Container Images](../17-container-images/#container-registry)).
 
 **Alternatives:**
 

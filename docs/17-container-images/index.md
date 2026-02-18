@@ -114,8 +114,12 @@ ghcr.io/c5c3/<service>:<tag>
 | Placement | 14.0.0 | `ghcr.io/c5c3/placement:14.0.0` |
 | OVN | 24.03.4 | `ghcr.io/c5c3/ovn:24.03.4` |
 | OVS | 3.4.1 | `ghcr.io/c5c3/ovs:3.4.1` |
+| Tempest | 41.0.0 | `ghcr.io/c5c3/tempest:41.0.0` |
+| Cortex | 0.5.0 | `ghcr.io/c5c3/cortex:0.5.0` |
 
-> **Note:** OVN and OVS are built from C source and follow a separate build pipeline. The Python-based pipeline described here applies to the OpenStack services (Keystone, Nova, Neutron, Glance, Cinder, Placement).
+> **Note:** OVN and OVS are built from C source and follow a separate build pipeline. Tempest and Cortex use their own build pipelines. The Python-based pipeline described here applies to the core OpenStack services (Keystone, Nova, Neutron, Glance, Cinder, Placement).
+>
+> **Note:** Infrastructure services (Memcached, MariaDB, RabbitMQ, Valkey) use upstream container images directly and are not built by C5C3. They are managed by their respective operators or StatefulSets (see [Infrastructure Service Operators](../03-components/01-control-plane.md#infrastructure-service-operators)).
 
 ## Further Reading
 

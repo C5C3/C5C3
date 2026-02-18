@@ -34,6 +34,7 @@ This documentation describes the **architecture and design** of CobaltCore. It c
 * **Multi-Cluster Architecture**: Strict separation of Management, Control Plane, Hypervisor, and Storage clusters for isolation and scalability
 * **GitOps-based Lifecycle Management**: [FluxCD](https://github.com/fluxcd/flux2) for declarative deployment, [OpenBao](https://github.com/openbao/openbao) for centralized secret management
 * **High Availability**: Automatic failover for VMs, Galera cluster for databases, Raft consensus for OVN
+* **Container Image Build Pipeline**: Custom OCI images built with [uv](https://github.com/astral-sh/uv), structured patching without repository forks, and signed SBOM attestation via Sigstore (see [Container Images](./17-container-images/))
 
 ## Optional and Future Extensions
 

@@ -84,7 +84,7 @@ export default defineConfig({
       },
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/C5C3/C5C3' },
+      { icon: 'github', link: 'https://github.com/c5c3/c5c3' },
     ],
   },
 })

@@ -2,7 +2,7 @@
 
 ## Versioning Strategy
 
-CobaltCore uses **upstream project versions** as image tags, not the OpenStack release series. The current version table is located in the [README](index.md#container-registry).
+CobaltCore uses **upstream project versions** as image tags, not the OpenStack release series. The current version table and tag schema are documented in [Container Images — Container Registry](17-container-images/#container-registry). For details on branch strategy and automated updates, see [Container Images — Versioning](17-container-images/02-versioning.md).
 
 **OpenStack Release Cadence:**
 
@@ -99,6 +99,19 @@ Each Service-Operator automatically performs the following steps during an upgra
 2. **DB Schema Migration**: The operator starts a `db-sync` job with the new image. This executes Alembic migrations (Expand/Contract pattern)
 3. **Config Rendering**: The ConfigMap with the service configuration is updated if needed
 4. **Rolling Update**: The API/Worker Pods are updated with the new image and configuration via Rolling Update
+
+## Patch Revision Upgrades
+
+In addition to upstream version upgrades, CobaltCore supports **patch revision upgrades** — rebuilds of the same upstream version with additional patches applied. Patch revisions use the tag format `<upstream-version>-p<N>` (e.g., `28.0.0-p1`).
+
+A patch revision upgrade follows the same flow as a regular upgrade (image tag update → db-sync → rolling update), but typically only the rolling update is needed since the database schema does not change between patch revisions.
+
+```text
+28.0.0  →  28.0.0-p1  →  28.0.0-p2    (patch revisions, same upstream code)
+28.0.0  →  29.0.0                       (upstream version upgrade)
+```
+
+For details on how patch revisions are created and when they are used, see [Container Images — Patching](17-container-images/03-patching.md).
 
 ## DB Schema Migration (db-sync)
 
