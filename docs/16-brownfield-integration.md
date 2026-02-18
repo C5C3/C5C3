@@ -762,6 +762,9 @@ Migrate services one at a time from brownfield to CobaltCore. For each service:
 | 5 | Neutron | Network service, can coexist during transition |
 | 6 | Cinder | Block storage, migrate last due to data migration complexity |
 
+> **Note:** CobaltCore's [multi-release container image builds](17-container-images/02-versioning.md) simplify the transition: a single C5C3 branch can produce images for both the brownfield's current OpenStack release and the target release.
+> Combined with the [patching mechanism](17-container-images/03-patching.md), this allows applying critical fixes to the brownfield release images during migration without waiting for the full transition to complete.
+
 **Example: Transitioning a User from unmanaged → managed**
 
 Before (imported from brownfield):

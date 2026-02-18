@@ -100,8 +100,7 @@ RUN python3 -m venv /var/lib/openstack
 
 # upper-constraints.txt is passed per release via build context
 # Common base packages for all services
-RUN /var/lib/openstack/bin/pip install uv && \
-    uv pip install --prefix /var/lib/openstack \
+RUN uv pip install --prefix /var/lib/openstack \
     cryptography \
     pymysql \
     python-memcached \
@@ -356,3 +355,7 @@ c5c3/c5c3/
     └── workflows/
         └── build-images.yaml
 ```
+
+## OVN/OVS Build Pipeline
+
+> **TODO:** OVN and OVS are built from C source and follow a separate build pipeline that is not based on the Python/uv workflow described above. Documentation for this pipeline will be added in a future revision.

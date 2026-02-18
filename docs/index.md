@@ -74,15 +74,4 @@ OpenStack Release: **2025.2 (Flamingo)**
 
 Container images are built as Multi-Stage OCI images using `uv` as the Python package manager. They support structured patching (Service-Patches, Library-Patches, Constraint-Overrides) without requiring repository forks. Details: [Container Images](./17-container-images/).
 
-Container images are tagged with the **upstream project version** (not the release series). The following table shows the currently integrated components (exemplary, additional services will be added incrementally):
-
-| Component  | Upstream Version | Image                           |
-| ---------- | ---------------- | ------------------------------- |
-| Keystone   | 28.0.0           | `ghcr.io/c5c3/keystone:28.0.0`  |
-| Nova       | 32.1.0           | `ghcr.io/c5c3/nova:32.1.0`      |
-| Neutron    | 27.0.1           | `ghcr.io/c5c3/neutron:27.0.1`   |
-| Glance     | 31.0.0           | `ghcr.io/c5c3/glance:31.0.0`    |
-| Cinder     | 27.0.0           | `ghcr.io/c5c3/cinder:27.0.0`    |
-| Placement  | 14.0.0           | `ghcr.io/c5c3/placement:14.0.0` |
-| OVN        | 24.03.4          | `ghcr.io/c5c3/ovn:24.03.4`      |
-| OVS        | 3.4.1            | `ghcr.io/c5c3/ovs:3.4.1`        |
+Container images are tagged with the **upstream project version** (not the release series). The full list of currently integrated components, the tag schema, and versioning details are maintained in [Container Images](./17-container-images/#container-registry).

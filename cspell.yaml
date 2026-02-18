@@ -167,6 +167,7 @@ words:
   - radosgw
   - Rados
   - RADOS
+  - renovatebot
   - SBOM
   - SBOMs
   - Sigstore
