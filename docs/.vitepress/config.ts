@@ -64,6 +64,17 @@ export default defineConfig({
         ]
       },
       { text: 'Brownfield Integration', link: '/16-brownfield-integration' },
+      {
+        text: 'Container Images',
+        collapsed: false,
+        items: [
+          { text: 'Overview', link: '/17-container-images/' },
+          { text: 'Build Pipeline', link: '/17-container-images/01-build-pipeline' },
+          { text: 'Versioning', link: '/17-container-images/02-versioning' },
+          { text: 'Patching', link: '/17-container-images/03-patching' },
+          { text: 'SBOM', link: '/17-container-images/04-sbom' },
+        ]
+      },
       { text: 'Related Projects', link: '/A1-related-projects' },
     ],
     socialLinks: [

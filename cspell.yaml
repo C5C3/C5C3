@@ -38,6 +38,8 @@ words:
   - apiextensions
   - applicationcredential
   - APIV
+  - anchore
+  - Anchore
   - appctl
   - approle
   - asctime
@@ -45,7 +47,11 @@ words:
   - BAREMETAL
   - baremetal
   - Baremetal
+  - bindep
   - binpacking
+  - attestations
+  - buildx
+  - cdxgen
   - brownfield
   - blockpool
   - Bxxxx
@@ -54,7 +60,10 @@ words:
   - cephfs
   - cephx
   - chardev
+  - CISA
   - cobaltcore
+  - cosign
+  - cyclonedx
   - controll
   - controlplane
   - controlplaneio
@@ -70,6 +79,8 @@ words:
   - crossplane
   - datapath
   - Descheduling
+  - Dockerfiles
+  - dpkg
   - dogpile
   - dpdk
   - DPDK
@@ -82,6 +93,7 @@ words:
   - fluxreport
   - fsfe
   - galera
+  - GHCR
   - Galera
   - gardenlinux
   - Gbps
@@ -89,6 +101,7 @@ words:
   - Geneve
   - gitops
   - Gophercloud
+  - Grype
   - gopsutil
   - hana
   - HANA
@@ -101,6 +114,8 @@ words:
   - Keyspace
   - KNOWLEDGES
   - Knowledges
+  - keystoneauth
+  - keystonemiddleware
   - Kolla
   - korc
   - kubeconf
@@ -112,8 +127,13 @@ words:
   - LACP
   - letsencrypt
   - levelname
+  - libffi
+  - libpq
+  - libssl
   - libvirtd
   - localnet
+  - LOCI
+  - OIDC
   - maint
   - Memtouch
   - memtouch
@@ -124,6 +144,7 @@ words:
   - mysqld
   - netdev
   - northd
+  - novaclient
   - NUMA
   - nvme
   - objectstore
@@ -137,18 +158,30 @@ words:
   - Postcopy
   - Provid
   - Prysm
+  - pedigree
+  - purl
+  - pypi
+  - pydep
   - pymemcache
   - pymysql
   - radosgw
   - Rados
   - RADOS
+  - SBOM
+  - SBOMs
+  - Sigstore
+  - SLSA
+  - SPDX
   - stefanzweifel
+  - Syft
   - storageclusters
   - traceparent
   - tracestate
   - valkey
   - Valkey
   - vaultpath
+  - Vexxhost
+  - venv
   - vcpu
   - vcpus
   - virsh
