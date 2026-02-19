@@ -2,12 +2,12 @@
 
 CobaltCore defines several Custom Resource Definitions (CRDs) for declarative management of hypervisors, evictions, migrations, storage arbiters, and network status. The following CRDs form the central API interface of the system.
 
-## Hypervisor CRD (`kvm.c5c3.io/v1`)
+## Hypervisor CRD (`hypervisor.c5c3.io/v1`)
 
-Represents a KVM hypervisor node in the cluster.
+Represents a hypervisor node in the cluster.
 
 ```yaml
-apiVersion: kvm.c5c3.io/v1
+apiVersion: hypervisor.c5c3.io/v1
 kind: Hypervisor
 metadata:
   name: hypervisor-001
@@ -38,7 +38,7 @@ status:
     cpus: "128"
   domainCapabilities:
     arch: "x86_64"
-    hypervisorType: "kvm"
+    hypervisorType: "kvm"             # "kvm" or "cloud-hypervisor"
     supportedDevices: ["video", "network"]
     supportedCpuModes: ["host-passthrough"]
     supportedFeatures: ["sev", "sgx"]
@@ -78,12 +78,12 @@ status:
 | `ha`          | High availability maintenance mode       |
 | `termination` | Internal mode during termination         |
 
-## Eviction CRD (`kvm.c5c3.io/v1`)
+## Eviction CRD (`hypervisor.c5c3.io/v1`)
 
 Represents an eviction request for a hypervisor.
 
 ```yaml
-apiVersion: kvm.c5c3.io/v1
+apiVersion: hypervisor.c5c3.io/v1
 kind: Eviction
 metadata:
   name: eviction-001
@@ -112,12 +112,12 @@ status:
 | `HypervisorDisabled`       | Hypervisor disabled          |
 | `Evicting`                 | Eviction status              |
 
-## Migration CRD (`kvm.c5c3.io/v1alpha1`)
+## Migration CRD (`hypervisor.c5c3.io/v1alpha1`)
 
 Represents an ongoing VM migration with detailed metrics.
 
 ```yaml
-apiVersion: kvm.c5c3.io/v1alpha1
+apiVersion: hypervisor.c5c3.io/v1alpha1
 kind: Migration
 metadata:
   name: migration-vm-001

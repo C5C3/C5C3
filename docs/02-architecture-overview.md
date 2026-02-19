@@ -4,12 +4,12 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 
 ## Cluster Overview and Provisioning
 
-| Cluster                   | Function           | Provisioning        | Infrastructure           |
-| ------------------------- | ------------------ | ------------------- | ------------------------ |
-| **Management Cluster**    | Observability & UI | Gardener            | On-Premises              |
-| **Control Plane Cluster** | Orchestration      | Gardener            | On-Premises              |
-| **Hypervisor Cluster**    | KVM Virtualization | IronCore → Gardener | On-Premises (Bare-Metal) |
-| **Storage Cluster**       | Persistent Storage | IronCore → Gardener | On-Premises (Bare-Metal) |
+| Cluster                   | Function               | Provisioning        | Infrastructure           |
+| ------------------------- | ---------------------- | ------------------- | ------------------------ |
+| **Management Cluster**    | Observability & UI     | Gardener            | On-Premises              |
+| **Control Plane Cluster** | Orchestration          | Gardener            | On-Premises              |
+| **Hypervisor Cluster**    | Compute Virtualization | IronCore → Gardener | On-Premises (Bare-Metal) |
+| **Storage Cluster**       | Persistent Storage     | IronCore → Gardener | On-Premises (Bare-Metal) |
 
 ## Provisioning Hierarchy
 
@@ -49,7 +49,7 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 │  │   ─────────────────   │  │  │  ├──────────────┤      ├──────────────┤     │      │
 │  │   • c5c3-operator     │  │  │  │ Hypervisor Op│      │ Rook Operator│     │      │
 │  │   • Service Operators │  │  │  │ ovn-ctrl (DS)│      │ Ceph MON/OSD │     │      │
-│  │   • Infrastructure    │  │  │  │ KVM Nodes    │      │ External Arb.│     │      │
+│  │   • Infrastructure    │  │  │  │ Hyp. Nodes   │      │ External Arb.│     │      │
 │  │   • tempest-op. (opt) │  │  │  │ Node Agents  │      │ Prysm        │     │      │
 │  │   • K-ORC             │  │  │  └──────────────┘      └──────────────┘     │      │
 │  │   • OVN NB/SB         │  │  │                                             │      │
@@ -66,12 +66,12 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
        │
        ▼
 2. IronCore installs GardenLinux on Bare-Metal
-       │  (GardenLinux contains LibVirt/QEMU/KVM or c5c3 deploys LibVirt as DaemonSet)
+       │  (GardenLinux contains LibVirt with QEMU/KVM or Cloud Hypervisor, or c5c3 deploys LibVirt as DaemonSet)
        │
        ▼
 3. Gardener creates Kubernetes clusters on the nodes
        │
-       ├──▶ Hypervisor Cluster (for KVM/Compute)
+       ├──▶ Hypervisor Cluster (for Compute)
        └──▶ Storage Cluster (for Ceph)
 
 4. FluxCD deploys workloads to all clusters
@@ -150,7 +150,7 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 │ │  └─ Labels Injector                              │                                 │
 │ │                                                  │                                 │
 │ │  Node Agents (DaemonSets):                       │                                 │
-│ │  ├─ KVM Node Agent (LibVirt Introspection)       │         RBD                     │
+│ │  ├─ Hypervisor Node Agent (LibVirt Introspection)│         RBD                     │
 │ │  ├─ OVS Agent (OVS Introspection) ───────────────┼─────────────────────────────────┤
 │ │  ├─ ovn-controller (OVN → OVS)                   │    (VM Disks from Ceph)         │
 │ │  ├─ Nova Compute Agent                           │                                 │
@@ -243,7 +243,7 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 │  ├─────────────────────────────────────────────────────────────────────────┤    │
 │  │                                                                         │    │
 │  │  Operators:                          Node Agents (DaemonSets):          │    │
-│  │  ├─ Hypervisor Operator              ├─ KVM Node Agent                  │    │
+│  │  ├─ Hypervisor Operator              ├─ Hypervisor Node Agent           │    │
 │  │  └─ Labels Injector                  ├─ OVS Agent                       │    │
 │  │                                      ├─ ovn-controller (OVN → OVS)      │    │
 │  │                                      ├─ Nova Compute Agent              │    │
@@ -253,7 +253,7 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 │  │  Hypervisor Nodes (GardenLinux):                                        │    │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │    │
 │  │  │   Node 1    │  │   Node 2    │  │   Node 3    │  │   Node N    │     │    │
-│  │  │ LibVirt/KVM │  │ LibVirt/KVM │  │ LibVirt/KVM │  │ LibVirt/KVM │     │    │
+│  │  │   LibVirt   │  │   LibVirt   │  │   LibVirt   │  │   LibVirt   │     │    │
 │  │  │ VMs ◄───────┼──┼─────────────┼──┼─────────────┼──┼── RBD ──────┼─────┼────┤
 │  │  │ OVS Bridge  │  │ OVS Bridge  │  │ OVS Bridge  │  │ OVS Bridge  │     │    │
 │  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘     │    │
@@ -297,10 +297,10 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 **Provisioning:** IronCore (Bare-Metal) → Gardener (Cluster Management)
 
 * **OpenStack Hypervisor Operator** (lifecycle management of Hypervisor nodes)
-* KVM Hypervisor nodes with GardenLinux
-* Node-local agents (KVM Node Agent, OVS Agent, ovn-controller, Nova Agent, HA Agent)
+* Hypervisor nodes with GardenLinux
+* Node-local agents (Hypervisor Node Agent, OVS Agent, ovn-controller, Nova Agent, HA Agent)
 * Labels Injector (Node→Pod label synchronization)
-* LibVirt/KVM virtualization
+* LibVirt-based virtualization (QEMU/KVM, Cloud Hypervisor)
 * Virtual machines
 
 ### 4. Storage Cluster

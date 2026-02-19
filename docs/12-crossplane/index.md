@@ -51,7 +51,7 @@ Crossplane is a framework for building cloud-native control planes. In the Cobal
 │  │ "hv-pool-a" │ │ "hv-pool-b" │            │ "st-pool-a" │ │ "st-pool-b" │ │
 │  │             │ │             │            │             │ │             │ │
 │  │ 50 Nodes    │ │ 100 Nodes   │            │ Ceph        │ │ Ceph        │ │
-│  │ KVM/LibVirt │ │ KVM/LibVirt │            │ 500TB       │ │ 1PB         │ │
+│  │   LibVirt   │ │   LibVirt   │            │ 500TB       │ │ 1PB         │ │
 │  └─────────────┘ └─────────────┘            └─────────────┘ └─────────────┘ │
 │        │               │                          │               │         │
 │        └───────┬───────┘                          └───────┬───────┘         │
@@ -192,7 +192,7 @@ The pool model enables the **independent provisioning** of Hypervisor and Storag
 │  │ (Gardener Shoot)     │ │ (Gardener Shoot)     │  │ (Gardener Shoot)     │       │
 │  │                      │ │                      │  │                      │       │
 │  │ 50 Nodes             │ │ 100 Nodes            │  │ Rook Operator        │       │
-│  │ KVM/LibVirt          │ │ KVM/LibVirt          │  │ Ceph 500TB           │       │
+│  │ LibVirt              │ │ LibVirt              │  │ Ceph 500TB           │       │
 │  │ Nova/OVN Agents      │ │ Nova/OVN Agents      │  │ Prysm                │       │
 │  └──────────────────────┘ └──────────────────────┘  └──────────────────────┘       │
 │                                                                                    │

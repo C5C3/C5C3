@@ -6,13 +6,13 @@ Cortex is a **Kubernetes-native, modular scheduler** for multi-domain resource p
 
 ## Supported Scheduling Domains
 
-| Domain                | Description                 | API Endpoint                      |
-| --------------------- | --------------------------- | --------------------------------- |
-| **Nova**              | VM placement (KVM & VMware) | `POST /scheduler/nova/external`   |
-| **Cinder**            | Block storage volumes       | `POST /scheduler/cinder/external` |
-| **Manila**            | Shared filesystems          | `POST /scheduler/manila/external` |
-| **IronCore Machines** | Bare-metal machines         | K8s CRD-based                     |
-| **Kubernetes Pods**   | Native pod scheduling       | K8s CRD-based                     |
+| Domain                | Description                                    | API Endpoint                      |
+| --------------------- | ---------------------------------------------- | --------------------------------- |
+| **Nova**              | VM placement (KVM, Cloud Hypervisor & VMware)  | `POST /scheduler/nova/external`   |
+| **Cinder**            | Block storage volumes                          | `POST /scheduler/cinder/external` |
+| **Manila**            | Shared filesystems                             | `POST /scheduler/manila/external` |
+| **IronCore Machines** | Bare-metal machines                            | K8s CRD-based                     |
+| **Kubernetes Pods**   | Native pod scheduling                          | K8s CRD-based                     |
 
 ## Scheduler Delegation with Nova
 

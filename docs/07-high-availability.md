@@ -2,7 +2,7 @@
 
 ## HA Architecture (Hypervisor Operator + HA Agent)
 
-> **Note:** The HA functionality is realized through the interaction of the **OpenStack Hypervisor Operator** (runs as Deployment in the Hypervisor Cluster) and the **HA Agent** (DaemonSet on each node). The **KVM HA Service** already exists but is not yet publicly available. This will change in the future.
+> **Note:** The HA functionality is realized through the interaction of the **OpenStack Hypervisor Operator** (runs as Deployment in the Hypervisor Cluster) and the **HA Agent** (DaemonSet on each node). The **Hypervisor HA Service** already exists but is not yet publicly available. This will change in the future.
 
 ```text
                     ┌──────────────────────────────┐
@@ -108,12 +108,12 @@ Data Plane HA ensures the availability of virtual machines on hypervisor nodes.
 
 The HA Agent subscribes to the local LibVirt daemon and reacts to the following event types:
 
-| Event Type      | Description                                   | HA Agent Reaction                                                     |
-| --------------- | --------------------------------------------- | --------------------------------------------------------------------- |
-| Lifecycle Event | VM state change (Start, Stop, Crash, Suspend) | On unexpected stop/crash: Creates Eviction CRD for automatic recovery |
-| Reboot Event    | VM restart detected                           | Verifies successful restart, on failure: Eviction CRD                 |
-| Watchdog Event  | Guest watchdog (QEMU i6300esb) triggered      | VM restart on current host, on failure: migration to alternative host |
-| I/O Error Event | Disk or network I/O error of the VM           | Notification via Eviction CRD, on persistent error: migration         |
+| Event Type      | Description                                     | HA Agent Reaction                                                     |
+| --------------- | ----------------------------------------------- | --------------------------------------------------------------------- |
+| Lifecycle Event | VM state change (Start, Stop, Crash, Suspend)   | On unexpected stop/crash: Creates Eviction CRD for automatic recovery |
+| Reboot Event    | VM restart detected                             | Verifies successful restart, on failure: Eviction CRD                 |
+| Watchdog Event  | Guest watchdog triggered (e.g., QEMU i6300esb)  | VM restart on current host, on failure: migration to alternative host |
+| I/O Error Event | Disk or network I/O error of the VM             | Notification via Eviction CRD, on persistent error: migration         |
 
 **Component Interaction During Automatic Recovery:**
 

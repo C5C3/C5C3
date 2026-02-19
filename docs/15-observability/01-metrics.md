@@ -36,7 +36,7 @@ Each cluster operates its own Prometheus instance that collects local metrics. T
 │ • MariaDB Exp.   │    │                  │
 │ • RabbitMQ Exp.  │    │ Targets:         │
 │ • Valkey Exp.    │    │ • Hypervisor Op. │
-│ • OVN Northd     │    │ • KVM Agents     │
+│ • OVN Northd     │    │ • Hyp. Agents    │
 │                  │    │ • OVS Agents     │
 └──────────────────┘    └──────────────────┘
 ```
