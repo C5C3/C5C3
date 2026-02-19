@@ -17,7 +17,7 @@
 │  │ • Flux Op. (GitOps) │    │ • c5c3-operator     │    │ • Hypervisor Op.    │  │
 │  │ • OpenBao (Secrets) │───▶│ • Service Operators │───▶│ • ovn-controller    │  │
 │  │ • ESO (Secrets)     │    │ • ovn-operator      │    │ • Node Agents       │  │
-│  │ • Greenhouse (opt)  │    │ • K-ORC             │    │ • KVM/LibVirt       │  │
+│  │ • Greenhouse (opt)  │    │ • K-ORC             │    │ • LibVirt           │  │
 │  │ • Aurora (opt)      │    │                     │    │                     │  │
 │  └─────────────────────┘    └─────────────────────┘    └──────────┬──────────┘  │
 │                                                                   │             │
@@ -51,7 +51,7 @@
 | `cinder.openstack.c5c3.io`    | v1alpha1     | Cinder                                                                       | Block Storage                                     |
 | `ovn.c5c3.io`                 | v1alpha1     | OVNCluster, OVNChassis                                                       | OVN SDN Backend                                   |
 | `ovs.c5c3.io`                 | v1alpha1     | OVSNode                                                                      | OVS Node Status                                   |
-| `kvm.c5c3.io`                 | v1, v1alpha1 | Hypervisor, Eviction, Migration                                              | Hypervisor Lifecycle                              |
+| `hypervisor.c5c3.io`          | v1, v1alpha1 | Hypervisor, Eviction, Migration                                              | Hypervisor Lifecycle                              |
 | `ceph.c5c3.io`                | v1alpha1     | RemoteCluster, RemoteArbiter                                                 | Ceph Stretched Cluster Arbiter                    |
 | `cortex.c5c3.io`              | v1alpha1     | Cortex                                                                       | Intelligent Scheduler (optional)                  |
 | `openstack.k-orc.cloud`       | v1alpha1     | Domain, Project, Role, Group, Service, Endpoint, User, ApplicationCredential | Keystone Resource Management (K-ORC)              |

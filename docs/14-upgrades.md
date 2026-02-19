@@ -322,9 +322,9 @@ OVS upgrades require special care as they affect the network datapath:
 * Bridge configurations and flows are restored after restart
 * If needed: Coordination with Hypervisor Maintenance mode for VM migration before OVS upgrade
 
-## LibVirt/QEMU Upgrade
+## LibVirt/Hypervisor Backend Upgrade
 
-LibVirt and QEMU form the virtualization layer on the hypervisor nodes. The upgrade procedure depends on the operating model (see [03-components/02-hypervisor-components.md](03-components/02-hypervisor.md)):
+LibVirt and the hypervisor backend (QEMU/KVM or Cloud Hypervisor) form the virtualization layer on the hypervisor nodes. The upgrade procedure depends on the operating model (see [03-components/02-hypervisor.md](03-components/02-hypervisor.md)):
 
 **Model 1: GardenLinux-provided**
 
@@ -340,7 +340,7 @@ Hypervisor Maintenance Mode (Scheduling Stop)
 VM Live Migration (all VMs to other nodes)
        │
        ▼
-Node Reboot with new GardenLinux Image (incl. new LibVirt/QEMU version)
+Node Reboot with new GardenLinux Image (incl. new LibVirt/hypervisor backend version)
        │
        ▼
 Re-Enable (Hypervisor is reactivated in Nova)
@@ -356,11 +356,11 @@ LibVirt runs as a containerized DaemonSet. An upgrade occurs via DaemonSet rolli
 
 **Coordination with Hypervisor Maintenance Mode:**
 
-In both models, the hypervisor must be put into Maintenance mode before `libvirtd` restart (see [06-hypervisor-lifecycle.md](06-hypervisor-lifecycle.md)). Running VMs must be migrated before the LibVirt daemon restart, as a `libvirtd` restart interrupts the connection to QEMU processes.
+In both models, the hypervisor must be put into Maintenance mode before `libvirtd` restart (see [06-hypervisor-lifecycle.md](06-hypervisor-lifecycle.md)). Running VMs must be migrated before the LibVirt daemon restart, as a `libvirtd` restart interrupts the connection to VM processes (QEMU or Cloud Hypervisor).
 
 **LibVirt Version Tracking:**
 
-The current LibVirt version of each node is captured by the KVM Node Agent in the Hypervisor CRD status (`libVirtVersion`). This enables:
+The current LibVirt version of each node is captured by the Hypervisor Node Agent in the Hypervisor CRD status (`libVirtVersion`). This enables:
 
 * Monitoring LibVirt versions across all hypervisor nodes
 * Detection of version skew between nodes

@@ -26,7 +26,7 @@ The four Kubernetes clusters communicate via various protocols and APIs:
 │  │ CLUSTER          │                           │ Services         │           │
 │  │                  │                           │                  │           │
 │  │ Hypervisor Op ───┼── watches K8s Nodes       │ Nova API         │           │
-│  │ KVM Node Agent   │                           │ Neutron API      │           │
+│  │ Hyp. Node Agent  │                           │ Neutron API      │           │
 │  │ HA Agent ────────┼── Eviction/Migration CRDs │ Keystone/Glance  │           │
 │  │ Nova Agent ──────┼───────────────────────────┼─▶ Cortex         │           │
 │  │ ovn-controller   │                           │                  │           │
@@ -73,7 +73,7 @@ Each hypervisor node in the Hypervisor Cluster runs the following agents:
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
-│  │  KVM Node Agent │  │    OVS Agent    │  │   Nova Agent    │  │ovn-controll.│ │
+│  │  Hypervisor Node Agent │  │    OVS Agent    │  │   Nova Agent    │  │ovn-controll.│ │
 │  │  ─────────────  │  │  ─────────────  │  │  ─────────────  │  │ ─────────── │ │
 │  │  - LibVirt      │  │  - OVS Status   │  │  - Compute Svc  │  │ - OVN→OVS   │ │
 │  │    Introspect   │  │  - Bridge Info  │  │  - VM Lifecycle │  │ - Security  │ │
@@ -115,22 +115,22 @@ Each hypervisor node in the Hypervisor Cluster runs the following agents:
 
 **Agent Overview:**
 
-| Agent              | Repository                                 | CRD Updates               | Communication        |
-| ------------------ | ------------------------------------------ | ------------------------- | -------------------- |
-| **KVM Node Agent** | `c5c3/c5c3-operator/agents/kvm-node-agent` | `Hypervisor`, `Migration` | K8s API, LibVirt TCP |
-| **OVS Agent**      | `c5c3/c5c3-operator/agents/ovs-agent`      | `OVSNode`                 | K8s API, OVSDB       |
-| **HA Agent**       | (Part of KVM Node Agent)                   | `Eviction`, `Migration`   | LibVirt Events       |
-| **Nova Agent**     | (OpenStack Nova)                           | -                         | AMQP (RabbitMQ)      |
-| **ovn-controller** | (OVN)                                      | -                         | OVSDB, OVN SB        |
+| Agent                     | Repository                                 | CRD Updates               | Communication        |
+| ------------------------- | ------------------------------------------ | ------------------------- | -------------------- |
+| **Hypervisor Node Agent** | `cobaltcore-dev/kvm-node-agent`            | `Hypervisor`, `Migration` | K8s API, LibVirt TCP |
+| **OVS Agent**             | `c5c3/c5c3-operator/agents/ovs-agent`      | `OVSNode`                 | K8s API, OVSDB       |
+| **HA Agent**              | (Part of Hypervisor Node Agent)            | `Eviction`, `Migration`   | LibVirt Events       |
+| **Nova Agent**            | (OpenStack Nova)                           | -                         | AMQP (RabbitMQ)      |
+| **ovn-controller**        | (OVN)                                      | -                         | OVSDB, OVN SB        |
 
 ## Node-Internal System Integration
 
-| Component          | Communication Type                                | Purpose                                                          |
-| ------------------ | ------------------------------------------------- | ---------------------------------------------------------------- |
-| LibVirt (libvirtd) | TCP Port 16509 (`qemu+tcp://<host>:16509/system`) | Virtualization API (VM lifecycle, introspection, live migration) |
-| Linux Networking   | Kernel APIs                                       | Network and security management                                  |
-| os\_vif            | Python API                                        | Virtual interface management                                     |
-| systemd/Journald   | D-Bus / Journal API                               | Service and log management                                       |
-| OVS/OVN            | OVSDB                                             | Software-defined networking                                      |
+| Component          | Communication Type                                    | Purpose                                                          |
+| ------------------ | ----------------------------------------------------- | ---------------------------------------------------------------- |
+| LibVirt (libvirtd) | TCP Port 16509 (`qemu+tcp://` or `ch+tcp://`)         | Virtualization API (VM lifecycle, introspection, live migration) |
+| Linux Networking   | Kernel APIs                                           | Network and security management                                  |
+| os\_vif            | Python API                                            | Virtual interface management                                     |
+| systemd/Journald   | D-Bus / Journal API                                   | Service and log management                                       |
+| OVS/OVN            | OVSDB                                                 | Software-defined networking                                      |
 
 ***

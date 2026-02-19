@@ -111,7 +111,7 @@ The Onboarding Controller takes over configuration of the new node:
 
 After onboarding, automatic validation checks are performed:
 
-* **LibVirt Connectivity**: Check if the LibVirt daemon is reachable via TCP (Connection URI `qemu+tcp://<host>:16509/system`), if VMs can be started, and if the LibVirt version meets the expected minimum version. The result is documented in the Hypervisor CRD status (`libVirtVersion`).
+* **LibVirt Connectivity**: Check if the LibVirt daemon is reachable via TCP (Connection URI `qemu+tcp://<host>:16509/system` or `ch+tcp://<host>:16509/system` depending on the backend), if VMs can be started, and if the LibVirt version meets the expected minimum version. The result is documented in the Hypervisor CRD status (`libVirtVersion`).
 * **OVS Bridges**: Verification that br-int, br-ex (and optionally br-provider) are correctly configured
 * **Ceph RBD Access**: Test if the node can access the Ceph RBD pools (block storage for VM disks)
 

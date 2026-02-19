@@ -5,7 +5,7 @@
 **Repository:** `github.com/c5c3/c5c3/operators/hypervisor`
 **Runs in:** Hypervisor Cluster (Deployment)
 
-The Kubernetes operator for managing the lifecycle of KVM hypervisor nodes. It runs in the **Hypervisor Cluster** and watches Kubernetes Nodes to create and manage Hypervisor CRDs.
+The Kubernetes operator for managing the lifecycle of hypervisor nodes. It runs in the **Hypervisor Cluster** and watches Kubernetes Nodes to create and manage Hypervisor CRDs.
 
 **Controller Logic (from Source Code):**
 
@@ -38,9 +38,16 @@ func (hv *HypervisorController) Reconcile(ctx context.Context, req ctrl.Request)
 * `aggregates_controller` - OpenStack Aggregates sync
 * `traits_controller` - OpenStack Traits sync
 
-## LibVirt/KVM Virtualization
+## Virtualization Layer
 
-LibVirt and QEMU/KVM form the virtualization layer on each hypervisor node. They provide the interface between the c5c3 agents and the virtual machines.
+LibVirt provides the virtualization management layer on each hypervisor node. It supports multiple hypervisor backends:
+
+| Backend              | Description                                                  |
+| -------------------- | ------------------------------------------------------------ |
+| **QEMU/KVM**         | Traditional VMM backend, mature and feature-rich             |
+| **Cloud Hypervisor** | Lightweight VMM backend, focused on performance and security |
+
+LibVirt provides a unified interface between the c5c3 agents and the virtual machines, regardless of the backend in use.
 
 **Operating Models:**
 
@@ -51,26 +58,29 @@ LibVirt and QEMU/KVM form the virtualization layer on each hypervisor node. They
 
 **Host Components:**
 
-| Component  | Function                                    | Path                          |
-| ---------- | ------------------------------------------- | ----------------------------- |
-| `libvirtd` | Virtualization daemon, manages VM lifecycle | `/usr/sbin/libvirtd`          |
-| `QEMU/KVM` | Hypervisor backend, executes VMs            | `/usr/bin/qemu-system-x86_64` |
-| `virsh`    | CLI for LibVirt operations (diagnostics)    | `/usr/bin/virsh`              |
+| Component          | Function                                         | Path                          |
+| ------------------ | ------------------------------------------------ | ----------------------------- |
+| `libvirtd`         | Virtualization daemon, manages VM lifecycle      | `/usr/sbin/libvirtd`          |
+| `QEMU/KVM`         | Traditional VMM backend, executes VMs            | `/usr/bin/qemu-system-x86_64` |
+| `cloud-hypervisor` | Lightweight VMM backend, alternative to QEMU     | `/usr/bin/cloud-hypervisor`   |
+| `virsh`            | CLI for LibVirt operations (diagnostics)         | `/usr/bin/virsh`              |
 
 **Connection to LibVirt Daemon:**
 
-The c5c3 agents (KVM Node Agent, HA Agent, Nova Compute) communicate with the LibVirt daemon via TCP:
+The c5c3 agents (Hypervisor Node Agent, HA Agent, Nova Compute) communicate with the LibVirt daemon via TCP:
 
-* **Connection URI:** `qemu+tcp://<host>:16509/system`
+* **Connection URI (QEMU/KVM):** `qemu+tcp://<host>:16509/system`
+* **Connection URI (Cloud Hypervisor):** `ch+tcp://<host>:16509/system`
 * **Port:** 16509 (libvirtd TCP Listener)
 * **Configuration in `libvirtd.conf`:** `listen_tcp = 1`, `auth_tcp = "none"` (authentication via network policies)
 
 **Configuration Files:**
 
-| File                         | Purpose                                               |
-| ---------------------------- | ----------------------------------------------------- |
-| `/etc/libvirt/libvirtd.conf` | Daemon configuration (Listening, Auth, Logging)       |
-| `/etc/libvirt/qemu.conf`     | QEMU-specific settings (Security Driver, Cgroup, VNC) |
+| File                         | Purpose                                                      |
+| ---------------------------- | ------------------------------------------------------------ |
+| `/etc/libvirt/libvirtd.conf` | Daemon configuration (Listening, Auth, Logging)              |
+| `/etc/libvirt/qemu.conf`     | QEMU-specific settings (Security Driver, Cgroup, VNC)        |
+| `/etc/libvirt/ch.conf`       | Cloud Hypervisor-specific settings (when using CH backend)   |
 
 **Node Stack Architecture:**
 
@@ -86,17 +96,18 @@ The c5c3 agents (KVM Node Agent, HA Agent, Nova Compute) communicate with the Li
 │                                    │                                        │
 │                                    ▼                                        │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                     libvirtd (QEMU/KVM)                             │    │
+│  │              libvirtd (QEMU/KVM or Cloud Hypervisor)                │    │
 │  │                                                                     │    │
 │  │   TCP Port: 16509                                                   │    │
 │  │   URI:      qemu+tcp://<host>:16509/system                          │    │
-│  └──────────────────────────┬──────────────────────────────────────────┘    │
+│  └───────────────────────────┬─────────────────────────────────────────┘    │
 │                              │                                              │
 │              ┌───────────────┼───────────────┐                              │
 │              ▼               ▼               ▼                              │
 │  ┌─────────────────┐ ┌─────────────┐ ┌─────────────────┐                    │
-│  │ KVM Node Agent  │ │  HA Agent   │ │ Nova Compute    │                    │
-│  │ (Introspection) │ │  (Events)   │ │ (VM Lifecycle)  │                    │
+│  │  Hypervisor     │ │  HA Agent   │ │ Nova Compute    │                    │
+│  │  Node Agent     │ │  (Events)   │ │ (VM Lifecycle)  │                    │
+│  │ (Introspection) │ │             │ │                 │                    │
 │  └─────────────────┘ └─────────────┘ └─────────────────┘                    │
 │                              │                                              │
 │                              ▼                                              │
@@ -108,21 +119,28 @@ The c5c3 agents (KVM Node Agent, HA Agent, Nova Compute) communicate with the Li
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Note:** For LibVirt/QEMU upgrades see [14-upgrade-lifecycle.md](../14-upgrades.md).
+> **Note:** For LibVirt/Hypervisor Backend upgrades see [14-upgrade-lifecycle.md](../14-upgrades.md).
 
-## KVM Node Agent
+## Hypervisor Node Agent
 
-**Repository:** `github.com/c5c3/c5c3-operator/agents/kvm-node-agent`
 **Runs in:** Hypervisor Cluster (DaemonSet on each node)
 
-The KVM Node Agent runs on **every KVM node** in the Hypervisor Cluster and provides introspection for KVM-specific services. It connects via TCP to the local `libvirtd` daemon.
+The Hypervisor Node Agent runs on **every hypervisor node** in the Hypervisor Cluster and provides introspection for virtualization services. It connects via TCP to the local `libvirtd` daemon.
+
+**Implementations:**
+
+| Agent                          | Backend          | Repository                                                 | Status  |
+| ------------------------------ | ---------------- | ---------------------------------------------------------- | ------- |
+| `kvm-node-agent`               | QEMU/KVM         | `github.com/cobaltcore-dev/kvm-node-agent`                 | Active  |
+| `cloud-hypervisor-node-agent`  | Cloud Hypervisor | `github.com/cobaltcore-dev/cloud-hypervisor-node-agent`    | Planned |
 
 **LibVirt Connection:**
 
-The KVM Node Agent connects via TCP to the LibVirt daemon on each node:
+The Hypervisor Node Agent connects via TCP to the LibVirt daemon on each node:
 
 ```text
-Connection URI: qemu+tcp://<node-ip>:16509/system
+Connection URI (QEMU/KVM):         qemu+tcp://<node-ip>:16509/system
+Connection URI (Cloud Hypervisor):  ch+tcp://<node-ip>:16509/system
 ```
 
 Since the connection is via TCP, the DaemonSet doesn't require a host socket mount. The target address is derived from the node IP of each host.
@@ -137,9 +155,9 @@ Since the connection is via TCP, the DaemonSet doesn't require a host socket mou
   * Running VM instances
 * Provides `Migration` CRD for live migration tracking
 
-## HA Agent (Part of KVM Node Agent)
+## HA Agent (Part of Hypervisor Node Agent)
 
-**Runs in:** Hypervisor Cluster (on each node, as part of KVM Node Agent)
+**Runs in:** Hypervisor Cluster (on each node, as part of Hypervisor Node Agent)
 
 Go-based agent that monitors LibVirt events on each hypervisor node.
 
@@ -152,14 +170,14 @@ Go-based agent that monitors LibVirt events on each hypervisor node.
   * I/O errors
 * Updates Hypervisor status on changes
 
-> **Note:** The HA functionality is integrated into the KVM Node Agent and Hypervisor Operator.
+> **Note:** The HA functionality is integrated into the Hypervisor Node Agent and Hypervisor Operator.
 
 ## OVS Agent
 
 **Repository:** `github.com/c5c3/c5c3/agents/ovs-agent`
 **Runs in:** Hypervisor Cluster (DaemonSet on each node)
 
-The OVS Agent runs on **every hypervisor node** and provides introspection for Open vSwitch (OVS). It is the networking counterpart to the KVM Node Agent.
+The OVS Agent runs on **every hypervisor node** and provides introspection for Open vSwitch (OVS). It is the networking counterpart to the Hypervisor Node Agent.
 
 **Architecture:**
 
@@ -169,8 +187,8 @@ The OVS Agent runs on **every hypervisor node** and provides introspection for O
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐          │
-│  │  KVM Node Agent │    │    OVS Agent    │    │  ovn-controller │          │
-│  │  (LibVirt)      │    │    (OVS)        │    │  (OVN→OVS)      │          │
+│  │  Hypervisor     │    │    OVS Agent    │    │  ovn-controller │          │
+│  │  Node Agent     │    │    (OVS)        │    │  (OVN→OVS)      │          │
 │  │                 │    │                 │    │                 │          │
 │  │  → Hypervisor   │    │  → OVSNode CRD  │    │  → Flow Rules   │          │
 │  │    CRD Status   │    │    Status       │    │    Programming  │          │

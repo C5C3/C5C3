@@ -60,6 +60,7 @@ words:
   - cephfs
   - cephx
   - chardev
+  - CloudHypervisor
   - CISA
   - cobaltcore
   - cosign

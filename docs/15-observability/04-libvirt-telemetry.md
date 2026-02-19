@@ -1,18 +1,18 @@
 # LibVirt Telemetry
 
-This document describes the telemetry signals originating directly from LibVirt/QEMU on the Hypervisor nodes: Metrics, logs, and events.
+This document describes the telemetry signals originating directly from LibVirt and the hypervisor backend (QEMU/KVM or Cloud Hypervisor) on the Hypervisor nodes: Metrics, logs, and events.
 
 > **Note:** LibVirt exists in two operating models — see [Hypervisor](../03-components/02-hypervisor.md) for details. The telemetry integration differs depending on the model.
 
 ## Operating Model Differences
 
-| Aspect             | GardenLinux-provided                       | c5c3-managed (containerized)                       |
-| ------------------ | ------------------------------------------ | -------------------------------------------------- |
-| LibVirt Logs       | Systemd Journal on the host (`journalctl`) | Container stdout/stderr (standard log pipeline)    |
-| QEMU Logs          | `/var/log/libvirt/qemu/` on the host       | Volume mount or container stdout                   |
-| Metrics Access     | libvirt-exporter connects to host daemon   | libvirt-exporter in the same pod or as sidecar     |
-| Event Subscription | HA Agent connects via TCP to host          | HA Agent connects via TCP to container             |
-| Log Collection     | Fluent Bit reads host paths + journal      | Fluent Bit collects container logs (standard path) |
+| Aspect             | GardenLinux-provided                                           | c5c3-managed (containerized)                       |
+| ------------------ | -------------------------------------------------------------- | -------------------------------------------------- |
+| LibVirt Logs       | Systemd Journal on the host (`journalctl`)                     | Container stdout/stderr (standard log pipeline)    |
+| VM Logs (QEMU/CH)  | `/var/log/libvirt/qemu/` or `/var/log/libvirt/ch/` on the host | Volume mount or container stdout                   |
+| Metrics Access     | libvirt-exporter connects to host daemon                       | libvirt-exporter in the same pod or as sidecar     |
+| Event Subscription | HA Agent connects via TCP to host                              | HA Agent connects via TCP to container             |
+| Log Collection     | Fluent Bit reads host paths + journal                          | Fluent Bit collects container logs (standard path) |
 
 ## libvirt-exporter
 
@@ -103,10 +103,10 @@ spec:
 
 When LibVirt is provided by the host OS, logs end up in the following locations:
 
-| Log Source    | Path                                 | Description                         |
-| ------------- | ------------------------------------ | ----------------------------------- |
-| libvirtd      | Systemd Journal (`libvirtd.service`) | Daemon events, connection lifecycle |
-| QEMU (per VM) | `/var/log/libvirt/qemu/<domain>.log` | Emulator startup, errors, chardev   |
+| Log Source   | Path                                                                       | Description                         |
+| ------------ | -------------------------------------------------------------------------- | ----------------------------------- |
+| libvirtd     | Systemd Journal (`libvirtd.service`)                                       | Daemon events, connection lifecycle |
+| VMM (per VM) | `/var/log/libvirt/qemu/<domain>.log` or `/var/log/libvirt/ch/<domain>.log` | Emulator startup, errors, chardev   |
 
 Fluent Bit must be configured for this model to read both the systemd journal and host paths:
 
@@ -143,7 +143,7 @@ The HA Agent subscribes to LibVirt domain events via the libvirt Event API. Thes
 | ------------------- | ----------------------------- | ------------------------------- |
 | Lifecycle (Stopped) | VM unexpectedly stopped       | Create Eviction CRD             |
 | Lifecycle (Crashed) | VM crashed                    | Create Eviction CRD             |
-| Watchdog            | QEMU watchdog timer triggered | Create Eviction CRD             |
+| Watchdog            | Watchdog timer triggered      | Create Eviction CRD             |
 | I/O Error           | Disk I/O error in VM          | Log event, possibly Eviction    |
 | Reboot              | VM reboot requested           | Status update in Hypervisor CRD |
 

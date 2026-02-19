@@ -12,7 +12,7 @@ This section documents all components of the CobaltCore architecture, organized 
 │  MANAGEMENT CLUSTER          CONTROL PLANE CLUSTER         HYPERVISOR CLUSTER   │
 │  ─────────────────          ──────────────────────         ───────────────────  │
 │  • FluxCD                   • c5c3-operator                • Hypervisor Op.     │
-│  • OpenBao (Secrets)        • keystone-operator            • KVM Node Agent     │
+│  • OpenBao (Secrets)        • keystone-operator            • Hyp. Node Agent    │
 │  • ESO (Secret Sync)        • glance-operator              • OVS Agent          │
 │  • Greenhouse (opt)         • placement-operator           • HA Agent           │
 │  • Aurora (opt)             • nova-operator                • ovn-controller     │

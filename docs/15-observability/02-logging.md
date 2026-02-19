@@ -75,14 +75,14 @@ The `request_id` and `global_request_id` enable correlation of logs across servi
 
 ## Hypervisor Logs
 
-| Log Source         | Description                                                                     |
-| ------------------ | ------------------------------------------------------------------------------- |
-| KVM Node Agent     | Node lifecycle, resource discovery                                              |
-| OVS Agent          | Bridge configuration, flow programming                                          |
-| HA Agent           | Failure detection, evacuation trigger                                           |
-| Nova Compute Agent | VM operations, live migration, resize                                           |
-| ovn-controller     | Local flow programming, chassis events                                          |
-| LibVirt            | Domain events, emulator logs — see [LibVirt Telemetry](04-libvirt-telemetry.md) |
+| Log Source              | Description                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| Hypervisor Node Agent   | Node lifecycle, resource discovery                                              |
+| OVS Agent               | Bridge configuration, flow programming                                          |
+| HA Agent                | Failure detection, evacuation trigger                                           |
+| Nova Compute Agent      | VM operations, live migration, resize                                           |
+| ovn-controller          | Local flow programming, chassis events                                          |
+| LibVirt                 | Domain events, emulator logs — see [LibVirt Telemetry](04-libvirt-telemetry.md) |
 
 ## Log Collection Pipeline
 

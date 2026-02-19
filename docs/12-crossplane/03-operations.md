@@ -308,7 +308,7 @@ Crossplane enables **self-service provisioning** with **pool sharing** for diffe
 │      ┌───────────────────────┐  ┌───────────────────────┐                          │
 │      │ Gardener Shoot        │  │ Gardener Shoot        │                          │
 │      │ "hv-pool-a"           │  │ "hv-pool-b"           │                          │
-│      │ 50 KVM Nodes          │  │ 100 KVM Nodes         │                          │
+│      │ 50 Hypervisor Nodes   │  │ 100 Hypervisor Nodes  │                          │
 │      └───────────────────────┘  └───────────────────────┘                          │
 │                                                                                    │
 │  1c. Storage Pool Claims (parallel)                                                │

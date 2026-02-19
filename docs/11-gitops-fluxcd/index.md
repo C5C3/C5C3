@@ -233,7 +233,7 @@ spec:
 **Components:**
 
 * OpenStack Hypervisor Operator
-* KVM Node Agent (DaemonSet)
+* Hypervisor Node Agent (DaemonSet)
 * OVS Agent (DaemonSet)
 * HA Agent (DaemonSet)
 * Nova Compute Agent

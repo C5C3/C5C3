@@ -44,20 +44,20 @@ Managing credentials in a multi-cluster OpenStack environment requires a thought
 
 ## Credential Types and Sources
 
-| Secret Type                     | Source         | Created By                  | Distributed By   | Consumer                                   |
-| ------------------------------- | -------------- | --------------------------- | ---------------- | ------------------------------------------ |
-| Admin Password                  | OpenBao        | Manual / CI-CD              | ESO              | Keystone Bootstrap                         |
-| Service User Passwords          | OpenBao        | Manual / CI-CD              | ESO              | c5c3-operator (initial user creation only) |
-| Service Users (Keystone)        | Keystone       | K-ORC                       | -                | OpenStack Services                         |
-| Service Application Credentials | Keystone       | K-ORC                       | PushSecret + ESO | Service Operators (Glance, Nova, …)        |
-| K-ORC Application Credential    | Keystone       | K-ORC                       | PushSecret + ESO | K-ORC Controller                           |
-| Cortex Application Credential   | Keystone       | K-ORC                       | PushSecret + ESO | Cortex                                     |
-| Keystone Services               | Keystone       | K-ORC                       | -                | Service Catalog                            |
-| Keystone Endpoints              | Keystone       | K-ORC                       | -                | Service Catalog                            |
-| clouds.yaml (Compute)           | c5c3-operator  | c5c3-operator               | ESO              | Nova Compute                               |
-| Ceph Auth Keys                  | Rook           | Rook Operator               | PushSecret + ESO | Cinder, Glance, Nova                       |
-| Libvirt Ceph Secret             | KVM Node Agent | KVM Node Agent              | -                | LibVirt/KVM                                |
-| Infrastructure Secrets          | Operators      | MariaDB/RabbitMQ/Valkey Op. | c5c3-operator    | OpenStack Services                         |
+| Secret Type                     | Source                | Created By                  | Distributed By   | Consumer                                   |
+| ------------------------------- | --------------------- | --------------------------- | ---------------- | ------------------------------------------ |
+| Admin Password                  | OpenBao               | Manual / CI-CD              | ESO              | Keystone Bootstrap                         |
+| Service User Passwords          | OpenBao               | Manual / CI-CD              | ESO              | c5c3-operator (initial user creation only) |
+| Service Users (Keystone)        | Keystone              | K-ORC                       | -                | OpenStack Services                         |
+| Service Application Credentials | Keystone              | K-ORC                       | PushSecret + ESO | Service Operators (Glance, Nova, …)        |
+| K-ORC Application Credential    | Keystone              | K-ORC                       | PushSecret + ESO | K-ORC Controller                           |
+| Cortex Application Credential   | Keystone              | K-ORC                       | PushSecret + ESO | Cortex                                     |
+| Keystone Services               | Keystone              | K-ORC                       | -                | Service Catalog                            |
+| Keystone Endpoints              | Keystone              | K-ORC                       | -                | Service Catalog                            |
+| clouds.yaml (Compute)           | c5c3-operator         | c5c3-operator               | ESO              | Nova Compute                               |
+| Ceph Auth Keys                  | Rook                  | Rook Operator               | PushSecret + ESO | Cinder, Glance, Nova                       |
+| Libvirt Ceph Secret             | Hypervisor Node Agent | Hypervisor Node Agent       | -                | LibVirt                                    |
+| Infrastructure Secrets          | Operators             | MariaDB/RabbitMQ/Valkey Op. | c5c3-operator    | OpenStack Services                         |
 
 ## Bootstrap Problem and Solution Architecture
 
@@ -877,7 +877,7 @@ The complete flow for Ceph credentials from Storage Cluster to the Libvirt daemo
 │  │       subPath: keyring                                                  │  │
 │  │                              │                                          │  │
 │  │                              ▼                                          │  │
-│  │  5. KVM Node Agent creates Libvirt Secret on each node                  │  │
+│  │  5. Hypervisor Node Agent creates Libvirt Secret on each node           │  │
 │  │     ┌─────────────────────────────────────────────────────────────────┐ │  │
 │  │     │ # ceph-secret.xml                                               │ │  │
 │  │     │ <secret ephemeral='no' private='no'>                            │ │  │
@@ -892,7 +892,7 @@ The complete flow for Ceph credentials from Storage Cluster to the Libvirt daemo
 │  │     └─────────────────────────────────────────────────────────────────┘ │  │
 │  │                              │                                          │  │
 │  │                              ▼                                          │  │
-│  │  6. Libvirt/KVM uses Secret for RBD access                              │  │
+│  │  6. Libvirt uses Secret for RBD access                                  │  │
 │  │     VM Disk: rbd:volumes/volume-xxx:auth_supported=cephx:...            │  │
 │  │                                                                         │  │
 │  └─────────────────────────────────────────────────────────────────────────┘  │

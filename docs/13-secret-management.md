@@ -125,7 +125,7 @@ The External Secrets Operator (ESO) runs in each cluster and synchronizes secret
 | Placement Application Credential | `kv-v2/openstack/placement/app-credential` | KV v2  | placement-operator (via c5c3-operator) | Control Plane |
 | K-ORC Application Credential     | `kv-v2/openstack/k-orc/app-credential`     | KV v2  | K-ORC Controller                       | Control Plane |
 | Cortex Application Credential    | `kv-v2/openstack/cortex/app-credential`    | KV v2  | Cortex                                 | Control Plane |
-| Ceph Client Key (Nova)           | `kv-v2/ceph/client-nova`                   | KV v2  | Nova Compute, KVM Node Agent           | Hypervisor    |
+| Ceph Client Key (Nova)           | `kv-v2/ceph/client-nova`                   | KV v2  | Nova Compute, Hypervisor Node Agent    | Hypervisor    |
 | Ceph Client Key (Cinder)         | `kv-v2/ceph/client-cinder`                 | KV v2  | Cinder Volume                          | Control Plane |
 | Ceph Client Key (Glance)         | `kv-v2/ceph/client-glance`                 | KV v2  | Glance API                             | Control Plane |
 | Nova Compute Credentials         | `kv-v2/openstack/nova/compute-config`      | KV v2  | Nova Compute Agent                     | Hypervisor    |
@@ -209,10 +209,10 @@ The flow for Ceph credentials from Rook Operator via OpenBao to the Libvirt daem
 │  │ 5. Nova Compute DaemonSet mounts secret                             │    │
 │  │    → /etc/ceph/ceph.client.nova.keyring                             │    │
 │  │                                                                     │    │
-│  │ 6. KVM Node Agent creates Libvirt Secret on each node               │    │
+│  │ 6. Hypervisor Node Agent creates Libvirt Secret on each node        │    │
 │  │    → virsh secret-define + virsh secret-set-value                   │    │
 │  │                                                                     │    │
-│  │ 7. Libvirt/KVM uses secret for RBD access                           │    │
+│  │ 7. Libvirt uses secret for RBD access                               │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
