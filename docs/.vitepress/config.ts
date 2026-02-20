@@ -64,6 +64,7 @@ export default defineConfig({
         ]
       },
       { text: 'Brownfield Integration', link: '/16-brownfield-integration' },
+      { text: 'vGPU & Accelerators', link: '/18-vgpu-accelerators' },
       {
         text: 'Container Images',
         collapsed: false,

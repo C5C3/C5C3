@@ -48,6 +48,7 @@ words:
   - baremetal
   - Baremetal
   - bindep
+  - bitstream
   - binpacking
   - attestations
   - buildx
@@ -79,6 +80,7 @@ words:
   - Crossplane
   - crossplane
   - datapath
+  - DCGM
   - Descheduling
   - Dockerfiles
   - dpkg
@@ -102,6 +104,7 @@ words:
   - Geneve
   - gitops
   - Gophercloud
+  - gpudirect
   - Grype
   - gopsutil
   - hana
@@ -109,6 +112,8 @@ words:
   - helmrelease
   - hypervisorclusters
   - idempotently
+  - IOMMU
+  - iommu
   - Integr
   - ironcore
   - journalctl
@@ -134,6 +139,8 @@ words:
   - libvirtd
   - localnet
   - LOCI
+  - mdev
+  - mdevctl
   - OIDC
   - maint
   - Memtouch
@@ -177,6 +184,7 @@ words:
   - stefanzweifel
   - Syft
   - storageclusters
+  - sysfs
   - traceparent
   - tracestate
   - valkey
@@ -186,6 +194,10 @@ words:
   - venv
   - vcpu
   - vcpus
+  - VFIO
+  - vfio
+  - VGPU
+  - vgpu
   - virsh
   - vitepress
   - vswitchd

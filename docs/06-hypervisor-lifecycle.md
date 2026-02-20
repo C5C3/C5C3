@@ -216,7 +216,7 @@ Before eviction begins, the Eviction Controller checks:
 
 1. **Target Capacity**: Enough free resources (RAM, vCPUs) on other hypervisors for all VMs
 2. **Nova Scheduling Filter**: Check if Nova Scheduler filters (Availability Zone, Host Aggregates, Traits) allow placement
-3. **VM Compatibility**: Check for VMs that cannot be migrated (e.g., PCI passthrough, local disks)
+3. **VM Compatibility**: Check for VMs that cannot be migrated (e.g., PCI passthrough, local disks). For GPU-specific migration constraints see [vGPU & Accelerators](18-vgpu-accelerators.md)
 
 The eviction process is aborted if preflight checks fail. The Eviction CRD is updated with an appropriate condition (see [04-crds.md](04-crds.md)).
 
