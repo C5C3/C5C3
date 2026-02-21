@@ -87,6 +87,20 @@ export default defineConfig({
         ]
       },
       {
+        text: 'Implementation',
+        collapsed: false,
+        items: [
+          { text: 'Overview', link: '/19-implementation/' },
+          { text: 'Project Setup', link: '/19-implementation/01-project-setup' },
+          { text: 'Shared Library', link: '/19-implementation/02-shared-library' },
+          { text: 'CRD Implementation', link: '/19-implementation/03-crd-implementation' },
+          { text: 'Keystone Reconciler', link: '/19-implementation/04-keystone-reconciler' },
+          { text: 'Keystone Dependencies', link: '/19-implementation/05-keystone-dependencies' },
+          { text: 'Testing', link: '/19-implementation/06-testing' },
+          { text: 'CI/CD & Packaging', link: '/19-implementation/07-ci-cd-and-packaging' },
+        ]
+      },
+      {
         text: 'Appendix',
         collapsed: false,
         items: [
