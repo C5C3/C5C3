@@ -257,9 +257,11 @@ The **Valkey Operator** (SAP) manages Valkey Sentinel upgrades:
 
 ## Memcached
 
-Memcached runs as a **StatefulSet** without a dedicated operator:
+The **memcached-operator** manages Memcached upgrades:
 
-* Rolling update via StatefulSet `updateStrategy: RollingUpdate`
+* Update the `image` field in the `Memcached` CR to trigger a rolling update
+* The operator performs a controlled rollout of the new Deployment
+* PodDisruptionBudgets (when configured) ensure minimum availability during rollout
 * Memcached is a pure cache — data loss on restart is acceptable
 * No state transfer required, pods start with empty cache
 

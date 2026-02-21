@@ -40,13 +40,13 @@ FluxCD enables the definition of dependencies between Kustomizations:
 │  │ MariaDB CR  │  │  Neutron → Glance →    │  │   (opt.)    │     │
 │  │ RabbitMQ CR │  │  Cinder → Placement    │  │   K-ORC     │     │
 │  │ Valkey CR   │  │                        │  │   Bootstrap │     │
-│  │ Memcached   │  │                        │  │             │     │
+│  │ Memcached CR│  │                        │  │             │     │
 │  └─────────────┘  └────────────────────────┘  └─────────────┘     │
 │                                                                   │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-> **Note:** The c5c3-operator orchestrates the entire deployment order:1) Creates Infrastructure CRs (MariaDB, RabbitMQ, Valkey) → external Operators provision
+> **Note:** The c5c3-operator orchestrates the entire deployment order:1) Creates Infrastructure CRs (MariaDB, RabbitMQ, Valkey, Memcached) → external Operators provision
 > 2) Waits for Infrastructure readiness
 > 3) Creates Service CRs → dedicated Service Operators deploy OpenStack Services
 > 4) Coordinates Credential Lifecycle Management
@@ -111,7 +111,7 @@ spec:
     - name: c5c3-operator
   # Contains: ControlPlane CR
   # c5c3-operator automatically creates:
-  # - Infrastructure CRs (MariaDB, RabbitMQ, Valkey, Memcached)
+  # - Infrastructure CRs (MariaDB, RabbitMQ, Valkey, Memcached) → Operators
   # - OpenStack Services (Keystone, Nova, Neutron, Glance, etc.)
   # - Cortex
   # - K-ORC Bootstrap Resources

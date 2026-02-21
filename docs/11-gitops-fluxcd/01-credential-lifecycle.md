@@ -195,7 +195,7 @@ The following sequence diagram shows the complete bootstrap process from the fir
 │    │          │          │           │            │──────────────┼──────────────┼─────────────▶             │
 │    │          │          │           │            │  RabbitMQ CR │              │ (parallel)  │             │
 │    │          │          │           │            │  Valkey CR   │              │             │             │
-│    │          │          │           │            │  Memcached   │              │             │             │
+│    │          │          │           │            │  Memcached CR│              │             │             │
 │    │          │          │           │            │              │              │             │             │
 │ ═══════════════════════════════════════════════════════════════════════════════════════════════════════════ │
 │ PHASE 2: Keystone Bootstrap                                                                                 │

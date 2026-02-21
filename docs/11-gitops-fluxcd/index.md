@@ -193,9 +193,9 @@ spec:
   * MariaDB Operator
   * Valkey Operator
   * RabbitMQ Operator
+  * Memcached Operator
 * **c5c3-operator** (Helm Chart) -> Orchestration:
-  * Infrastructure CRs (creates CRs for MariaDB/Valkey/RabbitMQ Operators)
-  * Memcached StatefulSet
+  * Infrastructure CRs (creates CRs for MariaDB/Valkey/RabbitMQ/Memcached Operators)
   * Dependency Management
   * Credential Orchestration
   * Creates Service CRs for Service Operators

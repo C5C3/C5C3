@@ -733,7 +733,7 @@ Deploy the CobaltCore infrastructure services alongside the brownfield environme
 * **MariaDB Operator** + MariaDB Galera Cluster
 * **RabbitMQ Cluster Operator** + RabbitMQ Cluster
 * **Valkey Operator** + Valkey Sentinel Cluster
-* **Memcached** StatefulSet
+* **Memcached Operator** + Memcached CR
 * **CobaltCore Service Operators** (keystone-operator, nova-operator, glance-operator, neutron-operator, cinder-operator)
 
 > **See also:** [Infrastructure Service Operators](03-components/01-control-plane.md#infrastructure-service-operators) for deployment details and HelmRelease examples.
