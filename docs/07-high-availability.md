@@ -81,7 +81,7 @@ All infrastructure services in the Control Plane Cluster are deployed redundantl
 │  └─────────────────────────────────────────────────────────────────┘    │
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │  Memcached (Replicated StatefulSet)                             │    │
+│  │  Memcached (memcached-operator, Deployment + Headless Service)  │    │
 │  │  ┌───────────┐  ┌───────────┐                                   │    │
 │  │  │ Instance 1│  │ Instance 2│  DNS-based Discovery,             │    │
 │  │  └───────────┘  └───────────┘  Token Caching for Keystone       │    │
@@ -98,7 +98,7 @@ All infrastructure services in the Control Plane Cluster are deployed redundantl
 | RabbitMQ        | 3        | `pause_minority` partition handling  | Quorum queues for guaranteed message delivery, automatic cluster recovery         |
 | Valkey Sentinel | 3        | Sentinel Quorum (Majority)           | 3 nodes with Sentinel sidecars, automatic failover of primary node                |
 | OVN NB/SB       | 3 each   | Raft Consensus                       | Automatic leader election, deployed via ovn-operator                              |
-| Memcached       | 2+       | No consensus (stateless)             | Replicated StatefulSet, DNS-based discovery                                       |
+| Memcached       | 2+       | No consensus (stateless)             | memcached-operator, anti-affinity + PDB, DNS-based discovery                      |
 
 ## Data Plane HA
 

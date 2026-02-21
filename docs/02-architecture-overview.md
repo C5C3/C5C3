@@ -290,7 +290,7 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
   * MariaDB Operator (Galera cluster for DB backend)
   * Valkey Operator (Sentinel for caching)
   * RabbitMQ Operator (message queue for OpenStack)
-  * Memcached (token caching for Keystone)
+  * Memcached Operator (token caching for Keystone)
 
 ### 3. Hypervisor Cluster
 

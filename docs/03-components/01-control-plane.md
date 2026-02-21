@@ -114,7 +114,7 @@ The **c5c3-operator** is the central orchestration operator. It manages dependen
 │     ├── Creates MariaDB CR → MariaDB Operator                   │
 │     ├── Creates RabbitMQ CR → RabbitMQ Operator                 │
 │     ├── Creates Valkey CR → Valkey Operator                     │
-│     └── Creates Memcached StatefulSet                           │
+│     └── Creates Memcached CR → Memcached Operator               │
 │                                                                 │
 │  2. Dependency Management                                       │
 │     ├── Dependency graph between services                       │
@@ -1626,24 +1626,24 @@ The OpenStack Control Plane requires several infrastructure services as backend.
 ├───────────────────────────────────────────────────────────────────┤
 │                                                                   │
 │  FluxCD deployed Operators:                                       │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                │
-│  │   MariaDB   │  │   Valkey    │  │  RabbitMQ   │                │
-│  │  Operator   │  │  Operator   │  │  Operator   │                │
-│  │ (HelmRelease│  │ (HelmRelease│  │ (HelmRelease│                │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                │
-│         │                │                │                       │
-│         │  watched CRs   │  watched CRs   │  watched CRs          │
-│         │                │                │                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌───────────┐ │
+│  │   MariaDB   │  │   Valkey    │  │  RabbitMQ   │  │ Memcached │ │
+│  │  Operator   │  │  Operator   │  │  Operator   │  │ Operator  │ │
+│  │ (HelmRelease│  │ (HelmRelease│  │ (HelmRelease│  │(HelmRel.) │ │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └─────┬─────┘ │
+│         │                │                │              │        │
+│         │  watched CRs   │  watched CRs   │  watched CRs │        │
+│         │                │                │              │        │
 │  c5c3-operator creates CRs:                                       │
-│  ┌──────▼──────┐  ┌──────▼──────┐  ┌──────▼──────┐  ┌──────────┐  │
-│  │   MariaDB   │  │   Valkey    │  │  RabbitMQ   │  │Memcached │  │
-│  │     CR      │  │     CR      │  │     CR      │  │StatefulS.│  │
-│  │             │  │             │  │             │  │          │  │
-│  │ ┌─────────┐ │  │ ┌─────────┐ │  │ ┌─────────┐ │  │┌────────┐│  │
-│  │ │ Galera  │ │  │ │Sentinel │ │  │ │ Cluster │ │  ││Replicas││  │
-│  │ │ Cluster │ │  │ │+ Valkey │ │  │ │  Nodes  │ │  │└────────┘│  │
-│  │ └─────────┘ │  │ └─────────┘ │  │ └─────────┘ │  │          │  │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └────┬─────┘  │
+│  ┌──────▼──────┐  ┌──────▼──────┐  ┌──────▼──────┐  ┌─────▼─────┐ │
+│  │   MariaDB   │  │   Valkey    │  │  RabbitMQ   │  │ Memcached │ │
+│  │     CR      │  │     CR      │  │     CR      │  │    CR     │ │
+│  │             │  │             │  │             │  │           │ │
+│  │ ┌─────────┐ │  │ ┌─────────┐ │  │ ┌─────────┐ │  │┌─────────┐│ │
+│  │ │ Galera  │ │  │ │Sentinel │ │  │ │ Cluster │ │  ││Deploym. ││ │
+│  │ │ Cluster │ │  │ │+ Valkey │ │  │ │  Nodes  │ │  ││+ Service││ │
+│  │ └─────────┘ │  │ └─────────┘ │  │ └─────────┘ │  │└─────────┘│ │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └─────┬─────┘ │
 │         │                │                │              │        │
 │         └────────────────┴────────────────┴──────────────┘        │
 │                                   │                               │
@@ -1765,40 +1765,46 @@ spec:
       cluster_partition_handling = pause_minority
 ```
 
-## Memcached (StatefulSet)
+## Memcached Operator
 
-**Note:** There is no mature production-ready operator for Memcached. Instead, a simple StatefulSet or Deployment is used. Memcached uses the upstream Docker Hub image (`memcached:1.6`) directly — infrastructure services like Memcached, MariaDB, RabbitMQ, and Valkey are not built by C5C3 (see [Container Images](../17-container-images/#container-registry)).
+**Repository:** [`github.com/C5C3/memcached-operator`](https://github.com/C5C3/memcached-operator)
+**License:** Apache 2.0
 
-**Alternatives:**
+The Memcached Operator enables declarative management of Memcached instances with support for high availability, TLS, monitoring, and security policies.
 
-* **KubeDB**: Commercial operator with Day-2-Operations (Backup, Upgrades, TLS)
-* **StatefulSet**: Simple deployment strategy without operator overhead
+**Key Features:**
 
-**Example (StatefulSet):**
+* **Declarative Management**: `Memcached` CR defines desired cluster state
+* **High Availability**: Pod anti-affinity, topology spreading, PodDisruptionBudgets
+* **Monitoring**: Prometheus exporter sidecar with ServiceMonitor support
+* **Security**: TLS encryption, SASL authentication, NetworkPolicy
+* **Headless Service**: DNS-based pod discovery for pymemcache HashClient
+
+**Example (Memcached CR):**
 
 ```yaml
-apiVersion: apps/v1
-kind: StatefulSet
+apiVersion: memcached.c5c3.io/v1alpha1
+kind: Memcached
 metadata:
   name: openstack-memcached
 spec:
-  serviceName: memcached
   replicas: 3
-  selector:
-    matchLabels:
-      app: memcached
-  template:
-    spec:
-      containers:
-      - name: memcached
-        image: memcached:1.6
-        args: ["-m", "1024", "-c", "4096"]
-        ports:
-        - containerPort: 11211
-        resources:
-          requests:
-            memory: 1Gi
-            cpu: 500m
+  image: memcached:1.6
+  config:
+    maxMemoryMB: 1024
+    maxConnections: 4096
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: 500m
+  highAvailability:
+    podAntiAffinity: soft
+    podDisruptionBudget:
+      minAvailable: 2
+  monitoring:
+    enabled: true
+    exporter:
+      image: prom/memcached-exporter:latest
 ```
 
 ## Operator Reference
@@ -1817,6 +1823,7 @@ spec:
 | **neutron-operator**   | `Neutron`            | `neutron.openstack.c5c3.io/v1alpha1`   | Network Service                  |
 | **ovn-operator**       | `OVNCluster`         | `ovn.c5c3.io/v1alpha1`                 | OVN SDN Backend (Control Plane)  |
 |                        | `OVNChassis`         | `ovn.c5c3.io/v1alpha1`                 | Chassis/Node Registration        |
+| **memcached-operator** | `Memcached`          | `memcached.c5c3.io/v1alpha1`           | Memcached Cluster Management     |
 | **cinder-operator**    | `Cinder`             | `cinder.openstack.c5c3.io/v1alpha1`    | Block Storage                    |
 | **cortex-operator**    | `Cortex`             | `cortex.c5c3.io/v1alpha1`              | Intelligent Scheduler (optional) |
 | **tempest-operator**   | `Tempest`            | `tempest.openstack.c5c3.io/v1alpha1`   | Integration Testing (optional)   |
@@ -1828,7 +1835,7 @@ spec:
 | **MariaDB**   | mariadb-operator          | MIT        | Galera + MaxScale        | Production |
 | **Valkey**    | valkey-operator (SAP)     | Apache 2.0 | Sentinel/Primary-Replica | Production |
 | **RabbitMQ**  | cluster-operator          | MPL-2.0    | Native Clustering        | Production |
-| **Memcached** | StatefulSet (no Operator) | -          | DNS-based                | Stable     |
+| **Memcached** | memcached-operator (C5C3) | Apache 2.0 | Anti-Affinity + PDB      | Production |
 
 ## OpenStack Service Dependencies
 
