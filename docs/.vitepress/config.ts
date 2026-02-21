@@ -76,6 +76,17 @@ export default defineConfig({
         ]
       },
       {
+        text: 'Service Configuration',
+        collapsed: false,
+        items: [
+          { text: 'Overview', link: '/18-service-configuration/' },
+          { text: 'Config Generation', link: '/18-service-configuration/01-config-generation' },
+          { text: 'Validation', link: '/18-service-configuration/02-validation' },
+          { text: 'Customization', link: '/18-service-configuration/03-customization' },
+          { text: 'Landscape', link: '/18-service-configuration/04-landscape' },
+        ]
+      },
+      {
         text: 'Appendix',
         collapsed: false,
         items: [
