@@ -34,6 +34,7 @@ language: en
 noConfigSearch: true
 
 words:
+  - ALASCA
   - Alertmanager
   - apiextensions
   - applicationcredential
@@ -85,6 +86,7 @@ words:
   - dogpile
   - dpdk
   - DPDK
+  - encap
   - Endpts
   - fernet
   - Fernet
@@ -169,6 +171,7 @@ words:
   - Rados
   - RADOS
   - renovatebot
+  - RHOSO
   - SASL
   - SBOM
   - SBOMs
@@ -201,5 +204,6 @@ words:
   - xrds
   - xstoragecluster
   - xstorageclusters
+  - YAOOK
 
 version: "0.2"
