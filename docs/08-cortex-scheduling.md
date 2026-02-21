@@ -180,17 +180,17 @@ status:
 
 ## Available Filter Plugins (Nova)
 
-| Plugin                           | Description                    |
-| -------------------------------- | ------------------------------ |
-| `filter_allowed_projects`        | Enforces project quotas        |
-| `filter_capabilities`            | Matches image properties       |
-| `filter_correct_az`              | Zone/Aggregate constraints     |
-| `filter_external_customer`       | External customer restrictions |
-| `filter_has_accelerators`        | GPU/Accelerator requirements   |
-| `filter_has_enough_capacity`     | Resource availability          |
-| `filter_has_requested_traits`    | Placement traits               |
-| `filter_host_instructions`       | Force/Ignore host lists        |
-| `filter_instance_group_affinity` | VM affinity rules              |
+| Plugin                           | Description                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| `filter_allowed_projects`        | Enforces project quotas                                                           |
+| `filter_capabilities`            | Matches image properties                                                          |
+| `filter_correct_az`              | Zone/Aggregate constraints                                                        |
+| `filter_external_customer`       | External customer restrictions                                                    |
+| `filter_has_accelerators`        | GPU/Accelerator requirements (see [vGPU & Accelerators](18-vgpu-accelerators.md)) |
+| `filter_has_enough_capacity`     | Resource availability                                                             |
+| `filter_has_requested_traits`    | Placement traits                                                                  |
+| `filter_host_instructions`       | Force/Ignore host lists                                                           |
+| `filter_instance_group_affinity` | VM affinity rules                                                                 |
 
 ## Available Weigher Plugins (VMware)
 
