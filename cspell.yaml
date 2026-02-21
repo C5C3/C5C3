@@ -41,6 +41,7 @@ words:
   - APIV
   - anchore
   - Anchore
+  - appsv
   - appctl
   - approle
   - asctime
@@ -48,6 +49,7 @@ words:
   - BAREMETAL
   - baremetal
   - Baremetal
+  - batchv
   - bindep
   - binpacking
   - attestations
@@ -80,7 +82,9 @@ words:
   - Crossplane
   - crossplane
   - datapath
+  - deepcopy
   - Descheduling
+  - distroless
   - Dockerfiles
   - dpkg
   - dogpile
@@ -88,8 +92,10 @@ words:
   - DPDK
   - encap
   - Endpts
+  - envtest
   - fernet
   - Fernet
+  - finalizer
   - Finalizers
   - fluxcd
   - fluxinstance
@@ -103,7 +109,10 @@ words:
   - geneve
   - Geneve
   - gitops
+  - godoc
+  - golangci
   - Gophercloud
+  - gunicorn
   - Grype
   - gopsutil
   - hana
@@ -121,6 +130,8 @@ words:
   - keystonemiddleware
   - Kolla
   - korc
+  - Kubebuilder
+  - kubelet
   - kubeconf
   - kubeconfig
   - kubeconfigs
@@ -138,6 +149,7 @@ words:
   - LOCI
   - OIDC
   - maint
+  - metav
   - Memtouch
   - memtouch
   - mgmt
@@ -147,6 +159,7 @@ words:
   - mysqld
   - netdev
   - northd
+  - nonroot
   - novaclient
   - NUMA
   - nvme
@@ -176,6 +189,7 @@ words:
   - SBOM
   - SBOMs
   - Sigstore
+  - subresource
   - SLSA
   - SPDX
   - stefanzweifel
@@ -193,6 +207,8 @@ words:
   - virsh
   - vitepress
   - vswitchd
+  - uwsgi
+  - virtualenv
   - WSGI
   - xcontrolplanecluster
   - xcontrolplaneclusters
