@@ -30,8 +30,8 @@ test harnesses, and CI pipeline so that `make test`, `make test-integration`, an
   `./operators/keystone`, `./operators/c5c3`. Create the full directory
   structure (`internal/common/`, `operators/keystone/`, `operators/c5c3/`,
   `images/`, `releases/`, `deploy/`, `tests/e2e/`). Initialize `go.mod`
-  for each module with appropriate dependencies (controller-runtime v0.19+,
-  k8s.io/apimachinery v0.31+). Scaffold `main.go` for both operators with
+  for each module with appropriate dependencies (controller-runtime v0.23+,
+  k8s.io/apimachinery v0.35+). Scaffold `main.go` for both operators with
   scheme registration, manager setup, leader election, and health probes.
   Create the top-level Makefile with targets: `generate`, `manifests`,
   `build`, `test`, `test-integration`, `lint`, `docker-build`,
@@ -241,7 +241,7 @@ Create the operator container image, Helm chart, and complete the GitHub Actions
 coverage thresholds and FluxCD integration validation.
 
 - **S017: Keystone Operator Packaging** [high] (depends on: S013)
-  Create `operators/keystone/Dockerfile` (golang:1.23 builder,
+  Create `operators/keystone/Dockerfile` (golang:1.25 builder,
   distroless/static:nonroot runtime, CGO\_ENABLED=0). Create Helm chart
   in `operators/keystone/helm/keystone-operator/`: Chart.yaml,
   values.yaml (image, replicas, resources, leaderElection, webhook,
