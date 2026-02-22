@@ -50,9 +50,12 @@ type KeystoneSpec struct {
     Image commonv1.ImageSpec `json:"image"`
 
     // Database defines the MariaDB connection parameters.
+    // Supports managed (clusterRef) and brownfield (host/port) modes.
+    // +kubebuilder:validation:XValidation:rule="has(self.clusterRef) != has(self.host)",message="exactly one of clusterRef or host must be set"
     Database commonv1.DatabaseSpec `json:"database"`
 
     // Cache defines the Memcached cache configuration.
+    // Supports managed (clusterRef) and brownfield (servers) modes.
     Cache commonv1.CacheSpec `json:"cache"`
 
     // Fernet configures Fernet key rotation.
@@ -151,16 +154,16 @@ spec:
     repository: ghcr.io/c5c3/keystone
     tag: "28.0.0"
   database:
+    clusterRef:
+      name: mariadb                # Managed mode: references MariaDB CR
     database: keystone
     secretRef:
       name: keystone-db-credentials
       key: password
   cache:
+    clusterRef:
+      name: memcached              # Managed mode: references Memcached CR
     backend: dogpile.cache.pymemcache
-    servers:
-      - memcached-0.memcached:11211
-      - memcached-1.memcached:11211
-      - memcached-2.memcached:11211
   fernet:
     rotationSchedule: "0 0 * * 0"
     maxActiveKeys: 3

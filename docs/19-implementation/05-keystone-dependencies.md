@@ -363,16 +363,16 @@ spec:
     repository: ghcr.io/c5c3/keystone
     tag: "28.0.0"
   database:
+    clusterRef:
+      name: mariadb                # Managed mode: references MariaDB CR
     database: keystone
     secretRef:
       name: keystone-db-credentials
       key: password
   cache:
+    clusterRef:
+      name: memcached              # Managed mode: references Memcached CR
     backend: dogpile.cache.pymemcache
-    servers:
-      - memcached-0.memcached:11211
-      - memcached-1.memcached:11211
-      - memcached-2.memcached:11211
   fernet:
     rotationSchedule: "0 0 * * 0"
     maxActiveKeys: 3

@@ -168,18 +168,48 @@ type ImageSpec struct {
     Tag        string `json:"tag"`
 }
 
-// DatabaseSpec defines database connection parameters.
+// DatabaseSpec supports managed (ClusterRef) and brownfield (explicit) modes.
+// Exactly one of ClusterRef or Host must be set.
 type DatabaseSpec struct {
-    Host      string       `json:"host,omitempty"`
-    Port      int32        `json:"port,omitempty"`
-    Database  string       `json:"database"`
+    // ClusterRef references a MariaDB CR in the cluster (managed mode).
+    // +optional
+    ClusterRef *corev1.LocalObjectReference `json:"clusterRef,omitempty"`
+    // Host is the database hostname (brownfield mode).
+    // +optional
+    Host string `json:"host,omitempty"`
+    // Port is the database port (brownfield mode, default 3306).
+    // +optional
+    Port int32 `json:"port,omitempty"`
+    // Database is the database name within the cluster.
+    Database string `json:"database"`
+    // SecretRef references the K8s Secret with credentials.
     SecretRef SecretRefSpec `json:"secretRef"`
 }
 
-// CacheSpec defines cache backend configuration.
+// MessagingSpec supports managed (ClusterRef) and brownfield (explicit) modes.
+// Exactly one of ClusterRef or Hosts must be set.
+type MessagingSpec struct {
+    // ClusterRef references a RabbitMQ CR in the cluster (managed mode).
+    // +optional
+    ClusterRef *corev1.LocalObjectReference `json:"clusterRef,omitempty"`
+    // Hosts is the list of RabbitMQ endpoints (brownfield mode).
+    // +optional
+    Hosts []string `json:"hosts,omitempty"`
+    // SecretRef references the K8s Secret with credentials.
+    SecretRef SecretRefSpec `json:"secretRef"`
+}
+
+// CacheSpec supports managed (ClusterRef) and brownfield (explicit) modes.
+// Exactly one of ClusterRef or Servers must be set.
 type CacheSpec struct {
-    Backend string   `json:"backend"`
-    Servers []string `json:"servers"`
+    // ClusterRef references a Memcached CR in the cluster (managed mode).
+    // +optional
+    ClusterRef *corev1.LocalObjectReference `json:"clusterRef,omitempty"`
+    // Backend is the cache backend (e.g. dogpile.cache.pymemcache).
+    Backend string `json:"backend"`
+    // Servers is the list of cache server endpoints (brownfield mode).
+    // +optional
+    Servers []string `json:"servers,omitempty"`
 }
 
 // SecretRefSpec references a Kubernetes Secret.

@@ -503,4 +503,180 @@ spec:
     description: "Group for service administrators"
 ```
 
+## ControlPlane CRD (`c5c3.io/v1alpha1`)
+
+The ControlPlane CRD is the top-level API for an entire OpenStack deployment. Users or GitOps apply a single CR, and the c5c3-operator handles everything downstream — infrastructure provisioning, service CR creation, and phased rollout.
+
+```yaml
+apiVersion: c5c3.io/v1alpha1
+kind: ControlPlane
+metadata:
+  name: production
+  namespace: openstack
+spec:
+  openStackRelease: "2025.2"         # Target OpenStack release
+  region: RegionOne
+  infrastructure:
+    database:
+      replicas: 3                    # MariaDB Galera cluster size
+      storageClass: fast-ssd
+      storageSize: 50Gi
+    messaging:
+      replicas: 3                    # RabbitMQ cluster size
+    cache:
+      replicas: 3                    # Memcached replicas
+  services:
+    keystone:
+      enabled: true
+      replicas: 3
+      fernet:
+        maxActiveKeys: 3
+        rotationInterval: 24h
+    nova:
+      enabled: true
+      replicas:
+        api: 3
+        scheduler: 2
+        conductor: 2
+    neutron:
+      enabled: true
+      replicas: 3
+    glance:
+      enabled: true
+      replicas: 3
+    cinder:
+      enabled: true
+      replicas:
+        api: 3
+        scheduler: 2
+        volume: 2
+    placement:
+      enabled: true
+      replicas: 3
+  global:
+    tls:
+      enabled: true
+      issuerRef:
+        name: letsencrypt-prod
+        kind: ClusterIssuer
+  korc:
+    cloudCredentialsRef:
+      cloudName: openstack
+      secretName: k-orc-clouds-yaml
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: AllServicesReady
+    - type: InfrastructureReady
+      status: "True"
+    - type: KeystoneReady
+      status: "True"
+  updatePhase: Complete              # Idle|Validating|UpdatingInfra|UpdatingKeystone|UpdatingServices|Verifying|Complete|RollingBack
+  services:
+    keystone:
+      ready: true
+      version: "28.0.0"
+    nova:
+      ready: true
+      version: "32.1.0"
+```
+
+**Update Phases:**
+
+| Phase | Description |
+| --- | --- |
+| `Idle` | No update in progress |
+| `Validating` | Pre-flight checks (CRD schema, dependency resolution) |
+| `UpdatingInfra` | Infrastructure CRs being updated (MariaDB, RabbitMQ, Memcached) |
+| `UpdatingKeystone` | Keystone CR updated and rolling out |
+| `UpdatingServices` | Remaining service CRs updated and rolling out |
+| `Verifying` | Post-update health checks |
+| `Complete` | Update finished successfully |
+| `RollingBack` | Reverting to previous state due to failure |
+
+For the full orchestration flow and Go type definitions, see [C5C3 Operator](./19-implementation/08-c5c3-operator.md).
+
+## SecretAggregate CRD (`c5c3.io/v1alpha1`)
+
+Merges multiple Kubernetes Secrets into a single aggregated Secret. This is useful when a service needs credentials from multiple sources in a single mount.
+
+```yaml
+apiVersion: c5c3.io/v1alpha1
+kind: SecretAggregate
+metadata:
+  name: nova-all-credentials
+  namespace: openstack
+spec:
+  sources:
+    - secretRef:
+        name: nova-db-credentials
+    - secretRef:
+        name: nova-rabbitmq-credentials
+    - secretRef:
+        name: nova-app-credential
+      keys:                              # Select specific keys (empty = all)
+        - application_credential_id
+        - application_credential_secret
+  target:
+    name: nova-aggregated-credentials
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: AllSourcesAvailable
+    - type: SourcesResolved
+      status: "True"
+```
+
+The c5c3-operator watches source Secrets and re-aggregates whenever any source changes. For the Go type definitions, see [C5C3 Operator — SecretAggregate](./19-implementation/08-c5c3-operator.md#secretaggregate-crd).
+
+## CredentialRotation CRD (`c5c3.io/v1alpha1`)
+
+Automates Application Credential rotation for OpenStack services. Works in coordination with K-ORC and the OpenBao/ESO pipeline.
+
+```yaml
+apiVersion: c5c3.io/v1alpha1
+kind: CredentialRotation
+metadata:
+  name: nova-credential-rotation
+  namespace: openstack
+spec:
+  targetServiceUser: nova-service-user   # K-ORC User CR reference
+  rotationType: applicationCredential
+  schedule:
+    intervalDays: 90                     # Rotate every 90 days
+    preRotationDays: 7                   # Create new credential 7 days before expiry
+  gracePeriodDays: 1                     # Overlap period with both credentials valid
+status:
+  lastRotation: "2025-12-01T00:00:00Z"
+  nextRotation: "2026-03-01T00:00:00Z"
+  currentCredentialRef:
+    name: nova-app-credential-v3
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: CredentialValid
+    - type: RotationScheduled
+      status: "True"
+```
+
+**Rotation Lifecycle:**
+
+```text
+Day 0: New Application Credential created
+       ├── K-ORC creates AppCred in Keystone
+       ├── Written to K8s Secret → PushSecret → OpenBao
+       └── ESO distributes to all consumers
+
+Day 83: Pre-rotation (7 days before expiry)
+       ├── New Application Credential created
+       └── Old credential still valid
+
+Day 90: Grace period ends
+       └── Old Application Credential deleted from Keystone
+```
+
+For the full rotation flow and Go type definitions, see [C5C3 Operator — CredentialRotation](./19-implementation/08-c5c3-operator.md#credentialrotation-crd). For the secret management architecture, see [Secret Management](./13-secret-management.md).
+
 ***

@@ -41,14 +41,24 @@ The implementation follows a **Keystone-first** strategy: the Keystone Operator 
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                              │                                              │
 │                              ▼                                              │
-│  Phase 3: Remaining Operators                                               │
+│  Phase 3a: c5c3-operator                                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  ControlPlane CRD + Orchestration Reconciler                        │    │
+│  │  Infrastructure CR creation + Readiness waiting                     │    │
+│  │  Service CR projection (ControlPlane → per-service CRs)             │    │
+│  │  K-ORC integration (bootstrap imports, Services, Endpoints, Users)  │    │
+│  │  SecretAggregate + CredentialRotation CRDs                          │    │
+│  │  Phased rollout strategy (updatePhase tracking)                     │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                              │                                              │
+│                              ▼                                              │
+│  Phase 3b: Remaining Service Operators                                      │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │  Glance Operator     (MariaDB, Keystone, Ceph)                      │    │
 │  │  Placement Operator  (MariaDB, Keystone)                            │    │
 │  │  Nova Operator       (MariaDB, RabbitMQ, Keystone, Ceph, Cells)     │    │
 │  │  Neutron Operator    (MariaDB, RabbitMQ, Keystone, OVN)             │    │
 │  │  Cinder Operator     (MariaDB, RabbitMQ, Keystone, Ceph)            │    │
-│  │  c5c3-operator       (Orchestration, Dependency Graph, K-ORC)       │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -85,3 +95,7 @@ Keystone is the ideal starting point for implementation:
 - [Keystone Dependencies](./05-keystone-dependencies.md) — Secret flow, MariaDB, Memcached, Fernet rotation
 - [Testing](./06-testing.md) — Unit, integration (envtest), E2E (Chainsaw)
 - [CI/CD & Packaging](./07-ci-cd-and-packaging.md) — GitHub Actions, Helm charts, FluxCD
+- [C5C3 Operator](./08-c5c3-operator.md) — ControlPlane CRD, orchestration reconciler, rollout strategy
+- [OpenBao Deployment](./09-openbao-deployment.md) — Deployment, initialization, secret engines, policies
+
+For the configuration lifecycle concepts that inform this implementation, see [Service Configuration](../18-service-configuration/index.md).

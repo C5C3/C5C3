@@ -25,8 +25,8 @@ The v1alpha1 CRDs cover the following configuration aspects per service:
 
 | Config Aspect | Keystone | Nova | Neutron | Glance | Cinder | Placement |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Database** | Host, port, name, secretRef | Main DB + API DB + Cell0 | Host, port, name, secretRef | Host, port, name, secretRef | Host, port, name, secretRef | Host, port, name, secretRef |
-| **Messaging** | — | Host, port, secretRef | Host, port, secretRef | — | Host, port, secretRef | — |
+| **Database** | clusterRef OR host/port, name, secretRef | Main DB + API DB + Cell0 (clusterRef or host) | clusterRef OR host/port, name, secretRef | clusterRef OR host/port, name, secretRef | clusterRef OR host/port, name, secretRef | clusterRef OR host/port, name, secretRef |
+| **Messaging** | — | clusterRef OR hosts, secretRef | clusterRef OR hosts, secretRef | — | clusterRef OR hosts, secretRef | — |
 | **Keystone Auth** | (self) | authUrl, appCredentialRef | authUrl, appCredentialRef | authUrl, appCredentialRef | authUrl, appCredentialRef | authUrl, appCredentialRef |
 | **Cache** | Backend, host, port | Backend, host, port | Backend, host, port | Backend, host, port | Backend, host, port | Backend, host, port |
 | **Storage Backend** | — | RBD pool, user, secretRef | — | RBD pool, user, secretRef | RBD pool, user, secretRef + multi-backend | — |

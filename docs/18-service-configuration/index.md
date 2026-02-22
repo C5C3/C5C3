@@ -37,11 +37,12 @@ This section documents how configuration is generated, validated, customized, an
 │  │ Service Operator (e.g. nova-operator)                                │   │
 │  │                                                                      │   │
 │  │  1. Read CRD spec fields (database, messaging, keystone, cache, ..)  │   │
-│  │  2. Read referenced K8s Secrets (credentials from ESO/OpenBao)       │   │
-│  │  3. Merge with operator-embedded defaults for the target release     │   │
-│  │  4. Render INI config file(s) from structured data                   │   │
-│  │  5. Create ConfigMap with content-hash name                          │   │
-│  │  6. Update Deployment/DaemonSet to reference new ConfigMap           │   │
+│  │  2. Resolve infra endpoints (clusterRef → CR status, or host/port)   │   │
+│  │  3. Read referenced K8s Secrets (credentials from ESO/OpenBao)       │   │
+│  │  4. Merge with operator-embedded defaults for the target release     │   │
+│  │  5. Render INI config file(s) from structured data                   │   │
+│  │  6. Create ConfigMap with content-hash name                          │   │
+│  │  7. Update Deployment/DaemonSet to reference new ConfigMap           │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
 │         │                                                                   │
 │         ▼                                                                   │
@@ -59,7 +60,7 @@ This section documents how configuration is generated, validated, customized, an
 | Aspect | C5C3 | YAOOK | Kolla-Ansible | Red Hat K8s Operators | Atmosphere |
 | --- | --- | --- | --- | --- | --- |
 | **Config Source** | CRD fields (typed) | CUE layers | globals.yml + Jinja2 | CRD fields + customServiceConfig | Helm values |
-| **Config Language** | Go templates (operator) | CUE | Jinja2 + INI merge | Go templates | Go templates (OpenStack-Helm) |
+| **Config Language** | Go structs (operator-internal) | CUE | Jinja2 + INI merge | Go templates | Go templates (OpenStack-Helm) |
 | **Validation** | OpenAPI schema + operator checks | CUE schema + metadata | oslo-config-validator | OpenAPI + CEL | Implicit (template logic) |
 | **Secret Handling** | OpenBao + ESO (fully separated) | SecretInjectionLayer | ansible-vault + merge | K8s Secrets in CRD refs | K8s Secrets |
 | **Custom Config** | Structured CRD (raw override planned) | CUE merging (open) | globals.yml + overrides | customServiceConfig (raw INI) | Helm value overrides |
