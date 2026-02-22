@@ -1,5 +1,5 @@
 {
-  "feature_id": "MO-0011",
+  "feature_id": "CC-0011",
   "title": "E001: Keystone API Types, Webhooks & CRD Generation",
   "slug": "e001-keystone-api-types-webhooks-crd-generation",
   "status": "draft",
