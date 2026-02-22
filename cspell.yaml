@@ -22,6 +22,7 @@ ignorePaths:
   - "**/vscode-extension/**"
   - "**/.git/**"
   - "**/.pnpm-lock.json"
+  - ".planwerk/**"
   - ".vscode"
   - "megalinter"
   - "megalinter-reports/**"
