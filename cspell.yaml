@@ -65,7 +65,9 @@ words:
   - chardev
   - CloudHypervisor
   - CISA
+  - cloudoperators
   - cobaltcore
+  - coverprofile
   - cosign
   - cyclonedx
   - controll
@@ -141,6 +143,7 @@ words:
   - LACP
   - letsencrypt
   - levelname
+  - librbd
   - libffi
   - libpq
   - libssl

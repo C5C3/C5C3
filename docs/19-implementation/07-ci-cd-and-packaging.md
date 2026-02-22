@@ -1,6 +1,6 @@
 # CI/CD & Packaging
 
-This page documents the CI/CD pipeline, operator container images, Helm chart packaging, and FluxCD integration for CobaltCore operators.
+This page documents the CI/CD pipeline, operator container images, Helm chart packaging, and FluxCD integration for CobaltCore operators. For test-level details (unit, integration, E2E), see [Testing](./06-testing.md).
 
 ## CI/CD Pipeline
 
@@ -64,8 +64,6 @@ This page documents the CI/CD pipeline, operator container images, Helm chart pa
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
-
-***
 
 ## GitHub Actions Workflow
 
@@ -179,8 +177,6 @@ jobs:
           helm push ${{ matrix.operator }}-operator-*.tgz oci://${{ env.REGISTRY }}/c5c3/charts
 ```
 
-***
-
 ## Operator Container Image
 
 Each operator is built as a minimal container image using a multi-stage Dockerfile:
@@ -216,8 +212,6 @@ ENTRYPOINT ["/manager"]
 | **User** | Non-root (UID 65532) |
 | **Registry** | `ghcr.io/c5c3/<operator>-operator` |
 | **Tags** | `latest`, `<commit-sha>`, `v<semver>` |
-
-***
 
 ## Helm Chart Structure
 
@@ -298,8 +292,6 @@ serviceAccount:
   annotations: {}
 ```
 
-***
-
 ## CRD Packaging Strategy
 
 | Strategy | Pros | Cons |
@@ -309,8 +301,6 @@ serviceAccount:
 | **Separate CRD chart** | Independent CRD lifecycle | Extra chart to manage |
 
 **Decision:** CRDs are packaged in the `crds/` directory of the operator Helm chart. FluxCD's `install.crds: CreateReplace` and `upgrade.crds: CreateReplace` handles creation and updates. This is the simplest approach and aligns with the pattern used for infrastructure operators (see [Helm Deployment](../11-gitops-fluxcd/03-helm-deployment.md)).
-
-***
 
 ## FluxCD Integration
 
@@ -363,8 +353,6 @@ spec:
 ```
 
 The `dependsOn` field ensures infrastructure operators are deployed before service operators. See [Helm Deployment](../11-gitops-fluxcd/03-helm-deployment.md) for the full FluxCD deployment architecture and [Dependency Management](../11-gitops-fluxcd/02-dependency-management.md) for dependency ordering.
-
-***
 
 ## Release Process
 

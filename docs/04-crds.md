@@ -1,10 +1,10 @@
 # CRDs
 
-CobaltCore defines several Custom Resource Definitions (CRDs) for declarative management of hypervisors, evictions, migrations, storage arbiters, and network status. The following CRDs form the central API interface of the system.
+CobaltCore defines several Custom Resource Definitions (CRDs) for declarative management of hypervisors, evictions, migrations, storage arbiters, network status, Keystone identity resources (via K-ORC), control plane orchestration, secret aggregation, and credential rotation. The following CRDs form the central API interface of the system. For Cortex scheduling CRDs, see [Cortex Scheduling](./08-cortex-scheduling.md#cortex-custom-resource-definitions-crds).
 
 ## Hypervisor CRD (`hypervisor.c5c3.io/v1`)
 
-Represents a hypervisor node in the cluster.
+Represents a hypervisor node in the cluster. For the complete hypervisor state machine, see [Hypervisor Lifecycle](./06-hypervisor-lifecycle.md).
 
 ```yaml
 apiVersion: hypervisor.c5c3.io/v1
@@ -59,15 +59,15 @@ status:
 
 **Condition Types:**
 
-| Type                | Description                   |
-| ------------------- | ----------------------------- |
-| `Onboarding`        | Onboarding status of the node |
-| `Offboarded`        | Completed offboarding         |
-| `Ready`             | Readiness status              |
-| `Terminating`       | Node is being terminated      |
-| `Tainted`           | Node is tainted               |
-| `TraitsUpdated`     | Traits have been updated      |
-| `AggregatesUpdated` | Aggregates have been updated  |
+| Type                | Description                                                          |
+| ------------------- | -------------------------------------------------------------------- |
+| `Onboarding`        | Node is undergoing initial configuration and OpenStack registration  |
+| `Offboarded`        | Node has completed the offboarding process and is no longer active   |
+| `Ready`             | All onboarding steps and tests passed; node can accept workloads     |
+| `Terminating`       | Node is being terminated and resources are being cleaned up          |
+| `Tainted`           | Node has been flagged with a problem preventing normal scheduling    |
+| `TraitsUpdated`     | OpenStack traits have been synchronized from spec to Nova            |
+| `AggregatesUpdated` | Host aggregate assignments have been synchronized from spec to Nova  |
 
 **Maintenance Modes:**
 
@@ -78,9 +78,11 @@ status:
 | `ha`          | High availability maintenance mode       |
 | `termination` | Internal mode during termination         |
 
+For maintenance mode details, see [Hypervisor Lifecycle -- Maintenance Mode](./06-hypervisor-lifecycle.md#maintenance-mode). For HA-triggered maintenance, see [High Availability](./07-high-availability.md).
+
 ## Eviction CRD (`hypervisor.c5c3.io/v1`)
 
-Represents an eviction request for a hypervisor.
+Represents an eviction request for a hypervisor. For the full eviction flow, see [Hypervisor Lifecycle -- Eviction Process](./06-hypervisor-lifecycle.md#eviction-process).
 
 ```yaml
 apiVersion: hypervisor.c5c3.io/v1
@@ -165,7 +167,7 @@ status:
 
 ## RemoteCluster CRD (`ceph.c5c3.io/v1alpha1`)
 
-Defines access to a remote Kubernetes cluster for external arbiter deployment.
+Defines access to a remote Kubernetes cluster for external arbiter deployment. For the storage cluster integration, see [Storage Architecture](./09-storage-architecture.md).
 
 ```yaml
 apiVersion: ceph.c5c3.io/v1alpha1
@@ -254,7 +256,7 @@ status:
 
 ## OVSNode CRD (`ovs.c5c3.io/v1alpha1`)
 
-Represents the OVS status of a hypervisor node. Automatically created and updated by the **OVS Agent**.
+Represents the OVS status of a hypervisor node. Automatically created and updated by the **OVS Agent**. For the OVS bridge layout and OVN architecture, see [Network Architecture](./10-network-architecture.md).
 
 ```yaml
 apiVersion: ovs.c5c3.io/v1alpha1
@@ -298,7 +300,7 @@ status:
 
 ## K-ORC Keystone CRDs (`openstack.k-orc.cloud/v1alpha1`)
 
-K-ORC (Kubernetes OpenStack Resource Controller) provides CRDs for declarative management of Keystone resources. These CRDs are essential for the bootstrap process — without them, OpenStack services cannot register in the service catalog or authenticate.
+K-ORC (Kubernetes OpenStack Resource Controller) provides CRDs for declarative management of Keystone resources. These CRDs are essential for the bootstrap process --- without them, OpenStack services cannot register in the service catalog or authenticate.
 
 **Common Fields:**
 
@@ -413,7 +415,7 @@ spec:
     userRef: k-orc-service-user
     roles:
       - admin
-    expiresAt: "2025-04-15T00:00:00Z"
+    expiresAt: "2027-04-15T00:00:00Z"
     secretRef:
       name: k-orc-app-credential-secret
 ```
@@ -505,7 +507,7 @@ spec:
 
 ## ControlPlane CRD (`c5c3.io/v1alpha1`)
 
-The ControlPlane CRD is the top-level API for an entire OpenStack deployment. Users or GitOps apply a single CR, and the c5c3-operator handles everything downstream — infrastructure provisioning, service CR creation, and phased rollout.
+The ControlPlane CRD is the top-level API for an entire OpenStack deployment. Users or GitOps apply a single CR, and the c5c3-operator handles everything downstream --- infrastructure provisioning, service CR creation, and phased rollout.
 
 ```yaml
 apiVersion: c5c3.io/v1alpha1
@@ -629,7 +631,7 @@ status:
       status: "True"
 ```
 
-The c5c3-operator watches source Secrets and re-aggregates whenever any source changes. For the Go type definitions, see [C5C3 Operator — SecretAggregate](./19-implementation/08-c5c3-operator.md#secretaggregate-crd).
+The c5c3-operator watches source Secrets and re-aggregates whenever any source changes. For the Go type definitions, see [C5C3 Operator -- SecretAggregate](./19-implementation/08-c5c3-operator.md#secretaggregate-crd).
 
 ## CredentialRotation CRD (`c5c3.io/v1alpha1`)
 
@@ -677,6 +679,4 @@ Day 90: Grace period ends
        └── Old Application Credential deleted from Keystone
 ```
 
-For the full rotation flow and Go type definitions, see [C5C3 Operator — CredentialRotation](./19-implementation/08-c5c3-operator.md#credentialrotation-crd). For the secret management architecture, see [Secret Management](./13-secret-management.md).
-
-***
+For the full rotation flow and Go type definitions, see [C5C3 Operator -- CredentialRotation](./19-implementation/08-c5c3-operator.md#credentialrotation-crd). For the secret management architecture, see [Secret Management](./13-secret-management.md).

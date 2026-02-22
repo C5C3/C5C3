@@ -6,8 +6,6 @@ The shared library at `internal/common/` provides reusable building blocks for a
 
 Without a shared library, each operator would independently implement the same patterns: waiting for MariaDB readiness, rendering INI config files, checking ESO secret availability, managing Kubernetes Jobs. This leads to divergence, duplicated bugs, and inconsistent user experience. The shared library centralizes these concerns.
 
-***
-
 ## Comparison with openstack-k8s-operators/lib-common
 
 Red Hat's [openstack-k8s-operators](https://github.com/openstack-k8s-operators) project uses a separate `lib-common` repository. CobaltCore takes a different approach:
@@ -22,8 +20,6 @@ Red Hat's [openstack-k8s-operators](https://github.com/openstack-k8s-operators) 
 | **Discovery** | Separate docs/godoc | Colocated in the same codebase |
 
 The monorepo approach trades release independence for development velocity — a breaking change in the shared library is immediately visible in all operator builds within the same CI run.
-
-***
 
 ## Package Structure
 
@@ -58,7 +54,7 @@ Manages `metav1.Condition` entries on operator status objects.
 
 ### database/
 
-Encapsulates interaction with the MariaDB Operator's CRDs.
+Encapsulates interaction with the [MariaDB Operator's](../03-components/01-control-plane.md#infrastructure-service-operators) CRDs.
 
 | Function | Description |
 | --- | --- |
@@ -219,8 +215,6 @@ type SecretRefSpec struct {
 }
 ```
 
-***
-
 ## Secret Flow Design Principle
 
 Operators interact exclusively with Kubernetes Secrets. The full secret lifecycle flows through OpenBao and ESO, but operators are unaware of this — they only see standard Kubernetes Secrets.
@@ -250,8 +244,6 @@ Operators interact exclusively with Kubernetes Secrets. The full secret lifecycl
 ```
 
 See [Secret Management](../13-secret-management.md) for OpenBao architecture and policies. See [Credential Lifecycle](../11-gitops-fluxcd/01-credential-lifecycle.md) for the bootstrap flow and PushSecret patterns.
-
-***
 
 ## Extra Packages / Plugin Installation (Build-Time)
 
@@ -287,8 +279,6 @@ RUN uv pip install \
 ```
 
 The `EXTRA_PACKAGES` build argument is populated from `extra-packages.yaml` by the CI pipeline. This pattern is generic — any additional Python package (middleware, driver, backend plugin) can be added to `extra-packages.yaml` without modifying the Dockerfile.
-
-***
 
 ## Usage Example
 

@@ -1,8 +1,8 @@
 # Cortex Scheduling
 
-**Repository:** `github.com/cobaltcore-dev/cortex`
+**Repository:** [github.com/cobaltcore-dev/cortex](https://github.com/cobaltcore-dev/cortex)
 
-Cortex is a **Kubernetes-native, modular scheduler** for multi-domain resource placement. It implements the **External Scheduler Delegation Pattern** for OpenStack and other platforms.
+Cortex is a **Kubernetes-native, modular scheduler** for multi-domain resource placement. It implements the **External Scheduler Delegation Pattern**, where Nova delegates host ranking to Cortex after its own filtering phase, enabling placement decisions based on topology, thermal data, and custom constraints.
 
 ## Supported Scheduling Domains
 
@@ -61,6 +61,8 @@ Cortex is a **Kubernetes-native, modular scheduler** for multi-domain resource p
 │                                                                   │
 └───────────────────────────────────────────────────────────────────┘
 ```
+
+For the Hypervisor CRD that represents compute hosts, see [CRDs](./04-crds.md#hypervisor-crd-hypervisorc5c3iov1). For VM placement in the context of eviction and migration, see [Hypervisor Lifecycle](./06-hypervisor-lifecycle.md#eviction-process).
 
 ## Cortex Architecture Overview
 
@@ -126,6 +128,10 @@ Cortex defines **7 CRD types** in API group `cortex.c5c3.io/v1alpha1`:
 | **Decision**     | Scheduling decision with history and explanation   |
 | **Descheduling** | Migration instruction for problematic VMs          |
 | **Reservation**  | Capacity reservation for future workloads          |
+
+<!-- TODO: Add YAML examples for Decision, Descheduling, and Reservation CRDs -->
+
+For the core CobaltCore CRDs (Hypervisor, Eviction, Migration, etc.), see [CRDs](./04-crds.md).
 
 ### Example: Pipeline CRD
 
@@ -194,6 +200,8 @@ status:
 
 ## Available Weigher Plugins (VMware)
 
+<!-- TODO: Add KVM/Cloud Hypervisor weigher plugins table if available. The weighers below are VMware-specific. -->
+
 | Plugin                                    | Description                |
 | ----------------------------------------- | -------------------------- |
 | `vmware_hana_binpacking`                  | Tight packing for SAP HANA |
@@ -239,5 +247,3 @@ status:
 │                                                                       │
 └───────────────────────────────────────────────────────────────────────┘
 ```
-
-***

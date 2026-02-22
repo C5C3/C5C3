@@ -2,7 +2,7 @@
 
 ## Complete State Diagram
 
-The following diagram shows all states of a hypervisor node and the transitions between them. Each transition is triggered by a specific trigger and processed by a specific controller.
+The following diagram shows all states of a hypervisor node and the transitions between them. Each transition is triggered by a specific trigger and processed by a specific controller. For the agent and controller architecture, see [Component Interaction](./05-component-interaction.md).
 
 ```text
                                 ┌─────────┐
@@ -97,7 +97,7 @@ The following diagram shows all states of a hypervisor node and the transitions 
 
 **Phase "Initial":**
 
-The Hypervisor Controller watches the Kubernetes Node API in the Hypervisor Cluster. When a new node joins the cluster, the controller automatically creates a **Hypervisor CRD** (see [04-crds.md](04-crds.md)) with the initial state. The CRD contains the node reference and the desired configuration.
+The Hypervisor Controller watches the Kubernetes Node API in the Hypervisor Cluster. When a new node joins the cluster, the controller automatically creates a **Hypervisor CRD** (see [CRDs](./04-crds.md#hypervisor-crd-hypervisorc5c3iov1)) with the initial state. The CRD contains the node reference and the desired configuration.
 
 **Phase "Onboarding":**
 
@@ -117,9 +117,9 @@ After onboarding, automatic validation checks are performed:
 
 > **Note:** With `skipTests: true` in the Hypervisor CRD Spec, the Testing phase can be skipped. This is useful for development environments, not recommended for production.
 
-**Phase "Ready → Active":**
+**Phase "Ready -> Active":**
 
-Once all tests pass, the node is marked as `Ready`. The Hypervisor Controller enables the node for Nova scheduling — from this point, VMs can be placed on the node and the state changes to `Active`.
+Once all tests pass, the node is marked as `Ready`. The Hypervisor Controller enables the node for Nova scheduling --- from this point, VMs can be placed on the node and the state changes to `Active`.
 
 **Error Handling:**
 
@@ -131,18 +131,20 @@ The `Aborted` state is set when:
 
 With `Aborted`, the cause must be fixed and the onboarding process manually restarted by resetting the Hypervisor CRD status.
 
+<!-- TODO: Document how to reset Hypervisor CRD status for re-onboarding (which field to reset, example kubectl command) -->
+
 ## Maintenance Mode
 
 Maintenance mode enables planned maintenance work on a hypervisor node without permanently losing VMs.
 
 **Triggers:**
 
-| Trigger              | Initiator                                                     | Maintenance Mode |
-| -------------------- | ------------------------------------------------------------- | ---------------- |
-| Manual (Admin)       | Admin sets `spec.maintenance: "manual"` in the Hypervisor CRD | `manual`         |
-| Automatic (Gardener) | Gardener Rolling Update requires node restart                 | `auto`           |
-| HA Event             | HA Agent detects hardware problem                             | `ha`             |
-| Node Termination     | Kubernetes Node is terminated                                 | `termination`    |
+| Trigger              | Initiator                                                                                                                      | Maintenance Mode |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| Manual (Admin)       | Admin sets `spec.maintenance: "manual"` in the Hypervisor CRD                                                                  | `manual`         |
+| Automatic (Gardener) | [Gardener](https://gardener.cloud/) Rolling Update requires node restart                                                       | `auto`           |
+| HA Event             | HA Agent detects hardware problem (see [High Availability](./07-high-availability.md))                                         | `ha`             |
+| Node Termination     | Kubernetes Node is terminated                                                                                                  | `termination`    |
 
 **Flow:**
 
@@ -203,12 +205,12 @@ Maintenance mode enables planned maintenance work on a hypervisor node without p
 
 **Eviction Reasons:**
 
-| Reason                  | Initiator                                                               | Re-Enable after Eviction         |
-| ----------------------- | ----------------------------------------------------------------------- | -------------------------------- |
-| Node Failure            | HA Agent detects via LibVirt Events, automatically creates Eviction CRD | No (node must be restored first) |
-| Gardener Rolling Update | Gardener sets Node Drain, Operator creates Eviction CRD                 | Yes (after successful update)    |
-| Admin Request           | Admin manually creates an Eviction CRD                                  | Depends on reason                |
-| Decommissioning         | Admin marks node for decommissioning                                    | No                               |
+| Reason                  | Initiator                                                                                                                    | Re-Enable after Eviction         |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Node Failure            | HA Agent detects via LibVirt Events, automatically creates Eviction CRD (see [High Availability](./07-high-availability.md)) | No (node must be restored first) |
+| Gardener Rolling Update | [Gardener](https://gardener.cloud/) sets Node Drain, Operator creates Eviction CRD                                           | Yes (after successful update)    |
+| Admin Request           | Admin manually creates an Eviction CRD                                                                                       | Depends on reason                |
+| Decommissioning         | Admin marks node for decommissioning                                                                                         | No                               |
 
 **Preflight Checks:**
 
@@ -218,7 +220,7 @@ Before eviction begins, the Eviction Controller checks:
 2. **Nova Scheduling Filter**: Check if Nova Scheduler filters (Availability Zone, Host Aggregates, Traits) allow placement
 3. **VM Compatibility**: Check for VMs that cannot be migrated (e.g., PCI passthrough, local disks)
 
-The eviction process is aborted if preflight checks fail. The Eviction CRD is updated with an appropriate condition (see [04-crds.md](04-crds.md)).
+The eviction process is aborted if preflight checks fail. The Eviction CRD is updated with an appropriate condition (see [CRDs](./04-crds.md#eviction-crd-hypervisorc5c3iov1)).
 
 **VM Migration:**
 
@@ -226,10 +228,12 @@ Migration occurs **instance by instance** via the Nova Live Migration API:
 
 1. Hypervisor Operator selects the next VM to migrate
 2. Nova Live Migration API is called (target host is determined by Nova Scheduler)
-3. Migration CRD is created and monitored (see [04-crds.md](04-crds.md))
+3. Migration CRD is created and monitored (see [CRDs](./04-crds.md#migration-crd-hypervisorc5c3iov1alpha1))
 4. After successful migration: next VM, until all are migrated
 
 **Timeout Handling:**
+
+<!-- TODO: Document timeout configuration (CRD field or operator flag, default value) -->
 
 If a single VM migration does not complete within the configured timeout:
 
@@ -257,5 +261,3 @@ After complete eviction, a node can be permanently decommissioned:
 4. **CRD Status**: Hypervisor CRD is set to `Decommissioned`
 
 The node can subsequently be removed from the Kubernetes cluster. The Hypervisor CRD remains as documentation until manually deleted.
-
-***

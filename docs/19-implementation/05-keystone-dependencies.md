@@ -44,13 +44,13 @@ This page documents all external dependencies of the Keystone Operator: the secr
 
 See [Control Plane — Service Dependencies](../03-components/01-control-plane.md#openstack-service-dependencies) for the full dependency matrix across all services.
 
-***
-
 ## OpenBao / ESO Secret Flow
 
 ### Design Principle
 
-**All secrets originate from OpenBao.** Operators read exclusively Kubernetes Secrets that are created by the External Secrets Operator (ESO). Operators never access OpenBao directly. This design is documented in [Secret Management](../13-secret-management.md) and [Credential Lifecycle](../11-gitops-fluxcd/01-credential-lifecycle.md).
+**All secrets originate from OpenBao.** Operators read exclusively Kubernetes Secrets that are created by the External Secrets Operator (ESO). Operators never access OpenBao directly.
+This design is documented in [Secret Management](../13-secret-management.md) and [Credential Lifecycle](../11-gitops-fluxcd/01-credential-lifecycle.md).
+For the concrete OpenBao deployment and policy configuration, see [OpenBao Deployment](./09-openbao-deployment.md).
 
 **Prerequisite:** ESO and a `ClusterSecretStore` must be deployed and operational before any service operator starts. This is part of Phase 0 in the bootstrap sequence (see [Credential Lifecycle — Bootstrap Problem](../11-gitops-fluxcd/01-credential-lifecycle.md#bootstrap-problem-and-solution-architecture)).
 
@@ -173,8 +173,6 @@ spec:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-***
-
 ## MariaDB Interaction
 
 The Keystone Operator interacts with MariaDB through the MariaDB Operator's CRDs (see [Control Plane — Infrastructure Service Operators](../03-components/01-control-plane.md#infrastructure-service-operators)).
@@ -195,8 +193,6 @@ This string is rendered into `keystone.conf` under `[database] connection =`.
 
 **Readiness:** The reconciler waits for the MariaDB `Database` CR status to become `Ready` before proceeding to db_sync. If the MariaDB Operator or Galera cluster is not ready, reconciliation requeues with a 30-second delay.
 
-***
-
 ## Memcached Interaction
 
 Keystone uses Memcached for token caching and general-purpose caching. The Memcached cluster is managed by the [memcached-operator](../03-components/01-control-plane.md#memcached-operator).
@@ -216,8 +212,6 @@ servers = memcached-0.memcached:11211,memcached-1.memcached:11211,memcached-2.me
 ```
 
 The server list is populated from the CRD's `spec.cache.servers` field.
-
-***
 
 ## Fernet Key Lifecycle
 
@@ -263,8 +257,6 @@ Keystone uses Fernet tokens, which require symmetric encryption keys that must b
 
 The `maxActiveKeys` CRD field (default: 3) controls how many keys are retained. With weekly rotation and `maxActiveKeys=3`, tokens remain valid for up to 2 weeks after issuance.
 
-***
-
 ## Bootstrap Process
 
 The Keystone bootstrap creates the initial admin user, project, role, and service catalog entry. It is implemented as a Kubernetes Job running `keystone-manage bootstrap`:
@@ -295,8 +287,6 @@ keystone-manage bootstrap \
 Subsequent Keystone resources (service users, application credentials, additional endpoints) are then managed by K-ORC.
 This two-phase approach resolves the circular dependency: Keystone must exist before K-ORC can talk to it, but K-ORC needs the bootstrap resources to operate.
 
-***
-
 ## Keystone Container Image Contract
 
 The Keystone Operator expects the following from the Keystone service image (`ghcr.io/c5c3/keystone:<tag>`):
@@ -312,8 +302,6 @@ The Keystone Operator expects the following from the Keystone service image (`gh
 | **Plugins** | Installed at build time via `extra-packages.yaml` (see [Shared Library](./02-shared-library.md#extra-packages--plugin-installation-build-time)) |
 
 For image build details, see [Build Pipeline](../17-container-images/01-build-pipeline.md). For tag schema, see [Versioning](../17-container-images/02-versioning.md). For patching and extra-packages integration, see [Patching](../17-container-images/03-patching.md).
-
-***
 
 ## Plugin Configuration Examples
 
@@ -410,8 +398,6 @@ spec:
 
 The general pattern — `spec.middleware[]` for PasteDeploy filters, `spec.plugins[]` for service drivers, `spec.extraConfig` for free-form INI sections — is implemented in the shared library (`internal/common/plugins/`) and reusable by all operators.
 
-***
-
 ## Config File Generation
 
 ### keystone.conf Mapping
@@ -425,7 +411,7 @@ The reconciler generates `keystone.conf` by mapping CRD spec fields to INI secti
 | `spec.cache.servers` | `[cache]` | `memcache_servers` | CRD field (comma-joined) |
 | `spec.cache.servers` | `[memcache]` | `servers` | CRD field (comma-joined) |
 | `spec.fernet.maxActiveKeys` | `[fernet_tokens]` | `max_active_keys` | CRD field |
-| `spec.bootstrap.region` | `[identity]` | `default_domain_id` | Operator default |
+| (operator default) | `[identity]` | `default_domain_id` | Operator default (`"default"`) |
 | `spec.plugins[].config` | `[<configSection>]` | Per plugin | CRD field |
 | `spec.extraConfig` | `[<section>]` | Per key | CRD field (escape hatch) |
 | (operator default) | `[token]` | `provider` | `fernet` |

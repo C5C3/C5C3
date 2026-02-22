@@ -91,8 +91,6 @@ spec:
       enabled: false  # ESO handles secret distribution, not the injector
 ```
 
-***
-
 ## Initialization and Unseal
 
 After deployment, OpenBao must be initialized and unsealed. This is a one-time operation.
@@ -125,7 +123,7 @@ done
 
 ### Auto-Unseal (Production)
 
-For production environments, configure auto-unseal using a Transit secret engine from another OpenBao instance or a cloud KMS:
+For production environments, configure auto-unseal using a Transit secret engine from another OpenBao instance or a cloud KMS. Add the following `seal` stanza to the Raft config in the HelmRelease values:
 
 ```hcl
 seal "transit" {
@@ -136,8 +134,6 @@ seal "transit" {
   mount_path      = "transit/"
 }
 ```
-
-***
 
 ## Secret Engines
 
@@ -203,8 +199,6 @@ bao write database/mariadb/roles/nova-rw \
   max_ttl=24h
 ```
 
-***
-
 ## Auth Methods
 
 ### Kubernetes Auth (Per Cluster)
@@ -244,8 +238,6 @@ bao write auth/approle/ci-cd/role/provisioner \
   token_max_ttl=4h \
   secret_id_ttl=0
 ```
-
-***
 
 ## Policies
 
@@ -371,8 +363,6 @@ for policy in eso-control-plane eso-hypervisor eso-storage eso-management \
 done
 ```
 
-***
-
 ## Bootstrap Sequence
 
 The following steps must be executed in order after OpenBao is initialized and unsealed. This corresponds to Phases 0-1 of the [bootstrap sequence](../13-secret-management.md#bootstrap-sequence).
@@ -437,8 +427,6 @@ done
 
 After Phase 1, ESO can begin syncing secrets to Kubernetes clusters (Phase 2+). See [Secret Management — Bootstrap Sequence](../13-secret-management.md#bootstrap-sequence) for the complete flow.
 
-***
-
 ## Operations
 
 ### Backup
@@ -456,7 +444,9 @@ kubectl cp openbao-system/openbao-0:/tmp/raft-snapshot.snap ./raft-snapshot.snap
 
 ### Monitoring
 
-OpenBao exposes Prometheus metrics:
+OpenBao exposes Prometheus metrics. For the general monitoring architecture, see [Observability — Metrics](../15-observability/01-metrics.md).
+
+> **Note:** OpenBao, as a fork of HashiCorp Vault, retains the `vault_` metric name prefix for compatibility with existing dashboards and alerting rules.
 
 ```yaml
 # ServiceMonitor for Prometheus Operator

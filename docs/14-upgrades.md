@@ -2,7 +2,7 @@
 
 ## Versioning Strategy
 
-CobaltCore uses **upstream project versions** as image tags, not the OpenStack release series. The current version table and tag schema are documented in [Container Images — Container Registry](17-container-images/#container-registry). For details on branch strategy and automated updates, see [Container Images — Versioning](17-container-images/02-versioning.md).
+CobaltCore uses **upstream project versions** as image tags, not the OpenStack release series. The current version table and tag schema are documented in [Container Images — Container Registry](./17-container-images/index.md#container-registry). For details on branch strategy and automated updates, see [Container Images — Versioning](./17-container-images/02-versioning.md).
 
 **OpenStack Release Cadence:**
 
@@ -25,8 +25,6 @@ Releases:    2024.2    2025.1    2025.2    2026.1    2026.2
 * c5c3-operator and Service-Operators use SemVer
 * FluxCD HelmReleases define SemVer ranges (e.g., `>=0.1.0`)
 * CRD API Versions: Currently all `v1alpha1`
-
-***
 
 ## Upgrade Architecture
 
@@ -74,11 +72,9 @@ Releases:    2024.2    2025.1    2025.2    2026.1    2026.2
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-***
-
 ## OpenStack Service Upgrade
 
-## Upgrade Flow per Service
+### Upgrade Flow per Service
 
 Each Service-Operator automatically performs the following steps during an upgrade:
 
@@ -100,7 +96,7 @@ Each Service-Operator automatically performs the following steps during an upgra
 3. **Config Rendering**: The ConfigMap with the service configuration is updated if needed
 4. **Rolling Update**: The API/Worker Pods are updated with the new image and configuration via Rolling Update
 
-## Patch Revision Upgrades
+### Patch Revision Upgrades
 
 In addition to upstream version upgrades, CobaltCore supports **patch revision upgrades** — rebuilds of the same upstream version with additional patches applied. Patch revisions use the tag format `<upstream-version>-p<N>` (e.g., `28.0.0-p1`).
 
@@ -111,9 +107,9 @@ A patch revision upgrade follows the same flow as a regular upgrade (image tag u
 28.0.0  →  29.0.0                       (upstream version upgrade)
 ```
 
-For details on how patch revisions are created and when they are used, see [Container Images — Patching](17-container-images/03-patching.md).
+For details on how patch revisions are created and when they are used, see [Container Images — Patching](./17-container-images/03-patching.md).
 
-## DB Schema Migration (db-sync)
+### DB Schema Migration (db-sync)
 
 Each OpenStack service uses Alembic for database migrations:
 
@@ -140,7 +136,7 @@ nova-manage db sync              # Cell0 and Cell1 DBs
 nova-manage db online_data_migrations  # Online migrations (no downtime)
 ```
 
-## Service Upgrade Order
+### Service Upgrade Order
 
 The order for an OpenStack release upgrade:
 
@@ -169,7 +165,7 @@ The c5c3-operator enforces this order through its dependency management:
 * Service CRs have `dependencies` with required conditions (e.g., Nova requires Keystone `Ready`)
 * The operator only updates Service CRs when dependencies have `Ready` status
 
-## Rolling Update Strategy for API Pods
+### Rolling Update Strategy for API Pods
 
 | Service        | Replicas | maxUnavailable | maxSurge | Expected Downtime |
 | -------------- | -------- | -------------- | -------- | ----------------- |
@@ -184,11 +180,9 @@ The c5c3-operator enforces this order through its dependency management:
 
 All API services run with at least 3 replicas. Through rolling updates with `maxUnavailable: 1`, the service remains reachable during the upgrade.
 
-***
-
 ## Infrastructure Upgrades
 
-## MariaDB Galera
+### MariaDB Galera
 
 MariaDB is managed by the **MariaDB Operator**. Upgrades follow the Galera protocol:
 
@@ -233,7 +227,7 @@ MariaDB is managed by the **MariaDB Operator**. Upgrades follow the Galera proto
 * `mysql_upgrade` must be executed after the upgrade
 * The MariaDB Operator controls this via `spec.image` and `spec.updateStrategy`
 
-## RabbitMQ
+### RabbitMQ
 
 The **RabbitMQ Cluster Operator** supports rolling upgrades:
 
@@ -247,7 +241,7 @@ The **RabbitMQ Cluster Operator** supports rolling upgrades:
 * RabbitMQ does not support skip-level upgrades (always version by version)
 * Erlang/OTP version must be compatible
 
-## Valkey Sentinel
+### Valkey Sentinel
 
 The **Valkey Operator** (SAP) manages Valkey Sentinel upgrades:
 
@@ -255,7 +249,7 @@ The **Valkey Operator** (SAP) manages Valkey Sentinel upgrades:
 * Rolling update of replicas first, then the primary
 * Sentinel detects the new primary automatically
 
-## Memcached
+### Memcached
 
 The **memcached-operator** manages Memcached upgrades:
 
@@ -265,11 +259,9 @@ The **memcached-operator** manages Memcached upgrades:
 * Memcached is a pure cache — data loss on restart is acceptable
 * No state transfer required, pods start with empty cache
 
-***
-
 ## Network Upgrades (OVN/OVS)
 
-## OVN Upgrade
+### OVN Upgrade
 
 OVN consists of multiple components running in different clusters:
 
@@ -305,7 +297,7 @@ OVN consists of multiple components running in different clusters:
 * ovn-controller can be one minor version behind the NB/SB DBs
 * OVS can be updated independently from OVN (within the compatibility matrix)
 
-## ovn-controller DaemonSet Upgrade
+### ovn-controller DaemonSet Upgrade
 
 The ovn-controller runs on each hypervisor node. During DaemonSet rolling update:
 
@@ -315,7 +307,7 @@ The ovn-controller runs on each hypervisor node. During DaemonSet rolling update
 * Typical interruption: \< 10 seconds per node
 * Running VM traffic is not affected (flows already in OVS)
 
-## OVS Upgrade on Hypervisor Nodes
+### OVS Upgrade on Hypervisor Nodes
 
 OVS upgrades require special care as they affect the network datapath:
 
@@ -324,9 +316,9 @@ OVS upgrades require special care as they affect the network datapath:
 * Bridge configurations and flows are restored after restart
 * If needed: Coordination with Hypervisor Maintenance mode for VM migration before OVS upgrade
 
-## LibVirt/Hypervisor Backend Upgrade
+### LibVirt/Hypervisor Backend Upgrade
 
-LibVirt and the hypervisor backend (QEMU/KVM or Cloud Hypervisor) form the virtualization layer on the hypervisor nodes. The upgrade procedure depends on the operating model (see [03-components/02-hypervisor.md](03-components/02-hypervisor.md)):
+LibVirt and the hypervisor backend (QEMU/KVM or Cloud Hypervisor) form the virtualization layer on the hypervisor nodes. The upgrade procedure depends on the operating model (see [Hypervisor Components](./03-components/02-hypervisor.md)):
 
 **Model 1: GardenLinux-provided**
 
@@ -358,7 +350,7 @@ LibVirt runs as a containerized DaemonSet. An upgrade occurs via DaemonSet rolli
 
 **Coordination with Hypervisor Maintenance Mode:**
 
-In both models, the hypervisor must be put into Maintenance mode before `libvirtd` restart (see [06-hypervisor-lifecycle.md](06-hypervisor-lifecycle.md)). Running VMs must be migrated before the LibVirt daemon restart, as a `libvirtd` restart interrupts the connection to VM processes (QEMU or Cloud Hypervisor).
+In both models, the hypervisor must be put into Maintenance mode before `libvirtd` restart (see [Hypervisor Lifecycle](./06-hypervisor-lifecycle.md)). Running VMs must be migrated before the LibVirt daemon restart, as a `libvirtd` restart interrupts the connection to VM processes (QEMU or Cloud Hypervisor).
 
 **LibVirt Version Tracking:**
 
@@ -368,11 +360,9 @@ The current LibVirt version of each node is captured by the Hypervisor Node Agen
 * Detection of version skew between nodes
 * Validation of minimum version during onboarding (Testing phase)
 
-***
-
 ## Operator Upgrades
 
-## c5c3-operator Upgrade
+### c5c3-operator Upgrade
 
 The c5c3-operator is updated via FluxCD HelmRelease:
 
@@ -403,7 +393,7 @@ spec:
 * Brief pause in reconciliation (typically \< 30 seconds)
 * No impact on running OpenStack services
 
-## Service-Operator Upgrades
+### Service-Operator Upgrades
 
 Each Service-Operator (keystone-operator, nova-operator, etc.) is updated independently:
 
@@ -418,7 +408,7 @@ Each Service-Operator (keystone-operator, nova-operator, etc.) is updated indepe
 * No dependency between operator versions (except to c5c3-operator)
 * Existing CRs remain functional even when the operator is updated
 
-## CRD API Version Evolution
+### CRD API Version Evolution
 
 All CobaltCore CRDs are currently `v1alpha1`. The planned evolution:
 
@@ -433,8 +423,6 @@ All CobaltCore CRDs are currently `v1alpha1`. The planned evolution:
 * Conversion Webhooks translate between old and new API versions
 * Storage Version Migration updates stored objects in etcd
 * Old API versions are maintained for at least one release series
-
-***
 
 ## Cross-Cluster Upgrade Coordination
 
@@ -481,4 +469,4 @@ The Flux Operator itself is updated as a HelmRelease. The operator then automati
 * For cross-cluster upgrades: `flux suspend kustomization <name>` for targeted control
 * After completion: `flux resume kustomization <name>`
 
-***
+<!-- TODO: Add link to a runbook or operational guide for cross-cluster upgrade procedures once available -->

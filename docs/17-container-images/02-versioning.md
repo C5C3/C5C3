@@ -30,13 +30,13 @@ C5C3 has its own version scheme and branch model, independent of OpenStack relea
 Each C5C3 branch contains:
 - **Dockerfiles** that are release-independent (inputs come via build contexts)
 - **`releases/<version>/upper-constraints.txt`** for each managed OpenStack release
-- **`patches/<component>/<release>/`** with release-specific patches
-- **`overrides/<release>/constraints.txt`** with release-specific constraint overrides
+- **`patches/<component>/<release>/`** with release-specific patches (see [Patching](./03-patching.md))
+- **`overrides/<release>/constraints.txt`** with release-specific constraint overrides (see [Constraint Overrides](./03-patching.md#level-3-constraint-overrides))
 - **`releases/<version>/source-refs.yaml`** with pinned source references per component and release
 
 ## Source References
 
-Each component (OpenStack service or library) is referenced via a git ref in the CI workflow. A ref can be a **branch**, a **tag**, or a **commit SHA** — the choice depends on the use case:
+Each component (OpenStack service or library) is referenced via a git ref in the CI workflow (see [Build Pipeline — GitHub Actions Workflow](./01-build-pipeline.md#github-actions-workflow)). A ref can be a **branch**, a **tag**, or a **commit SHA** — the choice depends on the use case:
 
 | Reference type | Example | Trade-off |
 | --- | --- | --- |
@@ -81,7 +81,7 @@ Each image receives multiple tags. Since C5C3 builds images for multiple OpenSta
 | Tag | Example | Property | Usage |
 | --- | --- | --- | --- |
 | **Upstream version** | `28.0.0` | Mutable (updated on patch revision) | CRD reference, default tag |
-| **Version + patch revision** | `28.0.0-p1` | Immutable | When patches are applied to a release |
+| **Version + patch revision** | `28.0.0-p1` | Immutable | When patches are applied to a release (see [Patching](./03-patching.md)) |
 | **Branch** | `stable-1.0` | Mutable (points to latest build) | Tracking, not for production |
 | **Commit SHA** | `a1b2c3d` | Immutable | Debugging, exact reference |
 | **Digest** | `sha256:abc123...` | Immutable | Maximum reproducibility |
@@ -104,10 +104,10 @@ When a new OpenStack release is published (e.g., 2026.1), it is added to the exi
 
 1. **Add constraints**: Create `releases/2026.1/upper-constraints.txt` from `openstack/requirements` branch `stable/2026.1`
 2. **Add source refs**: Create `releases/2026.1/source-refs.yaml` with refs for each service
-3. **Add to build matrix**: Include `"2026.1"` in the `release` matrix
+3. **Add to build matrix**: Include `"2026.1"` in the `release` matrix (see [Build Pipeline — Workflow](./01-build-pipeline.md#workflow))
 4. **Create patch directories**: Add empty `patches/<service>/2026.1/` directories
 5. **Build & test**: CI builds all images, Tempest tests run
-6. **Update CRDs**: Image tags in the ControlPlane/Service CRDs for new deployments
+6. **Update CRDs**: Image tags in the ControlPlane/Service CRDs for new deployments (see [CRDs](../04-crds.md))
 
 ```text
 ┌────────────────────────────────────────────────────────────────┐

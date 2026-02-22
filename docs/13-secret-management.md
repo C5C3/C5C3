@@ -68,7 +68,7 @@ OpenBao runs as an HA cluster in the Management Cluster (namespace `openbao-syst
 
 ## ESO Integration
 
-The External Secrets Operator (ESO) runs in each cluster and synchronizes secrets from OpenBao:
+The External Secrets Operator (ESO) runs in each cluster and synchronizes secrets from OpenBao. ESO uses `ClusterSecretStore` resources (cluster-wide scope, as opposed to namespace-scoped `SecretStore`) to define the connection to OpenBao:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -250,5 +250,4 @@ For the CRD definitions of `SecretAggregate` and `CredentialRotation`, see [CRDs
 - [OpenBao Deployment](./19-implementation/09-openbao-deployment.md) — Deployment, initialization, secret engines, auth methods, policies, and bootstrap automation
 - [Credential Lifecycle](./11-gitops-fluxcd/01-credential-lifecycle.md) — GitOps-driven credential flow with FluxCD
 - [C5C3 Operator](./19-implementation/08-c5c3-operator.md#credentialrotation-crd) — CredentialRotation CRD implementation and rotation flow
-
-***
+- [Brownfield Integration](./16-brownfield-integration.md) — Secret management for existing OpenStack deployments

@@ -3,6 +3,7 @@
 ## HA Architecture (Hypervisor Operator + HA Agent)
 
 > **Note:** The HA functionality is realized through the interaction of the **OpenStack Hypervisor Operator** (runs as Deployment in the Hypervisor Cluster) and the **HA Agent** (DaemonSet on each node). The **Hypervisor HA Service** already exists but is not yet publicly available. This will change in the future.
+<!-- TODO: Update availability status when HA Service becomes public -->
 
 ```text
                     ┌──────────────────────────────┐
@@ -35,6 +36,8 @@
 │  Eviction CRDs   │    │  Eviction CRDs   │    │  Eviction CRDs   │
 └──────────────────┘    └──────────────────┘    └──────────────────┘
 ```
+
+For the CRD definitions (`Hypervisor`, `Eviction`, `Migration`), see [CRDs](./04-crds.md). For the agent architecture, see [Component Interaction](./05-component-interaction.md#hypervisor-node-agents-in-hypervisor-cluster).
 
 ## Control Plane HA
 
@@ -100,9 +103,11 @@ All infrastructure services in the Control Plane Cluster are deployed redundantl
 | OVN NB/SB       | 3 each   | Raft Consensus                       | Automatic leader election, deployed via ovn-operator                              |
 | Memcached       | 2+       | No consensus (stateless)             | memcached-operator, anti-affinity + PDB, DNS-based discovery                      |
 
+For the OVN Raft architecture, see [Network Architecture](./10-network-architecture.md#ovn-architecture-detail).
+
 ## Data Plane HA
 
-Data Plane HA ensures the availability of virtual machines on hypervisor nodes.
+Data Plane HA ensures the availability of virtual machines on hypervisor nodes. For the complete hypervisor state machine and eviction process, see [Hypervisor Lifecycle](./06-hypervisor-lifecycle.md).
 
 **LibVirt Event Subscription:**
 
@@ -119,8 +124,8 @@ The HA Agent subscribes to the local LibVirt daemon and reacts to the following 
 
 ```text
 ┌──────────┐    ┌──────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────┐
-│ LibVirt  │───▶│ HA Agent │───▶│ Eviction CRD │───▶│ Hypervisor   │───▶│ Nova API │
-│ Event    │    │          │    │ (K8s API)    │    │ Operator     │    │          │
+│ LibVirt  │───▶│ HA Agent │───▶│ Eviction CRD │───▶│ Eviction     │───▶│ Nova API │
+│ Event    │    │          │    │ (K8s API)    │    │ Controller   │    │          │
 └──────────┘    └──────────┘    └──────────────┘    └──────────────┘    └──────────┘
                                                                             │
                                                                             ▼
@@ -133,8 +138,8 @@ The HA Agent subscribes to the local LibVirt daemon and reacts to the following 
 1. **LibVirt** detects an event (e.g., VM crash, watchdog trigger)
 2. **HA Agent** receives the event via LibVirt event subscription
 3. **HA Agent** creates/updates an **Eviction CRD** in the Hypervisor Cluster
-4. **Hypervisor Operator** detects the Eviction CRD and performs preflight checks
-5. **Hypervisor Operator** calls the **Nova API** to initiate a live migration
+4. **Eviction Controller** (part of the Hypervisor Operator) detects the Eviction CRD and performs preflight checks
+5. **Eviction Controller** calls the **Nova API** to initiate a live migration
 6. Nova orchestrates the migration to a suitable target hypervisor
 
 **Kubernetes Node Conditions:**
@@ -150,7 +155,7 @@ The Hypervisor Operator watches the Kubernetes Node objects in the Hypervisor Cl
 
 **ovn-controller Graceful Degradation:**
 
-In case of a disconnect from the OVN Southbound DB, the local ovn-controller on each hypervisor node continues to work in cached mode:
+In case of a disconnect from the OVN Southbound DB, the local ovn-controller on each hypervisor node continues to work in cached mode (for OVN architecture details, see [Network Architecture](./10-network-architecture.md)):
 
 * Existing OpenFlow rules in ovs-vswitchd remain active
 * Running VM traffic is not interrupted
@@ -170,4 +175,4 @@ In case of a disconnect from the OVN Southbound DB, the local ovn-controller on 
 | **Complete Control Plane Cluster**     | No API operations (VM Create/Delete/Migrate), running VMs continue to work | VMs run unchanged, network remains (ovn-controller cached flows), no automatic control plane recovery | Control plane cluster must be restored, VMs are not manageable during outage |
 | **Network Partition Between Clusters** | Hypervisor nodes lose connection to control plane, VMs continue to run     | ovn-controller works in cached mode, VMs remain reachable, RabbitMQ enters `pause_minority`           | Resolve network partition, then automatic reconnect of all components        |
 
-***
+For HA behavior during OpenStack upgrades, see [Upgrades](./14-upgrades.md).

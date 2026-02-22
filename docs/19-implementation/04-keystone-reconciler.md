@@ -2,6 +2,8 @@
 
 The Keystone Reconciler implements the core control loop that drives the Keystone Identity Service from a desired state (CRD spec) to an observed state (running pods, synced database, rotated keys). This page documents the reconciler architecture, sub-reconciler pattern, error handling, and controller setup.
 
+For the CRD type definitions and webhooks, see [CRD Implementation](./03-crd-implementation.md).
+
 ## Reconciler Architecture
 
 ```text
@@ -57,8 +59,6 @@ The Keystone Reconciler implements the core control loop that drives the Keyston
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-***
-
 ## Controller Setup
 
 The controller is registered with the manager in `main.go`:
@@ -95,7 +95,7 @@ func main() {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services;configmaps;secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=jobs;cronjobs,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=mariadb.mmontes.io,resources=databases;users;grants,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=k8s.mariadb.com,resources=databases;users;grants,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets;pushsecrets,verbs=get;list;watch;create;update;patch
 ```
 
@@ -116,8 +116,6 @@ func (r *KeystoneReconciler) SetupWithManager(mgr ctrl.Manager) error {
         Complete(r)
 }
 ```
-
-***
 
 ## Keystone Container Image
 
@@ -155,8 +153,6 @@ The reconciler uses the Keystone service image (`ghcr.io/c5c3/keystone:<tag>`) s
 ```
 
 For image build details and tag schema, see [Build Pipeline](../17-container-images/01-build-pipeline.md) and [Versioning](../17-container-images/02-versioning.md).
-
-***
 
 ## Sub-Reconciler Pattern
 
@@ -402,8 +398,6 @@ Runs the Keystone bootstrap Job using the same service image:
 
 The admin password is injected from the `keystone-admin-credentials` Secret (provisioned by ESO from `kv-v2/bootstrap/keystone-admin`). The bootstrap Job is idempotent — it can be run multiple times without side effects.
 
-***
-
 ## Error Handling
 
 | Scenario | Action | Requeue Delay | Condition |
@@ -417,8 +411,6 @@ The admin password is injected from the `keystone-admin-credentials` Secret (pro
 | Unrecoverable API error | Return error (controller-runtime handles backoff) | Exponential | — |
 
 All transient errors result in a requeue with appropriate delay. Permanent errors (e.g., invalid CRD spec) are surfaced via conditions and events.
-
-***
 
 ## Owner References
 

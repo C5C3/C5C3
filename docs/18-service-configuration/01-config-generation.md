@@ -48,7 +48,7 @@ Each Service Operator in CobaltCore follows a deterministic pipeline to translat
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-***
+For validation checks that occur during reconciliation (between Steps 2-5), see [Validation](./02-validation.md). For brownfield integration details, see [Brownfield Integration](../16-brownfield-integration.md).
 
 ## CRD-to-INI Mapping
 
@@ -114,7 +114,7 @@ spec:
       name: ceph-client-nova
 ```
 
-**Generated nova.conf (relevant sections):**
+**Generated nova.conf (relevant sections).** Credentials are shown as `****` — they are read from K8s Secrets at reconciliation time and assembled into connection strings:
 
 ```ini
 [DEFAULT]
@@ -302,8 +302,6 @@ ovn_metadata_enabled = true
 
 The operator writes both files into the same ConfigMap under different keys (`neutron.conf` and `ml2_conf.ini`), and the pod mounts them at their respective paths.
 
-***
-
 ## ConfigMap Structure
 
 A generated ConfigMap uses a content-hash suffix to ensure immutability:
@@ -337,8 +335,6 @@ data:
 - The hash suffix (`a1b2c3d4`) is computed from the config content — identical content produces the same name
 - `ownerReferences` ensure the ConfigMap is garbage-collected when the Service CR is deleted
 - Old ConfigMaps are retained briefly for rollback, then garbage-collected by the operator
-
-***
 
 ## Secret Injection
 
@@ -376,8 +372,6 @@ Credentials flow from OpenBao through ESO into K8s Secrets, which operators read
 
 **Important:** Credentials appear in the rendered ConfigMap (as connection strings) but **never** in the CRD spec. The CRD only contains `secretRef` pointers. For the full secret management architecture, see [Secret Management](../13-secret-management.md).
 
-***
-
 ## Operator Defaults
 
 Each operator embeds sensible defaults for every supported OpenStack release. These defaults cover settings that:
@@ -399,7 +393,7 @@ Lowest priority                                        Highest priority
 
 CRD spec fields always take precedence. Operator defaults fill in everything else. OpenStack's own defaults apply for any setting not covered by either layer.
 
-***
+For override mechanisms beyond CRD fields, see [Customization](./03-customization.md).
 
 ## Config Updates and Rolling Restarts
 
@@ -435,8 +429,6 @@ This mechanism ensures:
 
 For the full upgrade lifecycle, see [Upgrades](../14-upgrades.md).
 
-***
-
 ## Per-Node Configuration
 
 DaemonSet components (nova-compute agent, ovn-controller) running on hypervisor nodes may require per-node configuration:
@@ -445,7 +437,7 @@ DaemonSet components (nova-compute agent, ovn-controller) running on hypervisor 
 | --- | --- | --- |
 | nova-compute | `my_ip`, `host` | Downward API (node name, pod IP) |
 | ovn-controller | `ovn-encap-ip`, `ovn-bridge` | OVSNode CRD status, node annotations |
-| libvirt | connection URI, hypervisor type | Hypervisor CRD (`domainCapabilities.hypervisorType`) |
+| libvirt | connection URI, hypervisor type | Hypervisor CRD (`domainCapabilities.hypervisorType`), see [Hypervisor Lifecycle](../06-hypervisor-lifecycle.md) |
 
 **Approach:** Per-node values are injected via environment variables (Downward API) or init containers that read node-specific CRD status. The base ConfigMap remains shared across all nodes — only the node-specific values differ.
 
@@ -469,4 +461,4 @@ DaemonSet components (nova-compute agent, ovn-controller) running on hypervisor 
 └──────────────────────────┘    └──────────────────────────┘
 ```
 
-oslo.config supports environment variable overrides (`$NOVA_DEFAULT__MY_IP`), which the operator leverages to avoid per-node ConfigMap proliferation.
+oslo.config supports environment variable overrides (e.g., `NOVA_DEFAULT__MY_IP` maps to `[DEFAULT] my_ip`), which the operator leverages to avoid per-node ConfigMap proliferation. <!-- TODO: Verify exact oslo.config env var format and whether config_source driver is required -->

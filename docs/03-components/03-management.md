@@ -26,6 +26,7 @@ See [GitOps with FluxCD](../11-gitops-fluxcd/index.md) for the complete architec
 
 ## OpenBao
 
+**Repository:** [`github.com/openbao/openbao`](https://github.com/openbao/openbao)
 **Namespace:** `openbao-system`
 
 Central secret store for the entire CobaltCore environment. OpenBao manages ALL credentials — bootstrap passwords, service credentials, database credentials, Ceph keys, kubeconfigs, and TLS certificates.
@@ -82,5 +83,3 @@ For the complete observability architecture see [Observability](../15-observabil
 **Repository:** `github.com/cobaltcore-dev/aurora-dashboard`
 
 Comprehensive management interface for cloud management systems. Provides a unified view across all clusters for managing servers, networks, volumes, and other cloud components.
-
-***

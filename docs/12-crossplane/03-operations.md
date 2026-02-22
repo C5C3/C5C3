@@ -1,5 +1,7 @@
 # Operations
 
+This page covers the operational aspects of using Crossplane with CobaltCore: creating OpenStack cluster claims, integrating with FluxCD for GitOps workflows, multi-tenancy through pool sharing, and the end-to-end provisioning flow. For the underlying XRDs and Compositions, see [Cluster Provisioning](01-cluster-provisioning.md) and [OpenStack Provisioning](02-openstack-provisioning.md).
+
 ## Claim: Request OpenStack Cluster (Pool Model)
 
 Users create a claim with **explicit pool references** for Hypervisor and Storage clusters:
@@ -76,7 +78,7 @@ spec:
 
 ## Crossplane + FluxCD Integration
 
-Crossplane is deployed and managed via FluxCD in the Management Cluster:
+Crossplane is deployed and managed via FluxCD in the Management Cluster. For general FluxCD concepts and bootstrap procedures, see [GitOps / FluxCD](../11-gitops-fluxcd/index.md).
 
 ```text
 ┌───────────────────────────────────────────────────────────────────┐
@@ -167,7 +169,7 @@ spec:
 
 ## Multi-Tenancy with Crossplane (Pool Model)
 
-Crossplane enables **self-service provisioning** with **pool sharing** for different teams/tenants:
+Crossplane enables self-service provisioning with pool sharing for different teams/tenants. Each tenant operates within its own Kubernetes namespace in the Management Cluster, while the underlying infrastructure pools can be shared or dedicated:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -405,22 +407,18 @@ Crossplane enables **self-service provisioning** with **pool sharing** for diffe
 └────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Advantages of Crossplane in CobaltCore (Pool Model)
+## Characteristics of the Crossplane Pool Model
 
-| Advantage                 | Description                                                              |
-| ------------------------- | ------------------------------------------------------------------------ |
-| **Pool-based Scaling**    | Hypervisor and Storage pools can be scaled independently                 |
-| **Resource Sharing**      | Multiple OpenStack clusters can use the same pools (efficiency)          |
-| **Flexible Assignment**   | One OpenStack cluster can consume 1..N Hypervisor and 1..M Storage pools |
-| **Dedicated Pools**       | Premium customers can receive dedicated pools                            |
-| **Self-Service**          | Teams can request OpenStack clusters and choose pool assignment          |
-| **Abstraction**           | Complexity of Gardener + c5c3-operator is hidden by simple API           |
-| **Governance**            | Compositions enforce standards (security, sizing, compliance)            |
-| **Multi-Tenancy**         | Namespace isolation for different teams/customers                        |
-| **GitOps-ready**          | Claims can be versioned in Git                                           |
-| **Drift Detection**       | Crossplane automatically corrects manual changes                         |
-| **Composition Revisions** | Controlled updates of cluster and pool templates                         |
-| **Lifecycle Management**  | Pools and clusters can be scaled and updated independently               |
+| Characteristic            | Detail                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Pool-based Scaling**    | Hypervisor and Storage pools scale independently via separate Gardener Shoots                           |
+| **Resource Sharing**      | Multiple OpenStack clusters reference the same pool names; isolation via Host Aggregates and RBD pools  |
+| **Flexible Assignment**   | One OpenStack cluster can consume 1..N Hypervisor and 1..M Storage pools                                |
+| **Dedicated Pools**       | Compliance or premium workloads receive physically isolated pools with dedicated IronCore machine pools |
+| **Namespace Isolation**   | Each tenant's claims reside in a dedicated Kubernetes namespace; RBAC restricts cross-tenant access     |
+| **GitOps Integration**    | All claims and compositions are stored in Git and reconciled via [FluxCD](../11-gitops-fluxcd/index.md) |
+| **Drift Detection**       | Crossplane continuously reconciles desired state; manual changes to managed resources are reverted      |
+| **Composition Revisions** | Composition updates can be rolled out gradually using Crossplane's revision mechanism                   |
 
 ## Pool Isolation Strategies
 
@@ -471,6 +469,8 @@ spec:
 ```
 
 ## Git Repository Structure (Pool Model)
+
+The following structure shows how Crossplane resources and tenant claims are organized in the GitOps repository. For the general repository layout and FluxCD configuration, see [GitOps / FluxCD](../11-gitops-fluxcd/index.md).
 
 ```text
 c5c3-gitops/
@@ -535,11 +535,9 @@ c5c3-gitops/
             └── prod.yaml                  # Uses: hv-pool-b, st-pool-a, st-pool-b
 ```
 
-**Pool Overview per Region:**
+**Example Pool Overview per Region:**
 
 | Region    | Control Plane           | Hypervisor Pools                | Storage Pools                      |
 | --------- | ----------------------- | ------------------------------- | ---------------------------------- |
 | eu-de-1   | eu-de-1-control-plane   | hv-pool-a (50), hv-pool-b (100) | st-pool-a (500TB), st-pool-b (1PB) |
 | us-east-1 | us-east-1-control-plane | hv-pool-us (75)                 | st-pool-us (750TB)                 |
-
-***

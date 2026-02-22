@@ -97,7 +97,7 @@ data:
           - name: probabilistic
             type: probabilistic
             probabilistic:
-              sampling_percentage: 10
+              sampling_percentage: 10  # Keep 10% of remaining traces
 
     exporters:
       otlp:
@@ -133,7 +133,7 @@ spec:
     spec:
       containers:
         - name: otel-collector
-          image: otel/opentelemetry-collector-contrib:latest
+          image: otel/opentelemetry-collector-contrib:0.115.0  # Pin to a specific version in production
           args:
             - --config=/etc/otel/config.yaml
           ports:
@@ -158,6 +158,8 @@ OpenStack services can be instrumented via `oslo.metrics` and OTEL exporters:
 | WSGI Middleware        | OTEL middleware for API endpoints (automatic span generation) |
 | oslo.messaging Tracing | Trace context propagation over RabbitMQ messages              |
 
+<!-- TODO: Verify that oslo.metrics is the correct project name; may be oslo_metrics or a different upstream package -->
+
 ### Trace Context Propagation
 
 OpenStack services propagate trace context via:
@@ -173,15 +175,13 @@ OpenStack services propagate trace context via:
 | Jaeger        | Dedicated tracing backend with its own UI | OTLP-native, standalone UI   |
 | Grafana Tempo | Trace storage optimized for Grafana       | Seamless Grafana integration |
 
-The choice of backend is deployment-specific. Both options support OTLP as the ingest protocol.
+The choice of backend is deployment-specific. Both options support OTLP as the ingest protocol. See [Metrics](./01-metrics.md) for the related Prometheus and Greenhouse setup that complements tracing data.
 
 ## Cross-Cluster Trace Propagation
 
 Traces can be correlated across cluster boundaries:
 
 1. **Control Plane → Hypervisor:** Nova API → RabbitMQ → Nova Compute Agent. Trace context is propagated via oslo.messaging.
-2. **Management → Control Plane:** Greenhouse/Aurora API calls to OpenStack endpoints carry trace context via HTTP headers.
+2. **Management → Control Plane:** Greenhouse API calls to OpenStack endpoints carry trace context via HTTP headers.
 
 The central trace store in the Management Cluster collects spans from all clusters and enables visualization of complete request paths.
-
-***

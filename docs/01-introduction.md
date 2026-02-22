@@ -1,6 +1,6 @@
 # Introduction
 
-**CobaltCore** (c5c3) is a Kubernetes-native OpenStack distribution for operating Hosted Control Planes. The system enables fully automated provisioning and management of OpenStack environments on bare-metal infrastructure through the use of Kubernetes Operators and GitOps principles.
+**CobaltCore** (C5C3) is a Kubernetes-native OpenStack distribution for operating Hosted Control Planes. The system enables automated provisioning and management of OpenStack environments on bare-metal infrastructure — from cluster creation via [Crossplane](./12-crossplane/), through GitOps-driven service deployment with [FluxCD](./11-gitops-fluxcd/), to secret lifecycle management via [OpenBao](./13-secret-management.md).
 
 ## Target Audience
 
@@ -8,18 +8,18 @@ This documentation is intended for:
 
 * **Platform Architects** evaluating CobaltCore or integrating it into existing infrastructure
 * **Platform Engineers** deploying, operating, and extending CobaltCore
-* **Consumers (Tenants)** using CobaltCore as a platform via Crossplane (see [Crossplane Documentation](12-crossplane/))
+* **Consumers (Tenants)** using CobaltCore as a platform via Crossplane (see [Crossplane Documentation](./12-crossplane/))
 
 ## Scope and Boundaries
 
 This documentation describes the **architecture and design** of CobaltCore. It covers:
 
-* Multi-cluster architecture and cluster roles
-* Operator and agent architecture with CRD definitions
-* Component interaction and cross-cluster communication
-* Lifecycle management (Hypervisor, Upgrades, Secrets)
-* GitOps deployment with FluxCD
-* Consumer interface via Crossplane
+* [Multi-cluster architecture](./02-architecture-overview.md) and cluster roles
+* [Operator and agent architecture](./03-components/) with [CRD definitions](./04-crds.md)
+* [Component interaction](./05-component-interaction.md) and cross-cluster communication
+* Lifecycle management ([Hypervisor](./06-hypervisor-lifecycle.md), [Upgrades](./14-upgrades.md), [Secrets](./13-secret-management.md))
+* [GitOps deployment with FluxCD](./11-gitops-fluxcd/)
+* Consumer interface via [Crossplane](./12-crossplane/)
 
 **Out of scope** for this documentation:
 
@@ -36,14 +36,17 @@ This documentation describes the **architecture and design** of CobaltCore. It c
 * **High Availability**: Automatic failover for VMs, Galera cluster for databases, Raft consensus for OVN
 * **Container Image Build Pipeline**: Custom OCI images built with [uv](https://github.com/astral-sh/uv), structured patching without repository forks, and signed SBOM attestation via Sigstore (see [Container Images](./17-container-images/))
 
-## Optional and Future Extensions
+## Optional Extensions
 
-The modular architecture enables the integration of additional OpenStack services and extensions. The following list is exemplary and will be continuously expanded:
+The modular architecture enables the integration of additional OpenStack services and extensions:
 
-* [Cortex](https://github.com/cobaltcore-dev/cortex): Intelligent multi-domain scheduler for advanced placement logic
-* [Ceilometer](https://docs.openstack.org/ceilometer/latest/): Metering and telemetry for resource consumption
-* [Limes](https://github.com/sapcc/limes): Quota and limits management
+* [Cortex](https://github.com/cobaltcore-dev/cortex): Intelligent multi-domain scheduler for advanced placement logic (see [Cortex Scheduling](./08-cortex-scheduling.md))
 * [Greenhouse](https://github.com/cloudoperators/greenhouse): Centralized monitoring and alerting
 * [Aurora Dashboard](https://github.com/cobaltcore-dev/aurora-dashboard): Unified management UI
 
-***
+## Future Extensions
+
+The following services are planned for future integration:
+
+* [Ceilometer](https://docs.openstack.org/ceilometer/latest/): Metering and telemetry for resource consumption
+* [Limes](https://github.com/sapcc/limes): Quota and limits management

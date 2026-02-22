@@ -28,8 +28,6 @@ CobaltCore operators are tested across three levels: unit tests for pure busines
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-***
-
 ## Unit Tests
 
 Unit tests cover pure functions and business logic in the shared library and operator-specific code. They do not require a Kubernetes cluster or API server.
@@ -81,9 +79,7 @@ func TestRenderINI(t *testing.T) {
 }
 ```
 
-**Coverage target:** 80%+ for `internal/common/` packages, 70%+ for operator-specific logic.
-
-***
+**Coverage target:** 80%+ for `internal/common/` packages, 70%+ for operator-specific logic. Coverage is measured via `go test -coverprofile` and reported to Codecov in the [CI pipeline](./07-ci-cd-and-packaging.md#cicd-pipeline).
 
 ## Integration Tests (envtest)
 
@@ -179,8 +175,6 @@ func TestKeystoneReconciler_CreatesDeployment(t *testing.T) {
     }, 30*time.Second, time.Second).Should(BeTrue())
 }
 ```
-
-***
 
 ## E2E Tests with Chainsaw
 
@@ -309,11 +303,9 @@ status:
 | **Scale Up/Down** | Change `spec.replicas`, verify pod count | Deployment scaling |
 | **Deletion** | Delete Keystone CR, verify cleanup | Owner references, garbage collection |
 
-***
-
 ## CI Test Execution
 
-Tests are executed in GitHub Actions with separate jobs per test level:
+Tests are executed in GitHub Actions with separate jobs per test level. For the full CI/CD pipeline including image builds and Helm packaging, see [CI/CD & Packaging](./07-ci-cd-and-packaging.md).
 
 ```yaml
 # .github/workflows/test.yaml (simplified)

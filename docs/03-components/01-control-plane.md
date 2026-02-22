@@ -93,7 +93,6 @@ The Control Plane consists of a **modular operator architecture** where each Ope
 * **Flexible Scaling**: Deploy only needed operators
 * **Clear Ownership**: Dedicated teams per operator possible
 
-***
 
 ## C5C3 Operator
 
@@ -144,6 +143,8 @@ The **c5c3-operator** is the central orchestration operator. It manages dependen
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+For the Go type definitions, orchestration reconciler, and rollout strategy, see [C5C3 Operator Implementation](../19-implementation/08-c5c3-operator.md).
 
 **Provided CRDs:**
 
@@ -348,7 +349,6 @@ spec:
     crds: CreateReplace
 ```
 
-***
 
 ## Keystone Operator
 
@@ -356,7 +356,7 @@ spec:
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 
-The **keystone-operator** manages the Keystone Identity Service. Creation of service users and application credentials is done via K-ORC.
+The **keystone-operator** manages the Keystone Identity Service. Creation of service users and application credentials is done via K-ORC. For the reconciler architecture, sub-reconciler pattern, and dependency flow, see [Keystone Reconciler](../19-implementation/04-keystone-reconciler.md) and [Keystone Dependencies](../19-implementation/05-keystone-dependencies.md).
 
 **Provided CRDs:**
 
@@ -426,7 +426,6 @@ status:
 > **Note:** Service users, application credentials, Keystone services, and endpoints are
 > not managed by the keystone-operator, but via K-ORC CRs (see [K-ORC](#openstack-resource-controller-k-orc)).
 
-***
 
 ## Glance Operator
 
@@ -499,7 +498,6 @@ status:
   endpoint: https://glance.openstack.svc.cluster.local:9292
 ```
 
-***
 
 ## Placement Operator
 
@@ -556,7 +554,6 @@ status:
   endpoint: https://placement.openstack.svc.cluster.local:8778
 ```
 
-***
 
 ## Nova Operator
 
@@ -666,7 +663,6 @@ status:
       computeNodes: 42
 ```
 
-***
 
 ## Neutron Operator
 
@@ -754,7 +750,6 @@ status:
   endpoint: https://neutron.openstack.svc.cluster.local:9696
 ```
 
-***
 
 ## OVN Operator
 
@@ -1012,7 +1007,6 @@ spec:
 * **TLS Support**: Encrypted communication between all OVN components
 * **Bridge Mappings**: Automatic configuration of Provider Networks
 
-***
 
 ## Cinder Operator
 
@@ -1101,7 +1095,6 @@ status:
       availableCapacityGb: 10240
 ```
 
-***
 
 ## Cortex Operator (Optional)
 
@@ -1219,7 +1212,6 @@ status:
 
 > **Note:** Cortex is optional and must be explicitly enabled. Detailed Cortex documentation see section [Cortex Scheduling](../08-cortex-scheduling.md).
 
-***
 
 ## Tempest Operator (Optional)
 
@@ -1336,7 +1328,6 @@ status:
 
 > **Note:** Tempest is optional and must be explicitly enabled. It requires that all tested OpenStack services are already successfully deployed and Ready.
 
-***
 
 
 ## Labels Injector
@@ -1873,5 +1864,3 @@ Representative dependencies of currently integrated services. Additional service
 | **Cinder**        | ✓       | ✓        | -      | -               |
 | **Placement**     | ✓       | -        | -      | -               |
 | **Tempest**       | -       | -        | -      | -               |
-
-***

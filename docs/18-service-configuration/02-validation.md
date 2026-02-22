@@ -1,6 +1,6 @@
 # Validation
 
-Configuration validation in CobaltCore operates across three layers, each catching different classes of errors at progressively later stages. Together, they provide defense-in-depth against misconfigurations.
+Configuration validation in CobaltCore operates across three layers, each catching different classes of errors at progressively later stages. Together, they provide defense-in-depth against misconfigurations. For the config generation pipeline that precedes validation, see [Config Generation](./01-config-generation.md).
 
 ## Validation Layers
 
@@ -33,8 +33,6 @@ Configuration validation in CobaltCore operates across three layers, each catchi
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-***
-
 ## Layer 1: API Server
 
 When a user or GitOps tool applies a Service CR, the Kubernetes API server validates it against the CRD's OpenAPI v3.0 schema before persisting it to etcd. This is the fastest feedback loop — invalid resources are rejected immediately.
@@ -44,7 +42,7 @@ When a user or GitOps tool applies a Service CR, the Kubernetes API server valid
 | Check | Example |
 | --- | --- |
 | **Type validation** | `replicas: "three"` rejected (expected integer) |
-| **Required fields** | Missing `spec.database.host` rejected |
+| **Required fields** | Missing `spec.image.repository` rejected |
 | **Enum constraints** | `cache.backend: redis` rejected if not in allowed values |
 | **Format validation** | `spec.database.port: 99999` rejected (out of range) |
 | **Structural rules** | Unknown fields rejected (with `x-kubernetes-preserve-unknown-fields: false`) |
@@ -58,13 +56,11 @@ The Nova "nova" is invalid:
   should be less than or equal to 65535
 ```
 
-**Future: CEL validation rules.** Kubernetes 1.25+ supports Common Expression Language (CEL) rules in CRDs for cross-field validation. Examples that could be expressed:
+**CEL validation rules (not yet implemented in C5C3).** Kubernetes supports Common Expression Language (CEL) rules in CRDs (stable since 1.29) for cross-field validation. Examples that could be expressed:
 
 - If `storage.backend` is `rbd`, then `storage.rbdPool` must be set
 - If `replicas.api` is greater than 1, then `cache.backend` should be set (warn)
 - `apiDatabase` is required only for Nova (not other services)
-
-***
 
 ## Layer 2: Operator Reconciliation
 
@@ -74,7 +70,7 @@ After a CR passes API server validation, the Service Operator performs deeper se
 
 | Check | Description |
 | --- | --- |
-| **Secret existence** | Referenced K8s Secrets must exist and contain expected keys |
+| **Secret existence** | Referenced K8s Secrets must exist and contain expected keys (see [Secret Management](../13-secret-management.md)) |
 | **Connectivity validation** | Database host must be resolvable, RabbitMQ endpoint must be reachable |
 | **Cross-resource validation** | Keystone must be `Ready` before Nova can configure auth |
 | **Dependency readiness** | Infrastructure services (MariaDB, RabbitMQ, Valkey) must be operational |
@@ -111,8 +107,6 @@ Status:
 
 The operator re-checks on every reconciliation cycle. Once the missing secret appears (e.g., ESO syncs from OpenBao), the condition transitions to `True` and config generation proceeds.
 
-***
-
 ## Layer 3: Runtime
 
 After the ConfigMap is mounted and the pod starts, OpenStack's oslo.config library parses the INI file. This is the final validation layer — it catches issues that only manifest at service startup.
@@ -142,9 +136,7 @@ ERROR oslo_db.sqlalchemy.engines [-] Database connection failed:
 - Readiness probe fails — Service endpoints are not updated
 - Operator conditions remain `Ready: False`
 
-***
-
-## oslo-config-validator Integration
+## oslo-config-validator Integration (Design Concept)
 
 OpenStack provides `oslo-config-validator`, a tool that validates a config file against the service's registered oslo.config options and their metadata (types, ranges, deprecated names). This can catch errors before the service attempts to start.
 
@@ -183,8 +175,6 @@ OpenStack provides `oslo-config-validator`, a tool that validates a config file 
 
 > **Note:** oslo-config-validator integration is a design concept. The current implementation relies on Layers 1-3 described above.
 
-***
-
 ## Validation Flow Timeline
 
 The full validation timeline from `kubectl apply` to a running, healthy service:
@@ -216,8 +206,6 @@ kubectl apply
    Service healthy
    Condition: Ready=True
 ```
-
-***
 
 ## Error Reporting Summary
 

@@ -16,7 +16,7 @@ This document describes the telemetry signals originating directly from LibVirt 
 
 ## libvirt-exporter
 
-The libvirt-exporter exports per-VM metrics as Prometheus metrics. It connects to the local `libvirtd` and queries domain statistics.
+The libvirt-exporter exports per-VM metrics as Prometheus metrics. It connects to the local `libvirtd` and queries domain statistics. These metrics are scraped by the cluster-local Prometheus instance and federated to the Management Cluster (see [Metrics](./01-metrics.md)).
 
 ### Metrics
 
@@ -62,7 +62,7 @@ spec:
         node-role.kubernetes.io/hypervisor: ""
       containers:
         - name: libvirt-exporter
-          image: ghcr.io/c5c3/libvirt-exporter:latest
+          image: ghcr.io/c5c3/libvirt-exporter:latest  # Pin to a specific version in production
           args:
             - --libvirt.uri=qemu+tcp://$(NODE_IP):16509/system
           env:
@@ -158,5 +158,3 @@ libvirtd ──▶ HA Agent ──▶ Kubernetes API ──▶ Hypervisor Operat
 ```
 
 The HA Agent connects via TCP to the LibVirt daemon (`qemu+tcp://<host>:16509/system`) and registers event callbacks. On relevant events, it creates `Eviction` CRDs that are processed by the Hypervisor Operator.
-
-***

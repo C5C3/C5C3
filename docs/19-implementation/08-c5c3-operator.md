@@ -19,11 +19,9 @@ This is conceptually similar to what platforms like [ConfigHub](https://www.conf
 
 For a detailed ConfigHub concept mapping, see [Configuration Landscape](../18-service-configuration/04-landscape.md#confighub).
 
-***
-
 ## ControlPlane CRD
 
-The ControlPlane CRD is the top-level API for an entire OpenStack deployment. Users or GitOps apply a single CR, and the c5c3-operator handles everything downstream.
+The ControlPlane CRD is the top-level API for an entire OpenStack deployment. Users or GitOps apply a single CR, and the c5c3-operator handles everything downstream. The ControlPlane CRD uses the `c5c3.io` API group (distinct from the `*.openstack.c5c3.io` groups used by individual service operator CRDs).
 
 ### Go Type Definition
 
@@ -153,8 +151,6 @@ type ServiceStatus struct {
 | **ServicesReady** | All enabled service CRs are Ready |
 | **KORCReady** | K-ORC bootstrap imports and managed resources are available |
 
-***
-
 ## Orchestration Reconciler
 
 The c5c3-operator reconciler reads the ControlPlane CR and executes a phased deployment:
@@ -227,7 +223,7 @@ The c5c3-operator reconciler reads the ControlPlane CR and executes a phased dep
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-***
+<!-- TODO: Add Valkey to InfrastructureSpec Go type definition for consistency with the reconciliation flow diagram above -->
 
 ## Infrastructure Lifecycle and Dynamic Endpoint Discovery
 
@@ -293,8 +289,6 @@ c5c3-operator creates:                Service operators create:
 └──────────────────┘
 ```
 
-***
-
 ## ControlPlane-to-Service CR Projection
 
 The c5c3-operator translates the ControlPlane CR into per-service CRs. This section shows a concrete example.
@@ -334,6 +328,8 @@ spec:
 
 ### Output: Keystone CR (Managed Mode)
 
+The c5c3-operator translates `services.keystone.fernet.rotationInterval: 24h` into a cron expression for the Keystone CRD's `rotationSchedule` field (e.g., `"0 0 * * *"` for daily rotation).
+
 ```yaml
 apiVersion: keystone.openstack.c5c3.io/v1alpha1
 kind: Keystone
@@ -360,7 +356,7 @@ spec:
     backend: dogpile.cache.pymemcache
   fernet:
     maxActiveKeys: 3             # from services.keystone.fernet
-    rotationSchedule: "0 0 * * 0"
+    rotationSchedule: "0 0 * * *"  # derived from rotationInterval: 24h
   bootstrap:
     adminPasswordSecretRef:
       name: keystone-admin-credentials
@@ -407,8 +403,6 @@ spec:
 - **Brownfield:** `host`/`port` → Operator uses external infrastructure directly, creates NO MariaDB Database CRs
 - Mutual exclusivity: `clusterRef` XOR `host` — validation error if both are set
 
-***
-
 ## K-ORC Integration
 
 After Keystone is Ready, the c5c3-operator creates K-ORC CRs for service catalog management:
@@ -419,8 +413,6 @@ After Keystone is Ready, the c5c3-operator creates K-ORC CRs for service catalog
 4. **Create Application Credentials** (`managementPolicy: managed`): One ApplicationCredential per service, pushed to OpenBao via PushSecret
 
 For the full K-ORC flow, see [Control Plane — K-ORC](../03-components/01-control-plane.md#openstack-resource-controller-k-orc). For the credential lifecycle, see [Credential Lifecycle](../11-gitops-fluxcd/01-credential-lifecycle.md).
-
-***
 
 ## SecretAggregate CRD
 
@@ -472,8 +464,6 @@ spec:
     name: nova-aggregated-credentials
 ```
 
-***
-
 ## CredentialRotation CRD
 
 The `CredentialRotation` CRD automates Application Credential rotation for OpenStack services. It works in coordination with K-ORC and the OpenBao/ESO pipeline.
@@ -522,8 +512,6 @@ Day 90: Grace period starts (gracePeriodDays=1)
 ```
 
 For the full credential lifecycle, see [Credential Lifecycle](../11-gitops-fluxcd/01-credential-lifecycle.md). For brownfield rotation, see [Brownfield Integration](../16-brownfield-integration.md#step-5-credential-rotation).
-
-***
 
 ## Rollout Strategy
 
@@ -580,8 +568,6 @@ On failure in any phase, the c5c3-operator reverts to the previous known-good st
 3. **GitOps alignment**: The reverted state matches the previous Git commit — FluxCD ensures consistency
 
 The `updatePhase` transitions to `RollingBack` and then to `Complete` once the rollback succeeds.
-
-***
 
 ## Controller Setup
 

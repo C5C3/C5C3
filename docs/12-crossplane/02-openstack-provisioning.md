@@ -1,8 +1,10 @@
 # OpenStack Cluster Provisioning
 
+This page describes Phase 2 of the Crossplane provisioning model: creating OpenStack clusters that consume the infrastructure cluster pools defined in [Cluster Provisioning](01-cluster-provisioning.md). The XOpenStackCluster XRD references Hypervisor and Storage pools and creates the corresponding Ceph resources and ControlPlane CRs.
+
 ## provider-kubernetes Setup
 
-The `provider-kubernetes` enables Crossplane to create resources in the Control Plane Cluster (after it has been provisioned by Gardener):
+The `provider-kubernetes` enables Crossplane to create resources in the Control Plane Cluster (after it has been provisioned by Gardener). For general provider-kubernetes setup, see the [Crossplane overview](index.md#provider-kubernetes-setup).
 
 ```yaml
 # ProviderConfig for Control Plane Cluster
@@ -605,12 +607,14 @@ spec:
               string:
                 fmt: "openstack-%s"
         # OSD caps with pool permissions
+        # NOTE: The fmt string below uses %s once for the cluster name.
+        # In practice, generating per-pool OSD caps requires a Composition
+        # Function (e.g., function-go-templating) since multiple pool names
+        # must be interpolated into a single string.
         - fromFieldPath: metadata.name
           toFieldPath: spec.forProvider.manifest.spec.caps.osd
           transforms:
             - type: string
-              string:
-                fmt: "profile rbd pool=%s-volumes, profile rbd pool=%s-images, profile rbd pool=%s-ephemeral"
               string:
                 fmt: "profile rbd pool=%s-volumes, profile rbd pool=%s-images, profile rbd pool=%s-ephemeral"
 
@@ -653,7 +657,7 @@ spec:
 
 ## Ceph Resource Management via CRDs
 
-Crossplane **automatically creates all required Ceph resources** in the Storage cluster when an OpenStack cluster is provisioned:
+Crossplane creates the required Ceph resources in the Storage cluster when an OpenStack cluster is provisioned. For details on the storage architecture, see [Storage Architecture](../09-storage-architecture.md).
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────┐
@@ -967,6 +971,8 @@ If Swift API compatibility is required, Crossplane can also provision RadosGW:
           spec:
             store: ""  # Patched
             displayName: ""  # Patched
+            # NOTE: Wildcard capabilities shown for illustration.
+            # In production, restrict to the minimum required permissions.
             capabilities:
               user: "*"
               bucket: "*"
@@ -1030,6 +1036,8 @@ spec:
       # Data is synchronized via Crossplane Function or External-Secrets
 ```
 
+<!-- TODO: Document how the Secret data synchronization actually works (Crossplane Function vs. External-Secrets Operator) -->
+
 ## Ceph Resources in XOpenStackCluster Claim
 
 The user can optionally specify Ceph-specific configuration in the Claim:
@@ -1078,5 +1086,3 @@ spec:
     glance: true
     manila: true  # Activates CephFilesystem
 ```
-
-***

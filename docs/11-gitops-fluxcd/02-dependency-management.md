@@ -46,11 +46,15 @@ FluxCD enables the definition of dependencies between Kustomizations:
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-> **Note:** The c5c3-operator orchestrates the entire deployment order:1) Creates Infrastructure CRs (MariaDB, RabbitMQ, Valkey, Memcached) → external Operators provision
-> 2) Waits for Infrastructure readiness
-> 3) Creates Service CRs → dedicated Service Operators deploy OpenStack Services
-> 4) Coordinates Credential Lifecycle Management
-> 5) Configures K-ORC IntegrationFluxCD must ensure that **Infrastructure Operators** and **Service Operators** are ready before the c5c3-operator is deployed.
+> **Note:** The c5c3-operator orchestrates the entire deployment order:
+>
+> 1. Creates Infrastructure CRs (MariaDB, RabbitMQ, Valkey, Memcached) -- external Operators provision
+> 2. Waits for Infrastructure readiness
+> 3. Creates Service CRs -- dedicated Service Operators deploy OpenStack Services
+> 4. Coordinates [Credential Lifecycle Management](./01-credential-lifecycle.md)
+> 5. Configures K-ORC Integration
+>
+> FluxCD must ensure that **Infrastructure Operators** and **Service Operators** are ready before the c5c3-operator is deployed.
 
 **Example Dependency Chain:**
 
@@ -135,5 +139,3 @@ spec:
   dependsOn:
     - name: hypervisor-apps  # Requires Hypervisor Cluster
 ```
-
-***
