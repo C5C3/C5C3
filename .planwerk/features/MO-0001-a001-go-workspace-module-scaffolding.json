@@ -1,0 +1,24 @@
+{
+  "feature_id": "MO-0001",
+  "title": "A001: Go Workspace & Module Scaffolding",
+  "slug": "a001-go-workspace-module-scaffolding",
+  "status": "draft",
+  "phase": null,
+  "summary": "",
+  "description": "Create go.work with use directives for ./internal/common, ./operators/keystone, ./operators/c5c3. Create the full directory structure (internal/common/, operators/keystone/, operators/c5c3/, images/, releases/, deploy/, tests/e2e/). Initialize go.mod for each module with appropriate dependencies (controller-runtime v0.19+, k8s.io/apimachinery v0.31+). Scaffold main.go for both operators with scheme registration, manager setup, leader election, and health probes. Create the top-level Makefile with targets: generate, manifests, build, test, test-integration, lint, docker-build, helm-package, e2e, deploy-infra, install-test-deps. Configure golangci-lint (.golangci.yml) with standard linters and exclusions for generated code.",
+  "stories": [],
+  "requirements": [],
+  "tasks": [],
+  "test_specifications": [],
+  "affected_files": [],
+  "similar_patterns": [],
+  "review_criteria": [],
+  "implementation_notes": "",
+  "status_history": {
+    "draft": {
+      "github_account": "berendt",
+      "timestamp": "2026-02-22T20:42:36.260667"
+    }
+  },
+  "origin": "plan"
+}

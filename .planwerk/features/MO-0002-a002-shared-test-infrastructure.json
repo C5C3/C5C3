@@ -1,0 +1,24 @@
+{
+  "feature_id": "MO-0002",
+  "title": "A002: Shared Test Infrastructure",
+  "slug": "a002-shared-test-infrastructure",
+  "status": "draft",
+  "phase": null,
+  "summary": "",
+  "description": "Implement the reusable test framework in internal/common/testutil/: envtest bootstrap (SetupEnvTest() that starts API server + etcd, installs own and external CRDs), fake CRD YAML schemas in fake_crds/ for MariaDB Operator, ESO, cert-manager, Memcached, RabbitMQ. Fluent test data builders (KeystoneBuilder, ControlPlaneBuilder, SecretBuilder with chainable With methods). External operator simulators (SimulateMariaDBReady, SimulateMemcachedReady, SimulateExternalSecretSync, SimulateJobComplete). Custom gomega assertion helpers (AssertCondition, EventuallyCondition, AssertResourceExists, AssertResourceNotExists). Configure Chainsaw (tests/e2e/chainsaw-config.yaml) with directory structure for keystone/, c5c3/, infrastructure/ tests.",
+  "stories": [],
+  "requirements": [],
+  "tasks": [],
+  "test_specifications": [],
+  "affected_files": [],
+  "similar_patterns": [],
+  "review_criteria": [],
+  "implementation_notes": "",
+  "status_history": {
+    "draft": {
+      "github_account": "berendt",
+      "timestamp": "2026-02-22T20:42:36.261902"
+    }
+  },
+  "origin": "plan"
+}

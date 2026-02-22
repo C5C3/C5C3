@@ -1,0 +1,24 @@
+{
+  "feature_id": "MO-0003",
+  "title": "A003: GitHub Actions CI Workflow (Minimal)",
+  "slug": "a003-github-actions-ci-workflow-minimal",
+  "status": "draft",
+  "phase": null,
+  "summary": "",
+  "description": "Create .github/workflows/ci.yaml running on PRs and pushes to main. Jobs: lint (golangci-lint-action), test (make test), test-integration (make test-integration). All jobs must pass for PR merge.",
+  "stories": [],
+  "requirements": [],
+  "tasks": [],
+  "test_specifications": [],
+  "affected_files": [],
+  "similar_patterns": [],
+  "review_criteria": [],
+  "implementation_notes": "",
+  "status_history": {
+    "draft": {
+      "github_account": "berendt",
+      "timestamp": "2026-02-22T20:42:36.262375"
+    }
+  },
+  "origin": "plan"
+}
