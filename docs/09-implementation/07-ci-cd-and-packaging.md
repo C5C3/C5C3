@@ -89,10 +89,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
-      - uses: golangci/golangci-lint-action@v6
+          go-version: "1.25"
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.61
+          version: v2.10
 
   test:
     runs-on: ubuntu-latest
@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
       - name: Unit tests
         run: make test OPERATOR=${{ matrix.operator }}
       - name: Integration tests
@@ -120,7 +120,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
       - uses: helm/kind-action@v1
       - name: Build and load operator image
         run: |
@@ -183,7 +183,7 @@ Each operator is built as a minimal container image using a multi-stage Dockerfi
 
 ```dockerfile
 # operators/keystone/Dockerfile
-FROM golang:1.23 AS builder
+FROM golang:1.25 AS builder
 
 WORKDIR /workspace
 

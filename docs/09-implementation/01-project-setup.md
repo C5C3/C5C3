@@ -8,7 +8,7 @@ CobaltCore uses a **Go Workspace** (`go.work`) to manage multiple operator modul
 
 ```go
 // go.work
-go 1.23
+go 1.25
 
 use (
     ./internal/common
@@ -113,13 +113,13 @@ Each operator module references the shared library via a `replace` directive for
 // operators/keystone/go.mod
 module github.com/c5c3/c5c3/operators/keystone
 
-go 1.23
+go 1.25
 
 require (
     github.com/c5c3/c5c3/internal/common v0.0.0
-    sigs.k8s.io/controller-runtime v0.19.0
-    k8s.io/apimachinery v0.31.0
-    k8s.io/client-go v0.31.0
+    sigs.k8s.io/controller-runtime v0.23.1
+    k8s.io/apimachinery v0.35.1
+    k8s.io/client-go v0.35.1
 )
 
 replace github.com/c5c3/c5c3/internal/common => ../../internal/common
@@ -155,12 +155,12 @@ make docker-build OPERATOR=keystone
 
 | Tool | Version | Purpose |
 | --- | --- | --- |
-| **Go** | 1.23+ | Build and test |
+| **Go** | 1.25+ | Build and test |
 | **operator-sdk** | 1.38+ | Project scaffolding |
 | **controller-gen** | 0.16+ | CRD/RBAC/DeepCopy generation |
 | **kind** | 0.24+ | Local Kubernetes cluster for testing |
 | **chainsaw** | 0.2+ | E2E test execution |
 | **helm** | 3.x | Chart packaging |
-| **golangci-lint** | 1.61+ | Linting |
+| **golangci-lint** | 2.10+ | Linting |
 | **docker** / **podman** | — | Container image builds |
-| **kubectl** | 1.31+ | Cluster interaction |
+| **kubectl** | 1.35+ | Cluster interaction |

@@ -315,7 +315,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
       - run: make test
       - uses: codecov/codecov-action@v4
 
@@ -324,7 +324,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
       - run: make test-integration
 
   e2e-tests:
@@ -333,7 +333,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
       - uses: helm/kind-action@v1
       - name: Install dependencies
         run: |

@@ -68,9 +68,9 @@ The implementation follows a **Keystone-first** strategy: the Keystone Operator 
 
 | Component | Version | Purpose |
 | --- | --- | --- |
-| **Go** | 1.23+ | Operator implementation language |
+| **Go** | 1.25+ | Operator implementation language |
 | **Operator SDK** | 1.38+ | Project scaffolding and code generation |
-| **controller-runtime** | 0.19+ | Reconciler framework, manager, caching |
+| **controller-runtime** | 0.23+ | Reconciler framework, manager, caching |
 | **Kubebuilder** | 4.x | Code generation markers for CRDs, RBAC, webhooks |
 | **Chainsaw** | 0.2+ | Declarative E2E testing for Kubernetes operators |
 | **Helm** | 3.x | Operator packaging and deployment |
