@@ -2,7 +2,7 @@
 
 ## HelmRelease for Operators
 
-Most operators are deployed via HelmRelease CRDs:
+Most operators are deployed via HelmRelease CRDs. For the deployment order and dependencies between these components, see [Dependency Management](./02-dependency-management.md).
 
 ```yaml
 apiVersion: source.toolkit.fluxcd.io/v1
@@ -107,9 +107,9 @@ c5c3-gitops/
     │   ├── helm-repositories.yaml  # All HelmRepository CRDs
     │   └── git-repositories.yaml   # Additional GitRepository CRDs
     └── cluster-configs/
-        ├── control-plane-kubeconfig.yaml  # ExternalSecret (OpenBao)
+        ├── control-plane-kubeconfig.yaml  # ExternalSecret → kubeconfig from OpenBao
         ├── hypervisor-kubeconfig.yaml
         └── storage-kubeconfig.yaml
 ```
 
-***
+For details on OpenBao and ESO configuration referenced above, see [Secret Management](../13-secret-management.md). For the credential lifecycle of the kubeconfig secrets, see [Credential Lifecycle](./01-credential-lifecycle.md).

@@ -34,4 +34,7 @@ This section documents all components of the CobaltCore architecture, organized 
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-***
+- [Control Plane](./01-control-plane.md) — Modular operator architecture, OpenStack service operators, infrastructure operators
+- [Hypervisor](./02-hypervisor.md) — Hypervisor Operator, Node Agents, OVS Agent, virtualization layer
+- [Management](./03-management.md) — FluxCD, OpenBao, ESO, Greenhouse, Aurora
+- [Storage](./04-storage.md) — Rook Operator, Ceph services, External Arbiter, Prysm

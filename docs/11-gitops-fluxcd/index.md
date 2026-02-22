@@ -1,6 +1,6 @@
 # GitOps with FluxCD
 
-This section documents the FluxCD-based GitOps architecture of CobaltCore, including Credential Lifecycle Management, Dependency Management, and Bootstrap process.
+This section documents the FluxCD-based GitOps architecture of CobaltCore, including [Credential Lifecycle Management](./01-credential-lifecycle.md), [Dependency Management](./02-dependency-management.md), [Helm Deployment](./03-helm-deployment.md), and [Bootstrap](./04-bootstrap.md).
 
 **Repository:** `github.com/fluxcd/flux2`
 **Deployment via:** [Flux Operator](https://github.com/controlplaneio-fluxcd/flux-operator) (`fluxcd.controlplane.io/v1`)
@@ -57,7 +57,7 @@ spec:
     pullSecret: flux-system
 ```
 
-The Flux Operator itself is installed as a Helm Chart in the Management Cluster and can thus also be managed via GitOps (e.g., through an initial HelmRelease).
+The Flux Operator itself is installed as a Helm Chart in the Management Cluster and can thus also be managed via GitOps (e.g., through an initial HelmRelease). See [Bootstrap](./04-bootstrap.md) for the installation procedure.
 
 ## Hub-and-Spoke Architecture
 
@@ -128,17 +128,17 @@ The Flux Operator itself is installed as a Helm Chart in the Management Cluster 
 
 ## FluxCD Components
 
-| Controller                  | Function                                       |
-| --------------------------- | ---------------------------------------------- |
-| **Source Controller**       | Monitors Git repos, Helm charts, OCI artifacts |
-| **Kustomize Controller**    | Applies Kustomize overlays                     |
-| **Helm Controller**         | Manages HelmRelease deployments declaratively  |
-| **Notification Controller** | Alerts, webhooks, integration with Slack/Teams |
-| **Image Automation**        | Automatic image updates in Git (optional)      |
+| Controller                  | Function                                                                            |
+| --------------------------- | ----------------------------------------------------------------------------------- |
+| **Source Controller**       | Monitors Git repos, Helm charts, OCI artifacts                                      |
+| **Kustomize Controller**    | Applies Kustomize overlays                                                          |
+| **Helm Controller**         | Manages HelmRelease deployments declaratively                                       |
+| **Notification Controller** | Alerts, webhooks, integration with Slack/Teams                                      |
+| **Image Automation**        | Automatic image updates in Git (optional, not included in default `FluxInstance`)   |
 
 ## Deployment Strategy per Cluster
 
-## Management Cluster (Local)
+### Management Cluster (Local)
 
 The **Flux Operator** manages the FluxCD installation. The `FluxInstance` CRD configures the sync with the Git repository, through which all other components are deployed:
 
@@ -160,12 +160,12 @@ spec:
 **Components:**
 
 * Flux Operator + FluxInstance (GitOps Lifecycle)
-* OpenBao (Secret Store)
+* [OpenBao](../13-secret-management.md) (Secret Store)
 * External Secrets Operator (ESO)
 * Greenhouse (Monitoring)
 * Aurora Dashboard (UI)
 
-## Control Plane Cluster (Remote)
+### Control Plane Cluster (Remote)
 
 ```yaml
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -196,8 +196,8 @@ spec:
   * Memcached Operator
 * **c5c3-operator** (Helm Chart) -> Orchestration:
   * Infrastructure CRs (creates CRs for MariaDB/Valkey/RabbitMQ/Memcached Operators)
-  * Dependency Management
-  * Credential Orchestration
+  * [Dependency Management](./02-dependency-management.md)
+  * [Credential Orchestration](./01-credential-lifecycle.md)
   * Creates Service CRs for Service Operators
 * **Service Operators** (Helm Charts):
   * keystone-operator
@@ -210,7 +210,7 @@ spec:
 * **ovn-operator** (OVN Cluster Management)
   * OVN Northbound/Southbound (StatefulSets)
 
-## Hypervisor Cluster (Remote)
+### Hypervisor Cluster (Remote)
 
 ```yaml
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -241,7 +241,7 @@ spec:
 * ovs-vswitchd (DaemonSet)
 * Labels Injector (Deployment)
 
-## Storage Cluster (Remote)
+### Storage Cluster (Remote)
 
 ```yaml
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -269,5 +269,3 @@ spec:
 * CephCluster CRD
 * External Arbiter Operator
 * Prysm (Sidecar Injection)
-
-***

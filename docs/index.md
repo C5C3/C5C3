@@ -1,11 +1,13 @@
 # CobaltCore Architecture Documentation
 
-> **⚠️ Notice: Early Concept Phase**
-> This project is in an early concept phase. Feedback, reviews, and suggestions are currently being incorporated. All concepts, architectures, and implementations are in flux and subject to fundamental changes. Nothing is finalized yet – everything is open to adjustments and improvements.
+> **Warning: Early Concept Phase**
+> This project is in an early concept phase. Feedback, reviews, and suggestions are currently being incorporated. All concepts, architectures, and implementations are in flux and subject to fundamental changes. Nothing is finalized yet -- everything is open to adjustments and improvements.
 
 **CobaltCore** is a Kubernetes-native OpenStack distribution for operating Hosted Control Planes.
 
 ## Multi-Cluster Architecture
+
+For a detailed architecture description, see [Architecture Overview](./02-architecture-overview.md).
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -57,12 +59,16 @@
 | `openstack.k-orc.cloud`       | v1alpha1     | Domain, Project, Role, Group, Service, Endpoint, User, ApplicationCredential | Keystone Resource Management (K-ORC)              |
 | `crossplane.c5c3.io`          | v1alpha1     | XControlPlaneCluster, XHypervisorCluster, XStorageCluster                    | Consumer Interface (Crossplane XRDs)              |
 
+For detailed CRD specifications, see [CRD Definitions](./04-crds.md).
+
 ## Repositories
 
 | Repository                    | Description                              |
 | ----------------------------- | ---------------------------------------- |
 | `github.com/c5c3/c5c3`        | Monorepo (Operators, Agents, Components) |
 | `github.com/cobaltcore-dev/*` | Prysm, Cortex, Aurora, Labels Injector   |
+
+For a complete list of dependencies and related projects, see [Related Projects](./A1-related-projects.md).
 
 ## Container Registry
 
@@ -72,6 +78,7 @@ ghcr.io/c5c3/<service>:<upstream-version>
 
 OpenStack Release: **2025.2 (Flamingo)**
 
-Container images are built as Multi-Stage OCI images using `uv` as the Python package manager. They support structured patching (Service-Patches, Library-Patches, Constraint-Overrides) without requiring repository forks. Details: [Container Images](./17-container-images/).
-
-Container images are tagged with the **upstream project version** (not the release series). The full list of currently integrated components, the tag schema, and versioning details are maintained in [Container Images](./17-container-images/#container-registry).
+Container images are built as Multi-Stage OCI images using `uv` as the Python package manager.
+They support structured patching (Service-Patches, Library-Patches, Constraint-Overrides) without requiring repository forks.
+Container images are tagged with the **upstream project version** (not the release series).
+The full list of currently integrated components, tag schema, versioning details, and build pipeline are documented in [Container Images](./17-container-images/).

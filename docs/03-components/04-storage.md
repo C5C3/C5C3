@@ -2,9 +2,10 @@
 
 ## Rook Operator
 
+**Repository:** [`github.com/rook/rook`](https://github.com/rook/rook)
 **Runs in:** Storage Cluster
 
-Kubernetes operator for Ceph management.
+Kubernetes operator for Ceph management. For the cross-cluster storage integration and arbiter architecture, see [Storage Architecture](../09-storage-architecture.md).
 
 **Functions:**
 
@@ -183,5 +184,3 @@ prysm remote-producer bucket-notify
 * **Quota Management**: Multi-tenant quota monitoring and alerting
 * **Hardware Diagnostics**: Proactive disk failure detection via SMART
 * **Compliance & Audit**: Operations logging for security policies
-
-***

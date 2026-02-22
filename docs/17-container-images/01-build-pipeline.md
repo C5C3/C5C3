@@ -81,8 +81,8 @@ The build image with all compilation tools:
 ```dockerfile
 FROM ghcr.io/c5c3/python-base:3.12-noble
 
-# Install uv (fast Python package manager)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# Install uv (fast Python package manager, pinned via Renovate)
+COPY --from=ghcr.io/astral-sh/uv:0.6.3 /uv /uvx /bin/
 
 # Build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -264,6 +264,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # <!-- TODO: Add a step that derives VERSION from source-refs.yaml or upstream tag -->
       - name: Build and Push
         uses: docker/build-push-action@v6
         with:
@@ -289,7 +290,7 @@ jobs:
 - **Release-specific patches**: Patches are selected from `patches/<service>/<release>/`
 - **Release-specific constraints**: Each release has its own `upper-constraints.txt` and optional overrides
 - **Named build contexts**: Source code and constraints are passed via `--build-context`, not cloned in the Dockerfile
-- **Multi-arch**: `linux/amd64` and `linux/arm64` in a single build
+- **Multi-arch**: `linux/amd64` and `linux/arm64` in a single build (native arm64 runners recommended to avoid QEMU emulation overhead)
 - **Patching before build**: Patches are applied to the checked-out source code before the Docker build starts
 - **No pushes on PRs**: Pull requests only build, they do not push
 
@@ -297,12 +298,12 @@ jobs:
 
 | Optimization | Effect |
 | --- | --- |
-| `uv` instead of pip | 10-100x faster dependency resolution and installation |
+| `uv` instead of pip | Significantly faster dependency resolution and installation (benchmarks show 10-100x improvement depending on workload) |
 | `--mount=type=bind` | Source code is not copied into layers, reduces image size |
 | `COPY --from=build --link` | Parallel layer extraction, layer deduplication |
 | Shared base images | `python-base` and `venv-builder` are cached and shared across releases |
 | GitHub Actions cache | Layer cache persisted across builds |
-| Native multi-arch | BuildKit builds amd64 and arm64 without QEMU emulation (with suitable runner) |
+| Native multi-arch | BuildKit builds amd64 and arm64 natively when using architecture-specific runners |
 
 ## Directory Structure in the Monorepo
 

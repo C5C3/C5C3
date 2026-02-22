@@ -128,8 +128,6 @@ func init() {
 }
 ```
 
-***
-
 ## Plugin and Middleware Spec
 
 The `Middleware` and `Plugins` fields are generic and reusable across all CobaltCore operators. The shared types are defined in `internal/common/types/` (see [Shared Library](./02-shared-library.md#plugins)).
@@ -199,11 +197,9 @@ spec:
       domain_config_dir: /etc/keystone/domains
 ```
 
-***
-
 ## Status Conditions
 
-Each condition type reflects a discrete reconciliation phase. The `Ready` condition is True only when all other conditions are True.
+Each condition type reflects a discrete reconciliation phase. The `Ready` condition is True only when all other conditions are True. See [Keystone Reconciler](./04-keystone-reconciler.md) for the sub-reconciler implementation that drives these conditions.
 
 | Condition | Description |
 | --- | --- |
@@ -236,8 +232,6 @@ Each condition type reflects a discrete reconciliation phase. The `Ready` condit
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-***
-
 ## DeepCopy Generation
 
 Kubebuilder requires all CRD types to implement the `runtime.Object` interface via DeepCopy methods. These are auto-generated:
@@ -248,8 +242,6 @@ controller-gen object paths="./api/..."
 
 This generates `zz_generated.deepcopy.go` in the `api/v1alpha1/` directory. Regenerate whenever CRD types change.
 
-***
-
 ## CRD Manifest Generation
 
 CRD YAML manifests are generated from the Go types and Kubebuilder markers:
@@ -259,8 +251,6 @@ controller-gen crd paths="./api/..." output:crd:artifacts:config=config/crd/base
 ```
 
 This produces `config/crd/bases/keystone.openstack.c5c3.io_keystones.yaml` containing the full OpenAPI v3.0 schema, validation rules, printer columns, and subresource definitions.
-
-***
 
 ## Validation and Defaulting Webhooks
 
@@ -338,8 +328,6 @@ func (r *Keystone) validate() (admission.Warnings, error) {
 ```
 
 These validations complement the three-layer validation architecture described in [Validation](../18-service-configuration/02-validation.md) — Layer 1 (API Server schema) and Layer 2 (operator webhook + reconciler checks) are implemented here.
-
-***
 
 ## Versioning Strategy
 

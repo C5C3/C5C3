@@ -4,7 +4,7 @@ This page documents the monorepo layout, Go workspace configuration, and develop
 
 ## Go Workspace
 
-CobaltCore uses a **Go Workspace** (`go.work`) to manage multiple operator modules alongside a shared library in a single repository. This avoids the overhead of separate repositories and tagged releases for shared code — all operators develop against the same `internal/common/` revision at all times.
+CobaltCore uses a **Go Workspace** (`go.work`) to manage multiple operator modules alongside a [shared library](./02-shared-library.md) in a single repository. This avoids the overhead of separate repositories and tagged releases for shared code — all operators develop against the same `internal/common/` revision at all times.
 
 ```go
 // go.work
@@ -24,8 +24,6 @@ use (
 
 Each `use` directive points to a Go module with its own `go.mod`. The workspace ensures that `internal/common` is resolved locally rather than fetched from a registry.
 
-***
-
 ## Operator SDK Initialization
 
 Each operator is scaffolded with Operator SDK:
@@ -44,8 +42,6 @@ operator-sdk create api \
 ```
 
 This generates the base project structure: `main.go`, `api/v1alpha1/` types, `internal/controller/` reconciler, and Kubebuilder configuration.
-
-***
 
 ## Monorepo Directory Structure
 
@@ -109,8 +105,6 @@ This generates the base project structure: `main.go`, `api/v1alpha1/` types, `in
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-***
-
 ## Module Dependencies
 
 Each operator module references the shared library via a `replace` directive for local development:
@@ -133,8 +127,6 @@ replace github.com/c5c3/c5c3/internal/common => ../../internal/common
 
 > **Note:** The `replace` directive is only relevant when building outside the Go Workspace (e.g., in CI without `go.work`). Within the workspace, `go.work`'s `use` directive takes precedence.
 
-***
-
 ## Makefile Targets
 
 The top-level Makefile orchestrates builds across all operators:
@@ -144,12 +136,12 @@ The top-level Makefile orchestrates builds across all operators:
 | `make generate` | Run controller-gen to generate DeepCopy methods and CRD manifests for all operators |
 | `make manifests` | Generate CRD, RBAC, and webhook manifests into `config/` directories |
 | `make build` | Compile all operator binaries |
-| `make test` | Run unit tests across all modules |
-| `make test-integration` | Run envtest integration tests |
+| `make test` | Run unit tests across all modules (see [Testing](./06-testing.md)) |
+| `make test-integration` | Run envtest integration tests (see [Testing](./06-testing.md#integration-tests-envtest)) |
 | `make docker-build` | Build container images for all operators |
-| `make helm-package` | Package Helm charts for all operators |
+| `make helm-package` | Package Helm charts for all operators (see [CI/CD & Packaging](./07-ci-cd-and-packaging.md#helm-chart-structure)) |
 | `make lint` | Run golangci-lint across all modules |
-| `make e2e` | Run Chainsaw E2E tests against a live cluster |
+| `make e2e` | Run Chainsaw E2E tests against a live cluster (see [Testing](./06-testing.md#e2e-tests-with-chainsaw)) |
 
 Individual operators can be targeted via the `OPERATOR` variable:
 
@@ -158,8 +150,6 @@ make build OPERATOR=keystone
 make test OPERATOR=keystone
 make docker-build OPERATOR=keystone
 ```
-
-***
 
 ## Developer Prerequisites
 

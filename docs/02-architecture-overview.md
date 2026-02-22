@@ -11,6 +11,8 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 | **Hypervisor Cluster**    | Compute Virtualization | IronCore → Gardener | On-Premises (Bare-Metal) |
 | **Storage Cluster**       | Persistent Storage     | IronCore → Gardener | On-Premises (Bare-Metal) |
 
+Consumers (tenants) provision OpenStack environments through [Crossplane](./12-crossplane/), which provides a self-service API on the Management Cluster.
+
 ## Provisioning Hierarchy
 
 ```text
@@ -269,24 +271,24 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 
 **Provisioning:** Gardener
 
-* **Flux Operator + FluxCD**: GitOps hub for multi-cluster deployment of all components (FluxCD lifecycle via FluxInstance CRD)
-* **OpenBao**: Central secret store for all credentials (HA, 3x Raft)
-* **External Secrets Operator (ESO)**: Secret synchronization between OpenBao and all clusters
-* **Greenhouse**: Centralized monitoring and alerting for all clusters
-* **Aurora Dashboard**: Unified management UI for the entire infrastructure
-* Cross-cluster metrics aggregation
-* Centralized logging
+* **[Flux Operator](./11-gitops-fluxcd/) + FluxCD**: GitOps hub for multi-cluster deployment of all components (FluxCD lifecycle via FluxInstance CRD)
+* **[OpenBao](./13-secret-management.md)**: Central secret store for all credentials (HA, 3x Raft)
+* **[External Secrets Operator (ESO)](./13-secret-management.md#eso-integration)**: Secret synchronization between OpenBao and all clusters
+* **[Greenhouse](./03-components/03-management.md#greenhouse)**: Centralized monitoring and alerting for all clusters
+* **[Aurora Dashboard](./03-components/03-management.md#aurora-dashboard)**: Unified management UI for the entire infrastructure
+* Cross-cluster metrics aggregation (see [Observability](./15-observability/))
+* Centralized logging (see [Logging](./15-observability/02-logging.md))
 
 ### 2. Control Plane Cluster
 
 **Provisioning:** Gardener
 
-* OpenStack Control Plane Services (e.g., Nova API, Neutron API, Keystone, Glance — extensible with additional services)
-* Cortex Scheduler (intelligent placement, optional)
+* OpenStack Control Plane Services (e.g., Nova API, Neutron API, Keystone, Glance — extensible with additional services). See [Control Plane](./03-components/01-control-plane.md) for details.
+* [Cortex Scheduler](./08-cortex-scheduling.md) (intelligent placement, optional)
 * Tempest (recurring integration tests, optional)
-* K-ORC (declarative OpenStack resource management via CRDs)
+* [K-ORC](./03-components/01-control-plane.md#openstack-resource-controller-k-orc) (declarative OpenStack resource management via CRDs)
 * **ovn-operator** (OVN SDN Backend: Northbound/Southbound DB)
-* **Infrastructure Services:**
+* **[Infrastructure Services](./03-components/01-control-plane.md#infrastructure-service-operators):**
   * MariaDB Operator (Galera cluster for DB backend)
   * Valkey Operator (Sentinel for caching)
   * RabbitMQ Operator (message queue for OpenStack)
@@ -296,7 +298,7 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 
 **Provisioning:** IronCore (Bare-Metal) → Gardener (Cluster Management)
 
-* **OpenStack Hypervisor Operator** (lifecycle management of Hypervisor nodes)
+* **[OpenStack Hypervisor Operator](./03-components/02-hypervisor.md)** (lifecycle management of Hypervisor nodes)
 * Hypervisor nodes with GardenLinux
 * Node-local agents (Hypervisor Node Agent, OVS Agent, ovn-controller, Nova Agent, HA Agent)
 * Labels Injector (Node→Pod label synchronization)
@@ -307,10 +309,10 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 
 **Provisioning:** IronCore (Bare-Metal) → Gardener (Cluster Management)
 
-* Rook Operator for Ceph management
+* Rook Operator for Ceph management (see [Storage](./03-components/04-storage.md))
 * Ceph MON Quorum + OSD nodes
 * **External Arbiter Operator** (deploys MONs in remote cluster for stretched clusters)
-* **Prysm** (storage observability: Ceph, RadosGW, SMART metrics)
+* **[Prysm](./03-components/04-storage.md#prysm---storage-observability-platform)** (storage observability: Ceph, RadosGW, SMART metrics)
 * GardenLinux as base OS
 
 ### 5. Arbiter Cluster (Optional, for Stretched Clusters)
@@ -321,5 +323,3 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 * Deployed by External Arbiter Operator (from Storage Cluster)
 * MON only, no OSDs (tiebreaker function)
 * Typically at a third site for stretched clusters
-
-***

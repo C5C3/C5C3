@@ -20,15 +20,15 @@ CobaltCore uses **CycloneDX 1.5** (JSON) as the SBOM format.
 | --- | --- | --- |
 | **Focus** | Application security | License compliance |
 | **Patch tracking** | Native pedigree mechanism | Not supported natively |
-| **`uv` support** | Native export (`uv export --format cyclonedx1.5`) | Not supported natively |
+| **Syft support** | Full CycloneDX 1.5 JSON output | Full SPDX output |
 | **Tooling maturity** | Syft, cdxgen, cyclonedx-cli | Syft, Trivy |
 | **Regulatory acceptance** | BSI TR-03183, CISA, EU CRA | ISO 5962, CISA, EU CRA |
 
 **Why CycloneDX over SPDX:**
 
-- `uv` can natively export CycloneDX 1.5 — the most accurate source for Python dependencies
-- CycloneDX's pedigree mechanism represents C5C3's three-level patching (service patches, library patches, constraint overrides)
-- Security-first design aligns with container image supply chain goals
+- CycloneDX's pedigree mechanism represents C5C3's three-level patching (service patches, library patches, constraint overrides) — SPDX has no native equivalent
+- Syft produces accurate CycloneDX 1.5 output from the final image, capturing both OS and Python packages
+- CycloneDX focuses on vulnerability tracking and patch documentation, which matches the primary use case of container image supply chain security
 
 ## SBOM Generation Pipeline
 
@@ -80,7 +80,7 @@ The SBOM captures everything deployed in the final runtime image:
 
 ### Multi-Stage Build Accuracy
 
-The multi-stage build does not compromise SBOM accuracy:
+The multi-stage build (see [Build Pipeline — Multi-Stage Build Architecture](./01-build-pipeline.md#multi-stage-build-architecture)) does not compromise SBOM accuracy:
 
 ```text
 Stage 1 (Builder)                    Stage 2 (Runtime)
@@ -173,7 +173,7 @@ When a constraint override changes a package version (e.g., for a CVE fix), the 
 
 ## GitHub Actions Integration
 
-SBOM generation is integrated into the image build workflow as additional steps after the image push:
+SBOM generation is integrated into the image build workflow as additional steps after the image push. A new SBOM is generated and attested for every image that is pushed to the registry:
 
 ```yaml
 - name: Build and Push

@@ -6,13 +6,13 @@ CobaltCore builds its own OCI-compliant container images for all OpenStack servi
 
 | Goal | Implementation |
 | --- | --- |
-| **Build specific versions** | Branch, tag, or commit SHA as build input |
-| **Lightweight images** | Multi-stage builds, only runtime dependencies in the final image |
-| **Fast builds** | `uv` instead of pip (10-100x faster), layer caching, bind mounts |
-| **Fast patching** | `patches/<service>/<release>/` directory with `git apply`, no fork required |
+| **Build specific versions** | Branch, tag, or commit SHA as build input (see [Versioning](./02-versioning.md#source-references)) |
+| **Lightweight images** | [Multi-stage builds](./01-build-pipeline.md#multi-stage-build-architecture), only runtime dependencies in the final image |
+| **Fast builds** | `uv` instead of pip, layer caching, bind mounts (see [Build Pipeline](./01-build-pipeline.md#build-performance)) |
+| **Fast patching** | `patches/<service>/<release>/` directory with `git apply`, no fork required (see [Patching](./03-patching.md)) |
 | **Multi-release support** | A single C5C3 branch manages multiple OpenStack releases simultaneously |
-| **Library patching** | Constraint overrides and patches at the dependency level |
-| **Supply chain transparency** | Signed SBOM (CycloneDX) attested to each image via Sigstore |
+| **Library patching** | Constraint overrides and patches at the dependency level (see [Patching — Library Patches](./03-patching.md#level-2-library-patches)) |
+| **Supply chain transparency** | Signed SBOM (CycloneDX) attested to each image via Sigstore (see [SBOM](./04-sbom.md)) |
 
 ## Image Hierarchy
 
@@ -32,7 +32,7 @@ CobaltCore builds its own OCI-compliant container images for all OpenStack servi
 │       │              ├── COPY --from=build /var/lib/openstack   │
 │       │              └── Service-specific system packages       │
 │       │                                                         │
-│       └──▶ c5c3/venv-builder:3.12-noble               │
+│       └──▶ c5c3/venv-builder:3.12-noble                         │
 │            ├── Build dependencies (gcc, python3-dev, libssl-dev)│
 │            ├── uv (Python package manager)                      │
 │            └── upper-constraints.txt                            │

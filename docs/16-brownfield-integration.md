@@ -3,7 +3,7 @@
 ## Overview
 
 A **brownfield** environment in the C5C3 context is an existing OpenStack deployment that was not provisioned by CobaltCore — it has its own Keystone, service users, endpoints, and possibly a full set of running OpenStack services (Nova, Neutron, Glance, Cinder, Placement).
-Brownfield integration allows you to connect CobaltCore's credential management infrastructure (K-ORC + OpenBao + ESO) to such an environment.
+Brownfield integration allows you to connect CobaltCore's credential management infrastructure (K-ORC + OpenBao + ESO) to such an environment. For details on the underlying secret management architecture, see [Secret Management](./13-secret-management.md).
 
 > **Scope:** This document currently covers brownfield integration of Keystone and K-ORC only. Additional topics (e.g. networking, storage, monitoring) will be added in future revisions.
 
@@ -85,7 +85,7 @@ The Credential Bridge connects K-ORC to an existing brownfield Keystone to creat
 
 ### Step 1: K-ORC clouds.yaml for Brownfield Keystone
 
-First, store the brownfield admin credentials in OpenBao and distribute them to K-ORC via ESO. This follows the same pattern as the [greenfield bootstrap](11-gitops-fluxcd/01-credential-lifecycle.md#bootstrap-problem-and-solution-architecture), but points at the external Keystone.
+First, store the brownfield admin credentials in OpenBao and distribute them to K-ORC via ESO. This follows the same pattern as the [greenfield bootstrap](./11-gitops-fluxcd/01-credential-lifecycle.md#bootstrap-problem-and-solution-architecture), but points at the external Keystone.
 
 **Store initial credentials in OpenBao:**
 
@@ -107,6 +107,8 @@ clouds:
       project_domain_name: Default
     region_name: RegionOne
 ```
+
+> **Note:** The plaintext password in `clouds.yaml` is only required during the initial bootstrap. After Step 3, K-ORC transitions to Application Credential authentication, and the password-based `clouds.yaml` can be replaced.
 
 **ExternalSecret to provide clouds.yaml to K-ORC:**
 
@@ -131,12 +133,12 @@ spec:
         property: clouds.yaml
 ```
 
-> **Note:** The initial `clouds.yaml` uses password authentication. After Step 3, you can transition K-ORC itself to Application Credential auth — the same chicken-and-egg pattern used in the [greenfield bootstrap](11-gitops-fluxcd/01-credential-lifecycle.md#k-orc-credential-flow).
+> **Note:** The initial `clouds.yaml` uses password authentication. After Step 3, you can transition K-ORC itself to Application Credential auth — the same chicken-and-egg pattern used in the [greenfield bootstrap](./11-gitops-fluxcd/01-credential-lifecycle.md#k-orc-credential-flow).
 
 ### Step 2: Import Existing Keystone Resources (unmanaged)
 
 K-ORC's `managementPolicy: unmanaged` imports existing OpenStack resources as **read-only**. K-ORC does not modify or delete these resources — it only reads their current state via Keystone API filters (name, tags, ID).
-This is the same mechanism used in the [greenfield bootstrap](03-components/01-control-plane.md#openstack-resource-controller-k-orc) to import resources created by the Keystone Bootstrap Job.
+This is the same mechanism used in the [greenfield bootstrap](./03-components/01-control-plane.md#openstack-resource-controller-k-orc) to import resources created by the Keystone Bootstrap Job.
 
 Import the brownfield Keystone resources that K-ORC needs to reference when creating Application Credentials:
 
@@ -299,7 +301,7 @@ All imported resources should show `status.conditions` with `type: Available, st
 
 ### Step 3: Create Application Credentials
 
-With the brownfield resources imported, K-ORC can create **managed** Application Credentials that reference the **unmanaged** (imported) users. This is the same pattern used in the [greenfield credential lifecycle](11-gitops-fluxcd/01-credential-lifecycle.md#application-credential-distribution-to-service-operators), but referencing `brownfield-*` user CRs.
+With the brownfield resources imported, K-ORC can create **managed** Application Credentials that reference the **unmanaged** (imported) users. This is the same pattern used in the [greenfield credential lifecycle](./11-gitops-fluxcd/01-credential-lifecycle.md#application-credential-distribution-to-service-operators), but referencing `brownfield-*` user CRs.
 
 ```yaml
 # Nova Application Credential
@@ -503,7 +505,7 @@ The resulting Kubernetes Secrets can then be consumed by the brownfield services
 
 ### Step 5: Credential Rotation
 
-Application Credentials created via K-ORC can be automatically rotated using the `CredentialRotation` CRD. This works identically to the [greenfield rotation](11-gitops-fluxcd/01-credential-lifecycle.md#credential-rotation):
+Application Credentials created via K-ORC can be automatically rotated using the `CredentialRotation` CRD. This works identically to the [greenfield rotation](./11-gitops-fluxcd/01-credential-lifecycle.md#credential-rotation):
 
 ```yaml
 apiVersion: c5c3.io/v1alpha1
@@ -685,8 +687,6 @@ Repeat the script, service, and timer for each OpenStack service on the respecti
 
 > **Recommendation:** Option A (OpenBao Agent) is preferred for production use — it reacts to credential changes immediately, handles token renewal automatically, and avoids storing long-lived tokens on disk. Option B is suitable for simpler environments or as an interim solution.
 
-***
-
 ## Scenario B: Full Migration (Brownfield → CobaltCore)
 
 A full migration gradually transitions from a brownfield OpenStack to a fully CobaltCore-managed deployment. Scenario A (Credential Bridge) serves as Phase 1.
@@ -736,7 +736,7 @@ Deploy the CobaltCore infrastructure services alongside the brownfield environme
 * **Memcached Operator** + Memcached CR
 * **CobaltCore Service Operators** (keystone-operator, nova-operator, glance-operator, neutron-operator, cinder-operator)
 
-> **See also:** [Infrastructure Service Operators](03-components/01-control-plane.md#infrastructure-service-operators) for deployment details and HelmRelease examples.
+> **See also:** [Infrastructure Service Operators](./03-components/01-control-plane.md#infrastructure-service-operators) for deployment details and HelmRelease examples.
 
 At this point, CobaltCore infrastructure is running but no OpenStack services are deployed through it yet.
 
@@ -758,12 +758,12 @@ Migrate services one at a time from brownfield to CobaltCore. For each service:
 | 1 | Keystone | Identity is the foundation — all other services depend on it |
 | 2 | Glance | Image service has minimal dependencies |
 | 3 | Placement | Required by Nova, no external dependencies |
-| 4 | Nova | Compute service, depends on Keystone + Glance + Placement + Neutron |
+| 4 | Nova | Compute service, depends on Keystone + Glance + Placement (uses brownfield Neutron until Phase 5) |
 | 5 | Neutron | Network service, can coexist during transition |
 | 6 | Cinder | Block storage, migrate last due to data migration complexity |
 
-> **Note:** CobaltCore's [multi-release container image builds](17-container-images/02-versioning.md) simplify the transition: a single C5C3 branch can produce images for both the brownfield's current OpenStack release and the target release.
-> Combined with the [patching mechanism](17-container-images/03-patching.md), this allows applying critical fixes to the brownfield release images during migration without waiting for the full transition to complete.
+> **Note:** CobaltCore's [multi-release container image builds](./17-container-images/02-versioning.md) simplify the transition: a single C5C3 branch can produce images for both the brownfield's current OpenStack release and the target release.
+> Combined with the [patching mechanism](./17-container-images/03-patching.md), this allows applying critical fixes to the brownfield release images during migration without waiting for the full transition to complete.
 
 **Example: Transitioning a User from unmanaged → managed**
 
@@ -818,8 +818,6 @@ After all services are running on CobaltCore:
 3. Remove the `brownfield-k-orc-clouds-yaml` secret and corresponding OpenBao paths
 4. Clean up `kv-v2/brownfield/` paths in OpenBao
 5. Decommission the brownfield OpenStack infrastructure
-
-***
 
 ## CRD Brownfield Mode
 

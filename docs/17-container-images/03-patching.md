@@ -94,6 +94,9 @@ Closes-Bug: #2099999"
 # 4. Export the patch into the release-specific directory
 git format-patch -1 HEAD -o /path/to/c5c3/patches/nova/2025.2/
 
+# 5. Verify the patch applies cleanly
+git stash && git apply --check /path/to/c5c3/patches/nova/2025.2/0001-*.patch
+
 # Result: patches/nova/2025.2/0001-fix-handle-live-migration-timeout-correctly.patch
 ```
 
@@ -299,6 +302,7 @@ The override file is merged into `upper-constraints.txt` before the build:
 #!/bin/bash
 # scripts/apply-constraint-overrides.sh
 
+RELEASE="${1:?Usage: $0 <release>}"
 CONSTRAINTS="upper-constraints.txt"
 OVERRIDES="overrides/${RELEASE}/constraints.txt"
 
@@ -361,6 +365,8 @@ done < "$OVERRIDES"
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+Patched components are tracked in the SBOM via CycloneDX pedigree metadata (see [SBOM — Patch Traceability](./04-sbom.md#patch-traceability-in-sbom)).
 
 ## Fast Patching (Workflow)
 

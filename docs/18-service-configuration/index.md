@@ -9,10 +9,10 @@ This section documents how configuration is generated, validated, customized, an
 | Principle | Description |
 | --- | --- |
 | **Structured over Raw** | CRD fields provide typed, validated configuration instead of raw INI strings |
-| **Secrets Separated** | Credentials never appear in CRDs or ConfigMaps — they flow through OpenBao and ESO (see [Secret Management](../13-secret-management.md)) |
+| **Secrets Separated** | Credentials are never stored in CRDs. Connection strings in ConfigMaps are assembled at reconciliation time from K8s Secrets — credential lifecycle is managed externally via OpenBao and ESO (see [Secret Management](../13-secret-management.md)) |
 | **Immutable ConfigMaps** | Each config change produces a new hash-named ConfigMap, enabling clean rollbacks and triggering rolling restarts |
 | **Operator-Owned Defaults** | Sensible per-release defaults are embedded in operator code — operators know which defaults are appropriate for each OpenStack release |
-| **Escape Hatches Available** | Design provisions exist for config overrides beyond CRD fields (see [Customization](./03-customization.md)) |
+| **Escape Hatches Available** | Override mechanisms beyond CRD fields are under design (see [Customization](./03-customization.md)) |
 
 ## Configuration Flow
 
@@ -63,10 +63,10 @@ This section documents how configuration is generated, validated, customized, an
 | **Config Language** | Go structs (operator-internal) | CUE | Jinja2 + INI merge | Go templates | Go templates (OpenStack-Helm) |
 | **Validation** | OpenAPI schema + operator checks | CUE schema + metadata | oslo-config-validator | OpenAPI + CEL | Implicit (template logic) |
 | **Secret Handling** | OpenBao + ESO (fully separated) | SecretInjectionLayer | ansible-vault + merge | K8s Secrets in CRD refs | K8s Secrets |
-| **Custom Config** | Structured CRD (raw override planned) | CUE merging (open) | globals.yml + overrides | customServiceConfig (raw INI) | Helm value overrides |
+| **Custom Config** | Structured CRD; override options documented in [Customization](./03-customization.md) | CUE merging (open) | globals.yml + overrides | customServiceConfig (raw INI) | Helm value overrides |
 | **Update Strategy** | Immutable ConfigMap + rolling restart | Immutable Secrets + reconcile | Reconfigure playbook | ConfigMap + rolling restart | Helm upgrade |
 
-For a deep comparison, see [Configuration Landscape](./04-landscape.md).
+For a deep comparison including ConfigHub, see [Configuration Landscape](./04-landscape.md).
 
 ## Further Reading
 
@@ -74,3 +74,4 @@ For a deep comparison, see [Configuration Landscape](./04-landscape.md).
 - [Validation](./02-validation.md) — Three validation layers (API Server, Operator, Runtime)
 - [Customization](./03-customization.md) — Structured vs raw trade-off, override design options
 - [Configuration Landscape](./04-landscape.md) — Deep comparison with YAOOK, Kolla, Red Hat K8s Operators, Atmosphere, ConfigHub
+- [c5c3-operator](../19-implementation/08-c5c3-operator.md) — Orchestration and rollout strategy

@@ -40,7 +40,7 @@ See [OpenBao Secret Management](../13-secret-management.md) for the complete doc
 
 ## OpenStack Credential Lifecycle Management
 
-Managing credentials in a multi-cluster OpenStack environment requires a thoughtful architecture that solves bootstrap problems, enables service-to-service authentication, and supports credential rotation.
+Managing credentials in a multi-cluster OpenStack environment requires an architecture that solves the bootstrap problem (Keystone needs credentials before it can issue them), enables service-to-service authentication via Application Credentials, and supports credential rotation across clusters.
 
 ## Credential Types and Sources
 
@@ -60,6 +60,8 @@ Managing credentials in a multi-cluster OpenStack environment requires a thought
 | Infrastructure Secrets          | Operators             | MariaDB/RabbitMQ/Valkey Op. | c5c3-operator    | OpenStack Services                         |
 
 ## Bootstrap Problem and Solution Architecture
+
+> See also [Bootstrap](./04-bootstrap.md) for the FluxCD-level bootstrap process.
 
 ```text
 ┌───────────────────────────────────────────────────────────────────────────────┐
@@ -140,7 +142,7 @@ Managing credentials in a multi-cluster OpenStack environment requires a thought
 
 ## Bootstrap Sequence Diagram
 
-The following sequence diagram shows the complete bootstrap process from the first FluxCD reconcile to the running OpenStack Control Plane:
+The following sequence diagram shows the complete credential bootstrap process from the first FluxCD reconcile to the running OpenStack Control Plane:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -1117,5 +1119,3 @@ status:
 │                                                                               │
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
-
-***

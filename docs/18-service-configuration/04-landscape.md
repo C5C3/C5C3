@@ -16,8 +16,6 @@ Any OpenStack configuration system must address these challenges:
 | **Config Drift** | How is divergence between desired and actual configuration detected? |
 | **Upgrade Migration** | How does configuration change when upgrading OpenStack releases? |
 
-***
-
 ## YAOOK
 
 [YAOOK](https://yaook.cloud/) (Yet Another OpenStack on Kubernetes) is developed within the [ALASCA](https://alasca.cloud) ecosystem. It uses **CUE** as its configuration language and defines a layered architecture for config generation.
@@ -71,8 +69,6 @@ Any OpenStack configuration system must address these challenges:
 | CUE unification prevents silent override conflicts | CUE has a steep learning curve |
 | Immutable Secrets with history enable reliable rollback | State-machine operators are more complex than reconciliation loops |
 | Config-as-Secret treats all config as potentially sensitive | Smaller community and ecosystem compared to Helm-based approaches |
-
-***
 
 ## Kolla-Ansible
 
@@ -129,8 +125,6 @@ Any OpenStack configuration system must address these challenges:
 | Flexible override hierarchy for multi-environment | Config drift between runs is possible with `COPY_ONCE` |
 | Large community and documentation | Not Kubernetes-native — requires separate adoption of K8s patterns |
 
-***
-
 ## OpenStack K8s Operators (Red Hat)
 
 [OpenStack K8s Operators](https://github.com/openstack-k8s-operators) are Red Hat's Kubernetes-native approach, developed for RHOSO (Red Hat OpenStack Services on OpenShift). Each service has a Go-based operator with CRD-driven configuration.
@@ -178,8 +172,6 @@ spec:
 | CEL validation rules enable cross-field checks in the CRD | Complex multi-operator dependency graph |
 | `os-diff` tool eases migration from TripleO | Tightly coupled to OpenShift platform |
 
-***
-
 ## Vexxhost Atmosphere
 
 [Atmosphere](https://github.com/vexxhost/atmosphere) is Vexxhost's opinionated OpenStack distribution built on **Helm charts** (primarily OpenStack-Helm) with Ansible orchestration.
@@ -220,8 +212,6 @@ The Helm chart template iterates over the `conf.nova` map and renders it as an I
 | Actively maintained with regular upstream tracking | Config errors only surface at runtime |
 | Supports multiple Linux distributions | Less opinionated about secret management |
 
-***
-
 ## ConfigHub
 
 [ConfigHub](https://www.confighub.com/) is a SaaS configuration management platform (not specific to OpenStack) that treats **Configuration as Data**. It is included here not as a deployment tool but as an informative conceptual comparison.
@@ -260,26 +250,26 @@ ConfigHub defines 15+ configuration management concepts. The following table map
 
 ### Gaps and Kubernetes-Native Solutions
 
-For each "Partial" or "Gap" entry above, the following describes how C5C3 can address the limitation using Kubernetes-native patterns:
+For each "Partial" or "Gap" entry above, the following describes design concepts for how C5C3 could address the limitation using Kubernetes-native patterns. **These are future possibilities, not committed implementations.**
 
-**Revisions** — CRDs do not natively track a revision history. Two approaches:
+**Revisions** — CRDs do not natively track a revision history. Two possible approaches:
 - `status.configHistory` field on service CRs: The operator records the last N ConfigMap hashes with timestamps, enabling rollback auditing.
 - `ConfigRevision` condition: Each reconciliation records a generation number in a status condition, correlating with the Git commit that triggered the change.
 
 **ChangeSets** — Git commits provide atomic versioning, but applying changes across multiple service CRs is not transactional. The c5c3-operator's phased rollout (`ControlPlane.status.updatePhase`) provides ordering guarantees: infrastructure → Keystone → remaining services. See [c5c3-operator — Rollout Strategy](../19-implementation/08-c5c3-operator.md#rollout-strategy) for details.
 
-**Gates** — The current pipeline validates at apply time (webhooks) and reconciliation time (operator checks), but there is no explicit "staging → production" gate. A formal gate can be implemented as an `oslo-config-validator` init container that runs against the rendered config before the main service container starts. See [Validation — Layer 3](./02-validation.md) for the runtime validation design.
+**Gates** — The current pipeline validates at apply time (webhooks) and reconciliation time (operator checks), but there is no explicit "staging → production" gate.
+A formal gate could be implemented as an `oslo-config-validator` init container that runs against the rendered config before the main service container starts.
+See [Validation — oslo-config-validator Integration](./02-validation.md#oslo-config-validator-integration-design-concept) for the design concept.
 
-**Drift Detection** — Kubernetes reconciliation automatically corrects drift (the operator regenerates the ConfigMap if the actual state diverges from desired state). For explicit drift reporting, a `ConfigDrift` condition on service CRs can compare the hash of the currently mounted ConfigMap against the expected hash and report discrepancies.
+**Drift Detection** — Kubernetes reconciliation automatically corrects drift (the operator regenerates the ConfigMap if the actual state diverges from desired state). For explicit drift reporting, a `ConfigDrift` condition on service CRs could compare the hash of the currently mounted ConfigMap against the expected hash and report discrepancies.
 
-**Impact Analysis** — A dry-run mode in the c5c3-operator (future concept) would allow users to preview the effect of a ControlPlane CR change before applying it. This would compute which services are affected, which ConfigMaps would change, and whether any validation rules would be violated.
+**Impact Analysis** — A dry-run mode in the c5c3-operator would allow users to preview the effect of a ControlPlane CR change before applying it. This would compute which services are affected, which ConfigMaps would change, and whether any validation rules would be violated.
 
 ### Relevance to C5C3
 
 The "Configuration as Data" principle — that configuration should be structured, validated, versioned, and distributed through a well-defined pipeline — is the philosophical foundation of C5C3's CRD-driven approach.
 ConfigHub validates this principle in a SaaS context; C5C3 implements it entirely within the Kubernetes ecosystem, trading centralized SaaS convenience for Kubernetes-native integration and avoiding external dependencies.
-
-***
 
 ## Comprehensive Comparison
 
@@ -288,12 +278,10 @@ ConfigHub validates this principle in a SaaS context; C5C3 implements it entirel
 | **Config Generation** | Go operator renders from CRD fields | CUE unification of layers | Jinja2 templates + INI merge | Go operator + customServiceConfig | Helm/Go templates | Workers pull structured data from central store |
 | **Secret Management** | OpenBao + ESO (fully separated) | SecretInjectionLayer (CUE) | ansible-vault (merged at deploy) | K8s Secrets (CRD refs) | K8s Secrets (Helm) | External — workers pull at deploy time |
 | **Validation** | OpenAPI + operator checks + runtime | CUE schema + metadata-derived | oslo-config-validator (post-render) | OpenAPI + CEL + runtime | Implicit (template logic) | JSON Schema + custom validation functions |
-| **Customization** | Structured CRD (override planned) | CUE merging (open, composable) | globals.yml + file overrides | customServiceConfig (raw INI) | Helm value overrides | Structured YAML/JSON with context resolution |
-| **Multi-Node Config** | Env vars (Downward API) + shared ConfigMap | configTemplates (Go templates per node) | Host-specific vars in inventory | Per-node CRs or DaemonSet env | Helm per-node values | Context-aware targeting (Spaces × Targets) |
+| **Customization** | Structured CRD (override under design, see [Customization](./03-customization.md)) | CUE merging (open, composable) | globals.yml + file overrides | customServiceConfig (raw INI) | Helm value overrides | Structured YAML/JSON with context resolution |
+| **Multi-Node Config** | Env vars (Downward API) + shared ConfigMap (see [Per-Node Configuration](./01-config-generation.md#per-node-configuration)) | configTemplates (Go templates per node) | Host-specific vars in inventory | Per-node CRs or DaemonSet env | Helm per-node values | Context-aware targeting (Spaces x Targets) |
 | **Config Drift** | GitOps + operator reconciliation (continuous) | Operator reconciliation | Only on playbook re-run | Operator reconciliation | Helm diff on upgrade | Drift detection with reporting |
 | **Upgrade Migration** | Operator embeds per-release defaults | CUE schema per release | Template changes per release | Operator + `os-diff` tool | Chart updates per release | Revision history with rollback |
-
-***
 
 ## What C5C3 Adopts
 
@@ -312,6 +300,6 @@ ConfigHub validates this principle in a SaaS context; C5C3 implements it entirel
 | --- | --- |
 | **Go operators (not CUE/Jinja2/Helm)** | Config rendering is Go code inside operators — no external template language. This keeps the rendering logic close to the reconciliation logic and avoids template debugging |
 | **Secrets fully separated via OpenBao + ESO** | Unlike YAOOK (config-in-Secrets), Kolla (vault-merged), or Red Hat (Secrets-in-CRD-refs), C5C3 stores all secrets in OpenBao and syncs them via ESO. Operators read K8s Secrets but never manage credential lifecycle |
-| **Structured-first (no raw INI passthrough in v1alpha1)** | Unlike Red Hat's `customServiceConfig`, C5C3 v1alpha1 does not include a raw INI escape hatch. All configuration goes through typed CRD fields. Override mechanisms are a planned extension (see [Customization](./03-customization.md)) |
+| **Structured-first (no raw INI passthrough in v1alpha1)** | Unlike Red Hat's `customServiceConfig`, C5C3 v1alpha1 does not include a raw INI escape hatch. All configuration goes through typed CRD fields. Override mechanisms are under design (see [Customization](./03-customization.md)) |
 | **ConfigMap-based (not Secret-based)** | Unlike YAOOK which stores config in K8s Secrets, C5C3 uses ConfigMaps for non-sensitive configuration. Credentials flow separately through the ESO secret pipeline |
 | **Single operator per service** | Each service has exactly one operator. No meta-operators, no shared controller runtime, no operator-of-operators pattern. The c5c3-operator handles orchestration but does not generate service configs |

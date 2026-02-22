@@ -2,7 +2,7 @@
 
 ## Cross-Cluster Communication
 
-The four Kubernetes clusters communicate via various protocols and APIs:
+The four core Kubernetes clusters (plus the optional Arbiter Cluster) communicate via various protocols and APIs:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────┐
@@ -57,11 +57,15 @@ The four Kubernetes clusters communicate via various protocols and APIs:
 | Control Plane  | Hypervisor               | OpenStack API      | Nova Compute control                |
 | Hypervisor     | Control Plane            | Kubernetes API     | CRD updates (Hypervisor status)     |
 | Hypervisor     | Storage                  | RBD/iSCSI          | VM block storage                    |
-| **Storage**    | **Arbiter (Remote)**     | **Kubernetes API** | **External Arbiter MON deployment** |
+| Storage        | Arbiter (Remote)         | Kubernetes API     | External Arbiter MON deployment     |
 | Management     | Control Plane            | Prometheus Fed.    | Metrics aggregation                 |
 | Management     | Hypervisor               | Prometheus Fed.    | Metrics aggregation                 |
 | Management     | Storage                  | Prometheus Fed.    | Metrics aggregation                 |
-| **all**        | **Management (OpenBao)** | **HTTPS**          | **ESO secret sync**                 |
+| all            | Management (OpenBao)     | HTTPS              | ESO secret sync                     |
+
+<!-- TODO: FluxCD/GitOps communication paths (Source Controller -> Git/OCI repos) are not listed here but are also cross-cluster interactions. -->
+
+For CRD definitions referenced in this chapter, see [CRDs](./04-crds.md). For the multi-cluster architecture overview, see [Architecture Overview](./02-architecture-overview.md).
 
 ## Hypervisor Node Agents (in Hypervisor Cluster)
 
@@ -123,14 +127,16 @@ Each hypervisor node in the Hypervisor Cluster runs the following agents:
 | **Nova Agent**            | (OpenStack Nova)                           | -                         | AMQP (RabbitMQ)      |
 | **ovn-controller**        | (OVN)                                      | -                         | OVSDB, OVN SB        |
 
+For CRD definitions (`Hypervisor`, `Eviction`, `Migration`, `OVSNode`), see [CRDs](./04-crds.md). For the HA Agent event handling, see [High Availability](./07-high-availability.md). For the OVS bridge layout, see [Network Architecture](./10-network-architecture.md#ovs-bridge-layout-per-hypervisor-node).
+
 ## Node-Internal System Integration
 
 | Component          | Communication Type                                    | Purpose                                                          |
 | ------------------ | ----------------------------------------------------- | ---------------------------------------------------------------- |
 | LibVirt (libvirtd) | TCP Port 16509 (`qemu+tcp://` or `ch+tcp://`)         | Virtualization API (VM lifecycle, introspection, live migration) |
 | Linux Networking   | Kernel APIs                                           | Network and security management                                  |
-| os\_vif            | Python API                                            | Virtual interface management                                     |
+| os_vif             | Python API                                            | Virtual interface management                                     |
 | systemd/Journald   | D-Bus / Journal API                                   | Service and log management                                       |
 | OVS/OVN            | OVSDB                                                 | Software-defined networking                                      |
 
-***
+For details on storage connectivity (Ceph RBD), see [Storage Architecture](./09-storage-architecture.md). For hypervisor lifecycle states, see [Hypervisor Lifecycle](./06-hypervisor-lifecycle.md).

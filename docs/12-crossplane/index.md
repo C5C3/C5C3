@@ -2,7 +2,7 @@
 
 This chapter describes how consumers (platform teams, tenants) can use CobaltCore as a platform via Crossplane.
 
-> **Note:** Crossplane is **not part of CobaltCore** itself. This document describes how consumers (platform teams, tenants) can use CobaltCore as a platform via Crossplane — similar to Terraform or a CLI working against the c5c3 interfaces.
+> **Note:** Crossplane is **not part of CobaltCore** itself. This document describes how consumers can use CobaltCore via Crossplane -- similar to Terraform or a CLI working against the C5C3 interfaces.
 
 **Repository:** `github.com/crossplane/crossplane`
 **Runs in:** Consumer clusters (e.g., user's Management Cluster)
@@ -12,6 +12,12 @@ Crossplane is a framework for building cloud-native control planes. In the Cobal
 
 1. **Kubernetes clusters with Gardener** (Control Plane Cluster, Hypervisor Cluster Pools, Storage Cluster Pools)
 2. **OpenStack clusters in the Control Plane Cluster** (via c5c3-operator) - consume Hypervisor and Storage clusters
+
+**Chapter contents:**
+
+- [Cluster Provisioning](01-cluster-provisioning.md) -- XRDs and Compositions for Control Plane, Hypervisor, and Storage cluster pools
+- [OpenStack Provisioning](02-openstack-provisioning.md) -- XOpenStackCluster XRD, Ceph resource management, and Compositions
+- [Operations](03-operations.md) -- Claims, FluxCD integration, multi-tenancy, and provisioning flow
 
 ## Resource Model
 
@@ -51,7 +57,7 @@ Crossplane is a framework for building cloud-native control planes. In the Cobal
 │  │ "hv-pool-a" │ │ "hv-pool-b" │            │ "st-pool-a" │ │ "st-pool-b" │ │
 │  │             │ │             │            │             │ │             │ │
 │  │ 50 Nodes    │ │ 100 Nodes   │            │ Ceph        │ │ Ceph        │ │
-│  │   LibVirt   │ │   LibVirt   │            │ 500TB       │ │ 1PB         │ │
+│  │   libvirt   │ │   libvirt   │            │ 500TB       │ │ 1PB         │ │
 │  └─────────────┘ └─────────────┘            └─────────────┘ └─────────────┘ │
 │        │               │                          │               │         │
 │        └───────┬───────┘                          └───────┬───────┘         │
@@ -62,6 +68,8 @@ Crossplane is a framework for building cloud-native control planes. In the Cobal
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+For details on the CRDs consumed by this model, see [CRDs](../04-crds.md). For the overall architecture, see [Architecture Overview](../02-architecture-overview.md).
 
 ## Architecture Overview (Pool Model)
 
@@ -192,7 +200,7 @@ The pool model enables the **independent provisioning** of Hypervisor and Storag
 │  │ (Gardener Shoot)     │ │ (Gardener Shoot)     │  │ (Gardener Shoot)     │       │
 │  │                      │ │                      │  │                      │       │
 │  │ 50 Nodes             │ │ 100 Nodes            │  │ Rook Operator        │       │
-│  │ LibVirt              │ │ LibVirt              │  │ Ceph 500TB           │       │
+│  │ libvirt              │ │ libvirt              │  │ Ceph 500TB           │       │
 │  │ Nova/OVN Agents      │ │ Nova/OVN Agents      │  │ Prysm                │       │
 │  └──────────────────────┘ └──────────────────────┘  └──────────────────────┘       │
 │                                                                                    │
@@ -210,7 +218,7 @@ The pool model enables the **independent provisioning** of Hypervisor and Storag
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | **Crossplane Core**                   | Composition Engine, Package Manager, RBAC                                                             |
 | **provider-kubernetes**               | Manages K8s objects in remote clusters (Gardener Shoots + ControlPlane CRs) via kubeconfig            |
-| **XRD (CompositeResourceDefinition)** | Defines custom APIs (e.g., `XCobaltCoreEnvironment`, `XOpenStackCluster`)                             |
+| **XRD (CompositeResourceDefinition)** | Defines custom APIs (e.g., `XControlPlaneCluster`, `XOpenStackCluster`)                               |
 | **Composition**                       | Template that maps XRD to concrete resources                                                          |
 | **Claim (XRC)**                       | Namespace-scoped request for a Composite Resource                                                     |
 
@@ -255,4 +263,4 @@ spec:
       key: kubeconfig
 ```
 
-***
+See also: [GitOps / FluxCD](../11-gitops-fluxcd/index.md) for how Crossplane is deployed via FluxCD in the Management Cluster.

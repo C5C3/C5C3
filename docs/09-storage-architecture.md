@@ -1,6 +1,6 @@
 # Storage Architecture
 
-The **Storage Cluster** is a standalone Kubernetes cluster that operates Ceph via Rook.
+The **Storage Cluster** is a standalone Kubernetes cluster that operates Ceph via Rook. For the storage component overview, see [Components -- Storage](./03-components/04-storage.md).
 
 ## Cross-Cluster Storage Integration
 
@@ -50,6 +50,7 @@ The **Storage Cluster** is a standalone Kubernetes cluster that operates Ceph vi
 │  │  - RadosGW Usage & Quota Tracking                                      │  │
 │  │  - Output: Prometheus (9090), NATS, Logs                               │  │
 │  │  - Exports to Greenhouse (Management Cluster)                          │  │
+│  │  See also: [Observability](./15-observability/)                         │  │
 │  └────────────────────────────────────────────────────────────────────────┘  │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -66,6 +67,8 @@ The **Storage Cluster** is a standalone Kubernetes cluster that operates Ceph vi
 └───────────────────┘          └───────────────────┘          └───────────────────┘
 ```
 
+For the cross-cluster communication paths, see [Component Interaction](./05-component-interaction.md).
+
 ## External Arbiter for Stretched Clusters
 
 The **External Arbiter Operator** (runs in the **Storage Cluster**) enables:
@@ -75,4 +78,9 @@ The **External Arbiter Operator** (runs in the **Storage Cluster**) enables:
 * Consensus participation without full OSD infrastructure
 * Cross-cluster management via Kubernetes API (to the remote arbiter cluster)
 
-***
+For the RemoteCluster and RemoteArbiter CRD definitions, see [CRDs](./04-crds.md#remotecluster-crd-cephc5c3iov1alpha1). For HA considerations of the storage layer, see [High Availability](./07-high-availability.md).
+
+<!-- TODO: Add section on RBD client configuration on hypervisor nodes (librbd, ceph.conf distribution, Ceph keyring management) -->
+<!-- TODO: Add section on Ceph pool configuration (RBD pool naming, CRUSH rules, replication factor) -->
+<!-- TODO: Add section on Cinder integration (block storage service, volume types, backend configuration) -->
+<!-- TODO: Add section on storage performance considerations (network bandwidth, latency requirements, IOPS) -->

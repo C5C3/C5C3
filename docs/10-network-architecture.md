@@ -67,9 +67,11 @@ The network components are distributed across **two clusters**:
 | OVN Controller    | Hypervisor    | Local network implementation  |
 | ovs-vswitchd      | Hypervisor    | Virtual switch on each node   |
 
+For the agent overview on hypervisor nodes, see [Component Interaction](./05-component-interaction.md#hypervisor-node-agents-in-hypervisor-cluster).
+
 ## OVN Architecture Detail
 
-OVN (Open Virtual Network) forms the SDN backend for CobaltCore. The Northbound and Southbound databases run in the Control Plane Cluster, deployed and managed by the **ovn-operator**.
+OVN (Open Virtual Network) forms the SDN backend for CobaltCore. The Northbound and Southbound databases run in the Control Plane Cluster, deployed and managed by the [ovn-operator](./03-components/01-control-plane.md).
 
 **Data Flow Through the OVN Stack:**
 
@@ -121,7 +123,7 @@ OVN (Open Virtual Network) forms the SDN backend for CobaltCore. The Northbound 
 
 **Raft Consensus for NB/SB:**
 
-Both the OVN Northbound and Southbound DB run as 3-replica Raft clusters. The ovn-operator in the Control Plane Cluster manages deployment and configuration. A leader handles write operations, the two followers replicate synchronously. On leader failure, Raft consensus automatically elects a new leader (see also [07-high-availability.md](07-high-availability.md)).
+Both the OVN Northbound and Southbound DB run as 3-replica Raft clusters. The [ovn-operator](./03-components/01-control-plane.md) in the Control Plane Cluster manages deployment and configuration. A leader handles write operations, the two followers replicate synchronously. On leader failure, Raft consensus automatically elects a new leader (see also [High Availability](./07-high-availability.md)).
 
 ## Network Segmentation
 
@@ -167,7 +169,7 @@ CobaltCore uses several logically separated network zones:
 
 ## OVS Bridge Layout per Hypervisor Node
 
-Each hypervisor node has multiple OVS bridges that handle different network functions. The OVS Agent monitors the state of the bridges and reports via OVSNode CRD (see [04-crds.md](04-crds.md)).
+Each hypervisor node has multiple OVS bridges that handle different network functions. The OVS Agent monitors the state of the bridges and reports via OVSNode CRD (see [CRDs](./04-crds.md#ovsnode-crd-ovsc5c3iov1alpha1)).
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -225,17 +227,19 @@ Each hypervisor node has multiple OVS bridges that handle different network func
 
 **Bridge Overview:**
 
-| Bridge          | Function                                          | Typical Ports                                                     | Flows                                            |
-| --------------- | ------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
-| **br-int**      | Integration Bridge — central datapath for all VMs | VM vNICs (tap), Tunnel Ports (Geneve), Patch Port to br-ex        | Security Group ACLs, MAC Learning, ARP Responder |
-| **br-ex**       | External Bridge — connection to external networks | Patch Port from br-int, physical uplink (or Patch to br-provider) | Floating IP NAT, External Gateway Routing        |
-| **br-provider** | Provider Bridge (optional) — direct L2 access     | VLAN-tagged uplink, physical port                                 | VLAN tagging/stripping for Provider Networks     |
+| Bridge          | Function                                             | Typical Ports                                                     | Flows                                            |
+| --------------- | ---------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
+| **br-int**      | Integration Bridge --- central datapath for all VMs  | VM vNICs (tap), Tunnel Ports (Geneve), Patch Port to br-ex        | Security Group ACLs, MAC Learning, ARP Responder |
+| **br-ex**       | External Bridge --- connection to external networks  | Patch Port from br-int, physical uplink (or Patch to br-provider) | Floating IP NAT, External Gateway Routing        |
+| **br-provider** | Provider Bridge (optional) --- direct L2 access      | VLAN-tagged uplink, physical port                                 | VLAN tagging/stripping for Provider Networks     |
+
+<!-- TODO: Add section on DPDK support (when enabled, configuration, performance implications). The OVSNode CRD supports dpdkEnabled and dpdkVersion fields. -->
 
 ## Provider Networks vs. Overlay Networks
 
 CobaltCore supports two network models for VM connectivity:
 
-**Overlay (Geneve) — Default for Tenant Networks:**
+**Overlay (Geneve) --- Default for Tenant Networks:**
 
 * Automatic network isolation via VNI (Virtual Network Identifier)
 * No physical VLAN setup required
@@ -243,12 +247,10 @@ CobaltCore supports two network models for VM connectivity:
 * Neutron creates logical networks, OVN automatically maps them to Geneve tunnels
 * Suitable for most workloads
 
-**Provider (VLAN/Flat) — For Direct L2 Access:**
+**Provider (VLAN/Flat) --- For Direct L2 Access:**
 
 * Requires physical VLAN setup on switches (VLAN trunk to hypervisors)
 * VM gets direct L2 access to physical network
 * Higher performance (no encapsulation overhead)
-* Configuration via neutron-operator (Provider Network Definition) and OVN NB (Logical Switch with localnet port)
+* Configuration via [neutron-operator](./03-components/01-control-plane.md) (Provider Network Definition) and OVN NB (Logical Switch with localnet port)
 * Typical use cases: Legacy applications with L2 requirements, bare-metal-like network connectivity
-
-***

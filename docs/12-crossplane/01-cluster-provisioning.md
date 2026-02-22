@@ -1,5 +1,7 @@
 # Cluster Provisioning
 
+This page describes the Crossplane XRDs and Compositions for provisioning infrastructure cluster pools (Phase 1). These pools are consumed by [OpenStack clusters](02-openstack-provisioning.md) in Phase 2.
+
 The pool model defines **separate XRDs** for each cluster type that can be provisioned independently:
 
 ## XControlPlaneCluster (Control Plane Provisioning)
@@ -244,9 +246,9 @@ spec:
 
 ## Compositions: Cluster Pool Templates
 
-Each cluster type has its own Composition that enables independent provisioning:
+Each cluster type has its own Composition that enables independent provisioning.
 
-## Composition: Control Plane Cluster
+### Composition: Control Plane Cluster
 
 ```yaml
 apiVersion: apiextensions.crossplane.io/v1
@@ -323,7 +325,7 @@ spec:
                 fmt: "%s-kubeconfig"
 ```
 
-## Composition: Hypervisor Cluster Pool
+### Composition: Hypervisor Cluster Pool
 
 ```yaml
 apiVersion: apiextensions.crossplane.io/v1
@@ -379,7 +381,7 @@ spec:
               appendSlice: true
 ```
 
-## Composition: Storage Cluster Pool
+### Composition: Storage Cluster Pool
 
 ```yaml
 apiVersion: apiextensions.crossplane.io/v1
@@ -430,7 +432,7 @@ spec:
 
 ## Claims: Provision Cluster Pools
 
-The pools are provisioned **independently** of each other:
+The pools are provisioned **independently** of each other. Once ready, they can be referenced by [OpenStack cluster claims](02-openstack-provisioning.md). For full provisioning flow details, see [Operations](03-operations.md).
 
 ```yaml
 # Claim: Control Plane Cluster
@@ -505,5 +507,3 @@ spec:
     targetCapacity: 500Ti
     replicationFactor: 3
 ```
-
-***

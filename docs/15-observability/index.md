@@ -2,7 +2,7 @@
 
 This chapter describes the observability architecture of CobaltCore: Metrics, Logging, Tracing, and LibVirt telemetry.
 
-**Scope:** Control Plane Cluster, Hypervisor Cluster, and Management Cluster. Storage Cluster telemetry (Prysm) is not covered in this chapter — see [Prysm](../03-components/04-storage.md) for Storage observability.
+**Scope:** Control Plane Cluster, Hypervisor Cluster, and Management Cluster. Storage Cluster telemetry (Prysm) is not covered in this chapter — see [Prysm](../03-components/04-storage.md) for Storage observability. For the overall four-cluster topology, see [Architecture Overview](../02-architecture-overview.md).
 
 ## Architecture Overview
 
@@ -75,11 +75,9 @@ This chapter describes the observability architecture of CobaltCore: Metrics, Lo
 
 ## Subchapters
 
-| Document                                     | Description                                  |
-| -------------------------------------------- | -------------------------------------------- |
-| [Metrics](01-metrics.md)                     | Prometheus, Federation, Greenhouse, Alerting |
-| [Logging](02-logging.md)                     | OpenStack logs, centralization, audit        |
-| [Tracing](03-tracing.md)                     | OpenTelemetry, distributed tracing           |
-| [LibVirt Telemetry](04-libvirt-telemetry.md) | LibVirt metrics, logs, events                |
-
-***
+| Document                                       | Description                                  |
+| ---------------------------------------------- | -------------------------------------------- |
+| [Metrics](./01-metrics.md)                     | Prometheus, Federation, Greenhouse, Alerting |
+| [Logging](./02-logging.md)                     | OpenStack logs, centralization, audit        |
+| [Tracing](./03-tracing.md)                     | OpenTelemetry, distributed tracing           |
+| [LibVirt Telemetry](./04-libvirt-telemetry.md) | LibVirt metrics, logs, events                |

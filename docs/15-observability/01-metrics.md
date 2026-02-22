@@ -5,7 +5,7 @@
 Each cluster operates its own Prometheus instance that collects local metrics. The instances in the Control Plane and Hypervisor Cluster are aggregated to the Management Cluster via Prometheus Federation.
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
+┌─────────────────────────────────────────────────────────┐
 │                    MANAGEMENT CLUSTER                       │
 │                                                             │
 │  ┌───────────────────────────────────────────────────────┐  │
@@ -36,8 +36,9 @@ Each cluster operates its own Prometheus instance that collects local metrics. T
 │ • MariaDB Exp.   │    │                  │
 │ • RabbitMQ Exp.  │    │ Targets:         │
 │ • Valkey Exp.    │    │ • Hypervisor Op. │
-│ • OVN Northd     │    │ • Hyp. Agents    │
-│                  │    │ • OVS Agents     │
+│ • Memcached Exp. │    │ • Hyp. Agents    │
+│ • OVN Northd     │    │ • OVS Agents     │
+│                  │    │                  │
 └──────────────────┘    └──────────────────┘
 ```
 
@@ -90,7 +91,7 @@ Standard Prometheus node-exporter as DaemonSet on all Hypervisor nodes. Provides
 
 ### libvirt-exporter
 
-Exports per-VM metrics directly from LibVirt. See [LibVirt Telemetry](04-libvirt-telemetry.md) for details.
+Exports per-VM metrics directly from LibVirt. See [LibVirt Telemetry](./04-libvirt-telemetry.md) for details.
 
 ### OVS Flow Statistics
 
@@ -102,7 +103,7 @@ OVS metrics are collected by the OVS Agent and provided as Prometheus metrics:
 
 ## Prometheus Federation
 
-The Federation configuration in the Management Cluster scrapes selected metrics from the cluster-local Prometheus instances:
+The Federation configuration in the Management Cluster scrapes selected metrics from the cluster-local Prometheus instances. The service addresses shown below are examples and must be adapted to the actual deployment topology.
 
 ```yaml
 # Prometheus Federation Config (Management Cluster)
@@ -202,5 +203,3 @@ spec:
 ### Alertmanager
 
 Alertmanager is operated centrally in the Management Cluster and receives alerts from all Prometheus instances. Routing rules distribute alerts based on labels (`severity`, `cluster`, `service`) to corresponding channels (Slack, PagerDuty, email).
-
-***

@@ -75,14 +75,14 @@ The `request_id` and `global_request_id` enable correlation of logs across servi
 
 ## Hypervisor Logs
 
-| Log Source              | Description                                                                     |
-| ----------------------- | ------------------------------------------------------------------------------- |
-| Hypervisor Node Agent   | Node lifecycle, resource discovery                                              |
-| OVS Agent               | Bridge configuration, flow programming                                          |
-| HA Agent                | Failure detection, evacuation trigger                                           |
-| Nova Compute Agent      | VM operations, live migration, resize                                           |
-| ovn-controller          | Local flow programming, chassis events                                          |
-| LibVirt                 | Domain events, emulator logs — see [LibVirt Telemetry](04-libvirt-telemetry.md) |
+| Log Source              | Description                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------------- |
+| Hypervisor Node Agent   | Node lifecycle, resource discovery                                                  |
+| OVS Agent               | Bridge configuration, flow programming                                              |
+| HA Agent                | Failure detection, evacuation trigger                                               |
+| Nova Compute Agent      | VM operations, live migration, resize                                               |
+| ovn-controller          | Local flow programming, chassis events                                              |
+| LibVirt                 | Domain events, emulator logs — see [LibVirt Telemetry](./04-libvirt-telemetry.md)   |
 
 ## Log Collection Pipeline
 
@@ -114,7 +114,7 @@ spec:
     spec:
       containers:
         - name: fluent-bit
-          image: fluent/fluent-bit:latest
+          image: fluent/fluent-bit:3.2  # Pin to a specific version in production
           volumeMounts:
             - name: varlog
               mountPath: /var/log
@@ -165,7 +165,7 @@ The central log store in the Management Cluster receives logs from all clusters.
 | Loki       | Log aggregation optimized for labels and Grafana | Lightweight, Grafana-native |
 | OpenSearch | Full-text search engine with dashboards          | Powerful search, own UI     |
 
-The choice of backend is deployment-specific. Both options integrate via Greenhouse dashboards.
+The choice of backend is deployment-specific. Both options integrate via Greenhouse dashboards. Log retention policies (duration, index rotation) are configured per deployment based on storage capacity and compliance requirements.
 
 ## Audit Logging
 
@@ -183,4 +183,4 @@ OpenStack services support CADF-compliant audit logging via `oslo.messaging` not
 
 Audit events are treated as separate log streams and can be routed to a dedicated index/tenant in the log store.
 
-***
+<!-- TODO: Add configuration example for enabling CADF audit logging via oslo.messaging notification driver -->

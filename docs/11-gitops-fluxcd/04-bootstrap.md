@@ -59,11 +59,13 @@ kubectl create secret generic flux-system \
 # 4. Check FluxInstance status
 kubectl -n flux-system get fluxinstance flux
 
-# 5. OpenBao + ESO are deployed via FluxCD
-# Initialize OpenBao and write bootstrap secrets
-# ESO ClusterSecretStores are automatically configured
+# 5. OpenBao + ESO are deployed via FluxCD Kustomization (from apps/external-secrets/ and apps/openbao/).
+# Initialize OpenBao and write bootstrap secrets.
+# See: Secret Management documentation for OpenBao initialization details.
+# ESO ClusterSecretStores are deployed via FluxCD Kustomization from the Git repository.
 
-# 6. Add kubeconfig secrets for remote clusters
+# 6. Add kubeconfig secrets for remote clusters (initial manual step;
+#    long-term management via ExternalSecrets in infrastructure/cluster-configs/)
 kubectl create secret generic control-plane-kubeconfig \
   --namespace=flux-system \
   --from-file=value=~/.kube/control-plane.yaml
@@ -76,6 +78,10 @@ kubectl create secret generic storage-kubeconfig \
   --namespace=flux-system \
   --from-file=value=~/.kube/storage.yaml
 ```
+
+<!-- TODO: Add concrete OpenBao initialization commands (bao operator init, unseal, kv put) or link to a runbook -->
+
+See [Secret Management](../13-secret-management.md) for OpenBao initialization and bootstrap secret configuration. After the FluxCD bootstrap completes, the [Credential Lifecycle](./01-credential-lifecycle.md) takes over with Keystone bootstrapping, service user creation, and cross-cluster secret synchronization.
 
 ## FluxReport
 
@@ -91,5 +97,3 @@ The `FluxReport` provides:
 * **Reconciler Statistics**: Running, failed, and suspended resources per type
 * **Sync Status**: Currently applied revision and source details
 * **Prometheus Metrics**: `flux_instance_info` and `flux_resource_info`
-
-***
