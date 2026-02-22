@@ -380,16 +380,20 @@ spec:
     tag: "28.0.0"
 
   database:
+    clusterRef:
+      name: mariadb                # Managed: references MariaDB CR
+    # host: external-db.example.com  # Brownfield alternative
+    # port: 3306
+    database: keystone
     secretRef:
       name: keystone-db-credentials
-    database: keystone
 
   cache:
+    clusterRef:
+      name: memcached              # Managed: references Memcached CR
+    # servers:                      # Brownfield alternative
+    #   - external-mc:11211
     backend: dogpile.cache.pymemcache
-    servers:
-      - memcached-0.memcached:11211
-      - memcached-1.memcached:11211
-      - memcached-2.memcached:11211
 
   fernet:
     # Fernet Key Rotation
@@ -454,9 +458,12 @@ spec:
     tag: "31.0.0"
 
   database:
+    clusterRef:
+      name: mariadb                # Managed: references MariaDB CR
+    # host: external-db.example.com  # Brownfield alternative
+    database: glance
     secretRef:
       name: glance-db-credentials
-    database: glance
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
@@ -524,9 +531,12 @@ spec:
     tag: "14.0.0"
 
   database:
+    clusterRef:
+      name: mariadb                # Managed: references MariaDB CR
+    # host: external-db.example.com  # Brownfield alternative
+    database: placement
     secretRef:
       name: placement-db-credentials
-    database: placement
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
@@ -587,19 +597,23 @@ spec:
     tag: "32.1.0"
 
   database:
-    secretRef:
-      name: nova-db-credentials
+    clusterRef:
+      name: mariadb                # Managed: references MariaDB CR
+    # host: external-db.example.com  # Brownfield alternative
+    # port: 3306
     database: nova
     apiDatabase: nova_api
     cellDatabase: nova_cell0
+    secretRef:
+      name: nova-db-credentials
 
   messaging:
+    clusterRef:
+      name: rabbitmq               # Managed: references RabbitMQ CR
+    # hosts:                        # Brownfield alternative
+    #   - external-rmq:5672
     secretRef:
       name: nova-rabbitmq-credentials
-    hosts:
-      - rabbitmq-0.rabbitmq:5672
-      - rabbitmq-1.rabbitmq:5672
-      - rabbitmq-2.rabbitmq:5672
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
@@ -685,17 +699,20 @@ spec:
     tag: "27.0.1"
 
   database:
+    clusterRef:
+      name: mariadb                # Managed: references MariaDB CR
+    # host: external-db.example.com  # Brownfield alternative
+    database: neutron
     secretRef:
       name: neutron-db-credentials
-    database: neutron
 
   messaging:
+    clusterRef:
+      name: rabbitmq               # Managed: references RabbitMQ CR
+    # hosts:                        # Brownfield alternative
+    #   - external-rmq:5672
     secretRef:
       name: neutron-rabbitmq-credentials
-    hosts:
-      - rabbitmq-0.rabbitmq:5672
-      - rabbitmq-1.rabbitmq:5672
-      - rabbitmq-2.rabbitmq:5672
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
@@ -1030,17 +1047,20 @@ spec:
     tag: "27.0.0"
 
   database:
+    clusterRef:
+      name: mariadb                # Managed: references MariaDB CR
+    # host: external-db.example.com  # Brownfield alternative
+    database: cinder
     secretRef:
       name: cinder-db-credentials
-    database: cinder
 
   messaging:
+    clusterRef:
+      name: rabbitmq               # Managed: references RabbitMQ CR
+    # hosts:                        # Brownfield alternative
+    #   - external-rmq:5672
     secretRef:
       name: cinder-rabbitmq-credentials
-    hosts:
-      - rabbitmq-0.rabbitmq:5672
-      - rabbitmq-1.rabbitmq:5672
-      - rabbitmq-2.rabbitmq:5672
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
@@ -1114,9 +1134,12 @@ spec:
 
   # PostgreSQL for Datasource Storage
   database:
+    clusterRef:
+      name: postgresql             # Managed: references PostgreSQL CR
+    # host: external-db.example.com  # Brownfield alternative
+    database: cortex
     secretRef:
       name: cortex-db-credentials
-    database: cortex
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3

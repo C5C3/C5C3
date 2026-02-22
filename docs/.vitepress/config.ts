@@ -98,6 +98,8 @@ export default defineConfig({
           { text: 'Keystone Dependencies', link: '/19-implementation/05-keystone-dependencies' },
           { text: 'Testing', link: '/19-implementation/06-testing' },
           { text: 'CI/CD & Packaging', link: '/19-implementation/07-ci-cd-and-packaging' },
+          { text: 'C5C3 Operator', link: '/19-implementation/08-c5c3-operator' },
+          { text: 'OpenBao Deployment', link: '/19-implementation/09-openbao-deployment' },
         ]
       },
       {

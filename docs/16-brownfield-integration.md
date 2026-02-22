@@ -818,3 +818,25 @@ After all services are running on CobaltCore:
 3. Remove the `brownfield-k-orc-clouds-yaml` secret and corresponding OpenBao paths
 4. Clean up `kv-v2/brownfield/` paths in OpenBao
 5. Decommission the brownfield OpenStack infrastructure
+
+***
+
+## CRD Brownfield Mode
+
+Independent of the full brownfield integration scenarios above, each service CRD supports a **brownfield mode** for individual infrastructure dependencies. Instead of referencing a managed infrastructure CR via `clusterRef`, operators can point directly at external infrastructure using explicit `host`/`port` fields:
+
+```yaml
+# Managed mode (default)
+database:
+  clusterRef:
+    name: mariadb          # References MariaDB CR in cluster
+
+# Brownfield mode
+database:
+  host: external-db.example.com
+  port: 3306
+```
+
+This is useful when migrating individual infrastructure components (e.g., using an existing MariaDB cluster during a gradual migration). The two modes are mutually exclusive — setting both `clusterRef` and `host` results in a validation error.
+
+For the full CRD design and Go type definitions, see [Shared Library — Hybrid ClusterRef](./19-implementation/02-shared-library.md) and [CRD Implementation — Validation](./19-implementation/03-crd-implementation.md).

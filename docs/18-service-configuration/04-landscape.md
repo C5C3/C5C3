@@ -236,33 +236,62 @@ The Helm chart template iterates over the `conf.nova` map and renders it as an I
 | **Revision history** | Full version history of all configuration changes |
 | **Distribution** | Workers on target hosts pull configuration from the central store |
 
+### Comprehensive Concept Mapping
+
+ConfigHub defines 15+ configuration management concepts. The following table maps each to its Kubernetes-native equivalent in CobaltCore:
+
+| ConfigHub Concept | C5C3 Equivalent | Coverage |
+| --- | --- | --- |
+| **Units** | CRD spec fields (typed, validated via OpenAPI schema) | Full |
+| **Revisions** | Git history (FluxCD) + hash-named ConfigMaps | Partial — no queryable revision history on CRD level |
+| **Mutations** | CRD updates via `kubectl apply` / FluxCD reconciliation | Partial — no semantic change descriptions |
+| **Resources** | Immutable ConfigMaps with content-hash names | Full |
+| **Spaces** | K8s Namespaces + 4-Cluster topology (Management, Control Plane, Hypervisor, Storage) | Full |
+| **Targets** | Cluster types + workload types (Deployment, DaemonSet, CronJob) | Full |
+| **Workers** | Kubernetes Operators (controller-runtime reconciliation loops) | Full |
+| **Bridges** | FluxCD HelmReleases, ESO ExternalSecrets, cert-manager Certificates | Full |
+| **ChangeSets** | Git commits in FluxCD repo + `ControlPlane.status.updatePhase` | Partial — no atomic multi-service change primitive |
+| **Gates** | GitOps PR reviews + validation webhooks + operator reconciliation checks | Partial — no formal gate between "rendered" and "deployed" |
+| **Functions** | Validation webhooks + operator semantic checks (CEL rules, cross-field validation) | Full |
+| **Triggers** | controller-runtime Watches / Owns / For predicates | Full |
+| **Change Flow** | 5-step config pipeline (Read CRD → Resolve → Defaults → Render → ConfigMap) + 3-layer validation | Full |
+| **Drift Detection** | K8s reconciliation loop (automatically corrects drift) | Partial — no explicit drift reporting |
+| **Impact Analysis** | Not implemented | Gap |
+
+### Gaps and Kubernetes-Native Solutions
+
+For each "Partial" or "Gap" entry above, the following describes how C5C3 can address the limitation using Kubernetes-native patterns:
+
+**Revisions** — CRDs do not natively track a revision history. Two approaches:
+- `status.configHistory` field on service CRs: The operator records the last N ConfigMap hashes with timestamps, enabling rollback auditing.
+- `ConfigRevision` condition: Each reconciliation records a generation number in a status condition, correlating with the Git commit that triggered the change.
+
+**ChangeSets** — Git commits provide atomic versioning, but applying changes across multiple service CRs is not transactional. The c5c3-operator's phased rollout (`ControlPlane.status.updatePhase`) provides ordering guarantees: infrastructure → Keystone → remaining services. See [c5c3-operator — Rollout Strategy](../19-implementation/08-c5c3-operator.md#rollout-strategy) for details.
+
+**Gates** — The current pipeline validates at apply time (webhooks) and reconciliation time (operator checks), but there is no explicit "staging → production" gate. A formal gate can be implemented as an `oslo-config-validator` init container that runs against the rendered config before the main service container starts. See [Validation — Layer 3](./02-validation.md) for the runtime validation design.
+
+**Drift Detection** — Kubernetes reconciliation automatically corrects drift (the operator regenerates the ConfigMap if the actual state diverges from desired state). For explicit drift reporting, a `ConfigDrift` condition on service CRs can compare the hash of the currently mounted ConfigMap against the expected hash and report discrepancies.
+
+**Impact Analysis** — A dry-run mode in the c5c3-operator (future concept) would allow users to preview the effect of a ControlPlane CR change before applying it. This would compute which services are affected, which ConfigMaps would change, and whether any validation rules would be violated.
+
 ### Relevance to C5C3
 
-ConfigHub's model has conceptual parallels to CobaltCore:
-
-| ConfigHub Concept | C5C3 Equivalent |
-| --- | --- |
-| Structured data store | CRDs in etcd (typed fields) |
-| JSON Schema validation | OpenAPI v3.0 CRD schema |
-| Revision history | GitOps (FluxCD) version history |
-| Workers pull config | Operators reconcile and generate ConfigMaps |
-| Centralized secret store | OpenBao (centralized, versioned) |
-
 The "Configuration as Data" principle — that configuration should be structured, validated, versioned, and distributed through a well-defined pipeline — is the philosophical foundation of C5C3's CRD-driven approach.
+ConfigHub validates this principle in a SaaS context; C5C3 implements it entirely within the Kubernetes ecosystem, trading centralized SaaS convenience for Kubernetes-native integration and avoiding external dependencies.
 
 ***
 
 ## Comprehensive Comparison
 
-| Challenge | C5C3 | YAOOK | Kolla-Ansible | Red Hat K8s Operators | Atmosphere |
-| --- | --- | --- | --- | --- | --- |
-| **Config Generation** | Go operator renders from CRD fields | CUE unification of layers | Jinja2 templates + INI merge | Go operator + customServiceConfig | Helm/Go templates |
-| **Secret Management** | OpenBao + ESO (fully separated) | SecretInjectionLayer (CUE) | ansible-vault (merged at deploy) | K8s Secrets (CRD refs) | K8s Secrets (Helm) |
-| **Validation** | OpenAPI + operator checks + runtime | CUE schema + metadata-derived | oslo-config-validator (post-render) | OpenAPI + CEL + runtime | Implicit (template logic) |
-| **Customization** | Structured CRD (override planned) | CUE merging (open, composable) | globals.yml + file overrides | customServiceConfig (raw INI) | Helm value overrides |
-| **Multi-Node Config** | Env vars (Downward API) + shared ConfigMap | configTemplates (Go templates per node) | Host-specific vars in inventory | Per-node CRs or DaemonSet env | Helm per-node values |
-| **Config Drift** | GitOps + operator reconciliation (continuous) | Operator reconciliation | Only on playbook re-run | Operator reconciliation | Helm diff on upgrade |
-| **Upgrade Migration** | Operator embeds per-release defaults | CUE schema per release | Template changes per release | Operator + `os-diff` tool | Chart updates per release |
+| Challenge | C5C3 | YAOOK | Kolla-Ansible | Red Hat K8s Operators | Atmosphere | ConfigHub |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Config Generation** | Go operator renders from CRD fields | CUE unification of layers | Jinja2 templates + INI merge | Go operator + customServiceConfig | Helm/Go templates | Workers pull structured data from central store |
+| **Secret Management** | OpenBao + ESO (fully separated) | SecretInjectionLayer (CUE) | ansible-vault (merged at deploy) | K8s Secrets (CRD refs) | K8s Secrets (Helm) | External — workers pull at deploy time |
+| **Validation** | OpenAPI + operator checks + runtime | CUE schema + metadata-derived | oslo-config-validator (post-render) | OpenAPI + CEL + runtime | Implicit (template logic) | JSON Schema + custom validation functions |
+| **Customization** | Structured CRD (override planned) | CUE merging (open, composable) | globals.yml + file overrides | customServiceConfig (raw INI) | Helm value overrides | Structured YAML/JSON with context resolution |
+| **Multi-Node Config** | Env vars (Downward API) + shared ConfigMap | configTemplates (Go templates per node) | Host-specific vars in inventory | Per-node CRs or DaemonSet env | Helm per-node values | Context-aware targeting (Spaces × Targets) |
+| **Config Drift** | GitOps + operator reconciliation (continuous) | Operator reconciliation | Only on playbook re-run | Operator reconciliation | Helm diff on upgrade | Drift detection with reporting |
+| **Upgrade Migration** | Operator embeds per-release defaults | CUE schema per release | Template changes per release | Operator + `os-diff` tool | Chart updates per release | Revision history with rollback |
 
 ***
 

@@ -218,26 +218,33 @@ func (r *KeystoneReconciler) reconcileSecrets(ctx context.Context,
 
 ### reconcileDatabase()
 
-Creates MariaDB Database and User CRs (watched by the MariaDB Operator) and runs the `db_sync` Job using the Keystone image:
+Creates MariaDB Database and User CRs (watched by the MariaDB Operator) and runs the `db_sync` Job using the Keystone image. Supports both managed (ClusterRef) and brownfield (explicit host/port) modes:
+
+- **Managed mode** (`spec.database.clusterRef` set): The reconciler creates MariaDB `Database` and `User` CRs within the referenced MariaDB cluster. Endpoints are resolved dynamically from the MariaDB CR status.
+- **Brownfield mode** (`spec.database.host` set): The reconciler uses the explicit host/port directly. No MariaDB `Database` or `User` CRs are created — the external database must be provisioned separately.
 
 ```go
 func (r *KeystoneReconciler) reconcileDatabase(ctx context.Context,
     keystone *keystonev1alpha1.Keystone) (ctrl.Result, error) {
 
-    // Ensure MariaDB Database CR exists and is ready
-    dbReady, err := database.EnsureDatabase(ctx, r.Client, keystone,
-        keystone.Spec.Database)
-    if err != nil {
-        return ctrl.Result{}, err
+    dbSpec := keystone.Spec.Database
+
+    if dbSpec.ClusterRef != nil {
+        // Managed mode: create MariaDB Database + User CRs, resolve endpoint from CR status
+        dbReady, err := database.EnsureDatabase(ctx, r.Client, keystone, dbSpec)
+        if err != nil {
+            return ctrl.Result{}, err
+        }
+        if !dbReady {
+            conditions.SetCondition(&keystone.Status.Conditions, metav1.Condition{
+                Type:   "DatabaseReady",
+                Status: metav1.ConditionFalse,
+                Reason: "WaitingForDatabase",
+            })
+            return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+        }
     }
-    if !dbReady {
-        conditions.SetCondition(&keystone.Status.Conditions, metav1.Condition{
-            Type:   "DatabaseReady",
-            Status: metav1.ConditionFalse,
-            Reason: "WaitingForDatabase",
-        })
-        return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-    }
+    // Brownfield mode: skip MariaDB CR creation, use host/port directly
 
     // Run db_sync job using the Keystone service image
     synced, err := database.RunDBSyncJob(ctx, r.Client, keystone,

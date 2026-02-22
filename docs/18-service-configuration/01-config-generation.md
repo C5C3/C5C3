@@ -13,11 +13,18 @@ Each Service Operator in CobaltCore follows a deterministic pipeline to translat
 │  ─────────────────────                                                      │
 │  Operator watches its Service CR (e.g. Nova CR) and reads spec fields:      │
 │  database, messaging, keystoneAuth, cache, storage, network, image, ...     │
+│  Infrastructure dependencies use either clusterRef (managed) or             │
+│  explicit host/port (brownfield) — see Step 2.                              │
 │                                                                             │
-│  Step 2: RESOLVE SECRETS                                                    │
-│  ────────────────────                                                       │
-│  Operator reads K8s Secrets referenced in the CRD (secretRef fields).       │
-│  These Secrets were created by ESO from OpenBao.                            │
+│  Step 2: RESOLVE INFRASTRUCTURE ENDPOINTS + SECRETS                         │
+│  ──────────────────────────────────────────────────                         │
+│  For each infrastructure dependency (database, messaging, cache):           │
+│  • Managed mode (clusterRef set): Operator reads the referenced             │
+│    infrastructure CR (e.g. MariaDB CR) and resolves endpoints from          │
+│    its status fields. Creates per-service resources (Database, User CRs).   │
+│  • Brownfield mode (host/port set): Operator uses explicit endpoints.       │
+│    No infrastructure CRs are created.                                       │
+│  Then reads K8s Secrets referenced in secretRef fields (from ESO/OpenBao).  │
 │  Example: database password, RabbitMQ credentials, Ceph keys.               │
 │                                                                             │
 │  Step 3: APPLY DEFAULTS                                                     │
@@ -66,22 +73,26 @@ spec:
     scheduler: 2
     conductor: 2
   database:
-    host: maxscale.mariadb-system.svc
-    port: 3306
+    clusterRef:
+      name: mariadb                # Managed: references MariaDB CR
+    # host: external-db.example.com  # Brownfield alternative
+    # port: 3306
     name: nova
     secretRef:
       name: nova-db-credentials
       key: password
   apiDatabase:
-    host: maxscale.mariadb-system.svc
-    port: 3306
+    clusterRef:
+      name: mariadb
     name: nova_api
     secretRef:
       name: nova-api-db-credentials
       key: password
   messaging:
-    host: rabbitmq.rabbitmq-system.svc
-    port: 5672
+    clusterRef:
+      name: rabbitmq               # Managed: references RabbitMQ CR
+    # hosts:                        # Brownfield alternative
+    #   - external-rmq.example.com:5672
     secretRef:
       name: nova-rabbitmq-credentials
   keystoneAuth:
@@ -90,9 +101,11 @@ spec:
     applicationCredentialRef:
       name: nova-app-credential
   cache:
+    clusterRef:
+      name: memcached              # Managed: references Memcached CR
+    # servers:                      # Brownfield alternative
+    #   - external-mc:11211
     backend: dogpile.cache.memcached
-    host: memcached.memcached-system.svc
-    port: 11211
   storage:
     backend: rbd
     rbdPool: vms
@@ -166,15 +179,15 @@ spec:
     tag: "28.0.0"
   replicas: 3
   database:
-    host: maxscale.mariadb-system.svc
-    port: 3306
+    clusterRef:
+      name: mariadb                # Managed: references MariaDB CR
     name: keystone
     secretRef:
       name: keystone-db-credentials
   cache:
+    clusterRef:
+      name: memcached              # Managed: references Memcached CR
     backend: dogpile.cache.memcached
-    host: memcached.memcached-system.svc
-    port: 11211
   fernet:
     maxActiveKeys: 3
     rotationInterval: 24h
@@ -223,14 +236,14 @@ spec:
     tag: "27.0.1"
   replicas: 3
   database:
-    host: maxscale.mariadb-system.svc
-    port: 3306
+    clusterRef:
+      name: mariadb                # Managed: references MariaDB CR
     name: neutron
     secretRef:
       name: neutron-db-credentials
   messaging:
-    host: rabbitmq.rabbitmq-system.svc
-    port: 5672
+    clusterRef:
+      name: rabbitmq               # Managed: references RabbitMQ CR
     secretRef:
       name: neutron-rabbitmq-credentials
   keystoneAuth:

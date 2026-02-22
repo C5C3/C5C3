@@ -243,4 +243,12 @@ OpenBao KV v2 supports versioned secrets. In combination with the `CredentialRot
 * **Rotation Flow**: Write new secret to OpenBao → ESO updates K8s Secret → Pods receive new secret via Secret watch or rolling update
 * **CredentialRotation CRD**: The c5c3-operator automatically rotates Application Credentials based on schedule and grace period
 
+For the CRD definitions of `SecretAggregate` and `CredentialRotation`, see [CRDs](./04-crds.md#secretaggregate-crd-c5c3iov1alpha1).
+
+## Further Reading
+
+- [OpenBao Deployment](./19-implementation/09-openbao-deployment.md) — Deployment, initialization, secret engines, auth methods, policies, and bootstrap automation
+- [Credential Lifecycle](./11-gitops-fluxcd/01-credential-lifecycle.md) — GitOps-driven credential flow with FluxCD
+- [C5C3 Operator](./19-implementation/08-c5c3-operator.md#credentialrotation-crd) — CredentialRotation CRD implementation and rotation flow
+
 ***
