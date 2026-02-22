@@ -134,11 +134,11 @@ The pool model enables the **independent provisioning** of Hypervisor and Storag
 │  │  └──────────────────────────────────────────────────────────────────────┘  │  │
 │  └────────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                  │
-│    │ provider-kubernetes                                                        │
-│    │ - Creates Shoot CRs in Gardener (garden-c5c3)                              │
-│    │ - Creates Object CRs in Control Plane Cluster                              │
-│    ▼                                                                            │
-└────┼────────────────────────────────────────────────────────────────────────────┘
+│    │ provider-kubernetes                                                         │
+│    │ - Creates Shoot CRs in Gardener (garden-c5c3)                               │
+│    │ - Creates Object CRs in Control Plane Cluster                               │
+│    ▼                                                                             │
+└────┼──────────────────────────────────────────────────────────────────────────── ┘
      │
      ▼
 ┌─────────────────────────┐

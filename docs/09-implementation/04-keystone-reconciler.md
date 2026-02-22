@@ -23,7 +23,7 @@ For the CRD type definitions and webhooks, see [CRD Implementation](./03-crd-imp
 │           ▼                                                                 │
 │  ┌───────────────────┐                                                      │
 │  │ reconcileDatabase │  Ensure MariaDB Database + User CRs                  │
-│  │                   │  Run db_sync Job (keystone-manage db_sync)            │
+│  │                   │  Run db_sync Job (keystone-manage db_sync)           │
 │  └────────┬──────────┘                                                      │
 │           │ DatabaseReady=True                                              │
 │           ▼                                                                 │
@@ -37,7 +37,7 @@ For the CRD type definitions and webhooks, see [CRD Implementation](./03-crd-imp
 │  ┌──────────────────┐                                                       │
 │  │ reconcileConfig  │  Read CRD → Resolve secrets → Apply defaults          │
 │  │                  │  → Render keystone.conf + api-paste.ini               │
-│  │                  │  → Create immutable ConfigMap (content-hash)           │
+│  │                  │  → Create immutable ConfigMap (content-hash)          │
 │  └────────┬─────────┘                                                       │
 │           │                                                                 │
 │           ▼                                                                 │
@@ -126,7 +126,7 @@ The reconciler uses the Keystone service image (`ghcr.io/c5c3/keystone:<tag>`) s
 │                       KEYSTONE IMAGE USAGE                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ghcr.io/c5c3/keystone:28.0.0                                              │
+│  ghcr.io/c5c3/keystone:28.0.0                                               │
 │  ├─────────────────────────────────────────────────────────────────────┐    │
 │  │                                                                     │    │
 │  │  Jobs (one-shot):                                                   │    │
@@ -138,16 +138,16 @@ The reconciler uses the Keystone service image (`ghcr.io/c5c3/keystone:<tag>`) s
 │  │  └── keystone-manage fernet_rotate    → Periodic key rotation       │    │
 │  │                                                                     │    │
 │  │  Deployment (long-running):                                         │    │
-│  │  └── uwsgi / gunicorn                → WSGI API server             │    │
+│  │  └── uwsgi / gunicorn                → WSGI API server              │    │
 │  │      (serves Keystone API on port 5000)                             │    │
 │  │                                                                     │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 │  Volume Mounts:                                                             │
-│  ├── /etc/keystone/keystone.conf        ← ConfigMap                        │
-│  ├── /etc/keystone/fernet-keys/         ← Secret (Fernet keys)             │
-│  ├── /etc/keystone/credential-keys/     ← Secret (credential keys)         │
-│  └── /etc/keystone/domains/             ← ConfigMap (domain-specific conf) │
+│  ├── /etc/keystone/keystone.conf        ← ConfigMap                         │
+│  ├── /etc/keystone/fernet-keys/         ← Secret (Fernet keys)              │
+│  ├── /etc/keystone/credential-keys/     ← Secret (credential keys)          │
+│  └── /etc/keystone/domains/             ← ConfigMap (domain-specific conf)  │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

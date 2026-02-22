@@ -126,7 +126,7 @@ When a new OpenStack release is published (e.g., 2026.1), it is added to the exi
 │     release: ["2026.1", "2025.2", "2025.1"]                    │
 │                                                                │
 │  4. Create patch directories                                   │
-│     mkdir -p patches/{keystone,nova,...}/2026.1                 │
+│     mkdir -p patches/{keystone,nova,...}/2026.1                │
 │                                                                │
 │  5. Build & test                                               │
 │     # CI builds all images, Tempest tests run                  │

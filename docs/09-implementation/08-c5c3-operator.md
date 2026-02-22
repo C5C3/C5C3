@@ -172,7 +172,7 @@ The c5c3-operator reconciler reads the ControlPlane CR and executes a phased dep
 │  │ ├── Memcached CR            │  → Memcached Operator provisions pods      │
 │  │ └── Valkey CR               │  → Valkey Operator provisions cluster      │
 │  │                             │                                            │
-│  │ Wait: all infra CRs Ready  │                                            │
+│  │ Wait: all infra CRs Ready   │                                            │
 │  └──────────┬──────────────────┘                                            │
 │             │ InfrastructureReady=True                                      │
 │             ▼                                                               │
@@ -216,7 +216,7 @@ The c5c3-operator reconciler reads the ControlPlane CR and executes a phased dep
 │  │ All with clusterRef to      │                                            │
 │  │ shared infra CRs            │                                            │
 │  └──────────┬──────────────────┘                                            │
-│             │ ServicesReady=True                                             │
+│             │ ServicesReady=True                                            │
 │             ▼                                                               │
 │  Ready=True (all conditions met)                                            │
 │                                                                             │
@@ -274,13 +274,13 @@ c5c3-operator creates:                Service operators create:
 ┌──────────────────┐                   ┌──────────────────────────┐
 │ MariaDB CR       │                   │ Database: keystone       │
 │ (Galera cluster) │ ◀───────────────  │ Database: nova           │
-│                  │    clusterRef      │ Database: nova_api       │
+│                  │   clusterRef      │ Database: nova_api       │
 └──────────────────┘                   │ Database: neutron        │
                                        │ Database: glance         │
 ┌──────────────────┐                   │ Database: cinder         │
 │ RabbitMQ CR      │                   ├──────────────────────────┤
 │ (Cluster)        │ ◀───────────────  │ vhost: nova              │
-│                  │    clusterRef      │ vhost: neutron           │
+│                  │   clusterRef      │ vhost: neutron           │
 └──────────────────┘                   │ vhost: cinder            │
                                        └──────────────────────────┘
 ┌──────────────────┐

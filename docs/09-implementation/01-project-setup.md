@@ -56,15 +56,15 @@ This generates the base project structure: `main.go`, `api/v1alpha1/` types, `in
 │  │                                                                          │
 │  ├── internal/                                                              │
 │  │   └── common/                      # Shared library                      │
-│  │       ├── go.mod                   # module: github.com/c5c3/c5c3/      │
+│  │       ├── go.mod                   # module: github.com/c5c3/c5c3/       │
 │  │       │                            #   internal/common                   │
 │  │       ├── conditions/              # Condition helpers                   │
 │  │       ├── config/                  # INI config rendering                │
 │  │       ├── database/                # MariaDB CR interaction              │
-│  │       ├── deployment/              # Deployment/Service helpers           │
+│  │       ├── deployment/              # Deployment/Service helpers          │
 │  │       ├── job/                     # Job/CronJob management              │
 │  │       ├── secrets/                 # ESO secret readiness, PushSecret    │
-│  │       ├── plugins/                 # Plugin/middleware framework          │
+│  │       ├── plugins/                 # Plugin/middleware framework         │
 │  │       ├── tls/                     # cert-manager integration            │
 │  │       └── types/                   # Shared Go type definitions          │
 │  │                                                                          │
@@ -72,7 +72,7 @@ This generates the base project structure: `main.go`, `api/v1alpha1/` types, `in
 │  │   ├── keystone/                    # Keystone Operator                   │
 │  │   │   ├── go.mod                                                         │
 │  │   │   ├── main.go                                                        │
-│  │   │   ├── api/v1alpha1/            # CRD types + webhooks               │
+│  │   │   ├── api/v1alpha1/            # CRD types + webhooks                │
 │  │   │   │   ├── keystone_types.go                                          │
 │  │   │   │   ├── keystone_webhook.go                                        │
 │  │   │   │   └── zz_generated.deepcopy.go                                   │
@@ -93,8 +93,8 @@ This generates the base project structure: `main.go`, `api/v1alpha1/` types, `in
 │  │   └── e2e/                         # Chainsaw E2E tests                  │
 │  │       ├── chainsaw-config.yaml                                           │
 │  │       └── keystone/                                                      │
-│  │           ├── basic-deployment/                                           │
-│  │           ├── fernet-rotation/                                            │
+│  │           ├── basic-deployment/                                          │
+│  │           ├── fernet-rotation/                                           │
 │  │           └── ...                                                        │
 │  │                                                                          │
 │  └── releases/                        # Per-release configuration           │

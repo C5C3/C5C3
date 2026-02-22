@@ -17,15 +17,15 @@ This page documents the CI/CD pipeline, operator container images, Helm chart pa
 │  │  │ (golangci│  │  (go test)   │  │  Tests       │                   │    │
 │  │  │  -lint)  │  │              │  │  (envtest)   │                   │    │
 │  │  └──────────┘  └──────────────┘  └──────────────┘                   │    │
-│  │        │              │                 │                            │    │
-│  │        └──────────────┼─────────────────┘                            │    │
-│  │                       │ all pass                                     │    │
-│  │                       ▼                                              │    │
-│  │              ┌──────────────┐                                        │    │
-│  │              │  E2E Tests   │                                        │    │
-│  │              │  (Chainsaw   │                                        │    │
-│  │              │   + kind)    │                                        │    │
-│  │              └──────────────┘                                        │    │
+│  │        │              │                 │                            │   │
+│  │        └──────────────┼─────────────────┘                            │   │
+│  │                       │ all pass                                     │   │
+│  │                       ▼                                              │   │
+│  │              ┌──────────────┐                                        │   │
+│  │              │  E2E Tests   │                                        │   │
+│  │              │  (Chainsaw   │                                        │   │
+│  │              │   + kind)    │                                        │   │
+│  │              └──────────────┘                                        │   │
 │  │                                                                     │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
@@ -40,14 +40,14 @@ This page documents the CI/CD pipeline, operator container images, Helm chart pa
 │  │         │                                    │                      │    │
 │  │         │           ┌──────────────┐         │                      │    │
 │  │         └──────────▶│  E2E Tests   │◀────────┘                      │    │
-│  │                     │  (final)     │                                 │    │
-│  │                     └──────┬───────┘                                 │    │
+│  │                     │  (final)     │                                 │   │
+│  │                     └──────┬───────┘                                 │   │
 │  │                            │ pass                                   │    │
 │  │                            ▼                                        │    │
-│  │                   ┌──────────────┐                                   │    │
-│  │                   │  Push Chart  │                                   │    │
-│  │                   │  to GHCR OCI │                                   │    │
-│  │                   └──────────────┘                                   │    │
+│  │                   ┌──────────────┐                                   │   │
+│  │                   │  Push Chart  │                                   │   │
+│  │                   │  to GHCR OCI │                                   │   │
+│  │                   └──────────────┘                                   │   │
 │  │                                                                     │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
@@ -226,7 +226,7 @@ Each operator ships with a Helm chart for deployment:
 │  ├── Chart.yaml                                                             │
 │  ├── values.yaml                                                            │
 │  ├── crds/                          # CRD manifests                         │
-│  │   └── keystone.openstack.c5c3.io_keystones.yaml                         │
+│  │   └── keystone.openstack.c5c3.io_keystones.yaml                          │
 │  └── templates/                                                             │
 │      ├── deployment.yaml            # Operator Deployment                   │
 │      ├── service.yaml               # Webhook Service                       │
