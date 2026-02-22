@@ -22,7 +22,7 @@ The Flux Operator manages the lifecycle of the FluxCD installation in the Manage
 * Git repository sync via `spec.sync` in the FluxInstance
 * Prometheus metrics (`flux_instance_info`, `flux_resource_info`)
 
-See [GitOps with FluxCD](../11-gitops-fluxcd/index.md) for the complete architecture and [Bootstrap](../11-gitops-fluxcd/04-bootstrap.md) for the installation process.
+See [GitOps with FluxCD](../05-deployment/01-gitops-fluxcd/index.md) for the complete architecture and [Bootstrap](../05-deployment/01-gitops-fluxcd/04-bootstrap.md) for the installation process.
 
 ## OpenBao
 
@@ -58,7 +58,7 @@ Central secret store for the entire CobaltCore environment. OpenBao manages ALL 
 | Kubernetes  | `kubernetes/storage`       | Storage         |
 | AppRole     | `approle/ci-cd`            | CI/CD pipelines |
 
-See [OpenBao Secret Management](../13-secret-management.md) for the complete documentation.
+See [OpenBao Secret Management](../05-deployment/02-secret-management.md) for the complete documentation.
 
 ## External Secrets Operator (ESO)
 
@@ -70,13 +70,13 @@ The External Secrets Operator runs in **all four clusters** and synchronizes sec
 
 Existing operators and agents continue to read standard Kubernetes Secrets — no code changes required.
 
-See [OpenBao Secret Management](../13-secret-management.md) for details on ESO integration and secret flows.
+See [OpenBao Secret Management](../05-deployment/02-secret-management.md) for details on ESO integration and secret flows.
 
 ## Greenhouse
 
 Centralized monitoring and management tool for the entire CobaltCore environment. Aggregates metrics from all four clusters and provides health dashboards and alerting.
 
-For the complete observability architecture see [Observability](../15-observability/).
+For the complete observability architecture see [Observability](../06-operations/02-observability/).
 
 ## Aurora Dashboard
 

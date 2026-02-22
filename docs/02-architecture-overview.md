@@ -11,7 +11,7 @@ CobaltCore is based on a **multi-cluster architecture** with four separate Kuber
 | **Hypervisor Cluster**    | Compute Virtualization | IronCore → Gardener | On-Premises (Bare-Metal) |
 | **Storage Cluster**       | Persistent Storage     | IronCore → Gardener | On-Premises (Bare-Metal) |
 
-Consumers (tenants) provision OpenStack environments through [Crossplane](./12-crossplane/), which provides a self-service API on the Management Cluster.
+Consumers (tenants) provision OpenStack environments through [Crossplane](./07-crossplane/), which provides a self-service API on the Management Cluster.
 
 ## Provisioning Hierarchy
 
@@ -271,20 +271,20 @@ Consumers (tenants) provision OpenStack environments through [Crossplane](./12-c
 
 **Provisioning:** Gardener
 
-* **[Flux Operator](./11-gitops-fluxcd/) + FluxCD**: GitOps hub for multi-cluster deployment of all components (FluxCD lifecycle via FluxInstance CRD)
-* **[OpenBao](./13-secret-management.md)**: Central secret store for all credentials (HA, 3x Raft)
-* **[External Secrets Operator (ESO)](./13-secret-management.md#eso-integration)**: Secret synchronization between OpenBao and all clusters
+* **[Flux Operator](./05-deployment/01-gitops-fluxcd/) + FluxCD**: GitOps hub for multi-cluster deployment of all components (FluxCD lifecycle via FluxInstance CRD)
+* **[OpenBao](./05-deployment/02-secret-management.md)**: Central secret store for all credentials (HA, 3x Raft)
+* **[External Secrets Operator (ESO)](./05-deployment/02-secret-management.md#eso-integration)**: Secret synchronization between OpenBao and all clusters
 * **[Greenhouse](./03-components/03-management.md#greenhouse)**: Centralized monitoring and alerting for all clusters
 * **[Aurora Dashboard](./03-components/03-management.md#aurora-dashboard)**: Unified management UI for the entire infrastructure
-* Cross-cluster metrics aggregation (see [Observability](./15-observability/))
-* Centralized logging (see [Logging](./15-observability/02-logging.md))
+* Cross-cluster metrics aggregation (see [Observability](./06-operations/02-observability/))
+* Centralized logging (see [Logging](./06-operations/02-observability/02-logging.md))
 
 ### 2. Control Plane Cluster
 
 **Provisioning:** Gardener
 
 * OpenStack Control Plane Services (e.g., Nova API, Neutron API, Keystone, Glance — extensible with additional services). See [Control Plane](./03-components/01-control-plane.md) for details.
-* [Cortex Scheduler](./08-cortex-scheduling.md) (intelligent placement, optional)
+* [Cortex Scheduler](./04-architecture/05-cortex-scheduling.md) (intelligent placement, optional)
 * Tempest (recurring integration tests, optional)
 * [K-ORC](./03-components/01-control-plane.md#openstack-resource-controller-k-orc) (declarative OpenStack resource management via CRDs)
 * **ovn-operator** (OVN SDN Backend: Northbound/Southbound DB)

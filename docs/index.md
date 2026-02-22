@@ -59,7 +59,7 @@ For a detailed architecture description, see [Architecture Overview](./02-archit
 | `openstack.k-orc.cloud`       | v1alpha1     | Domain, Project, Role, Group, Service, Endpoint, User, ApplicationCredential | Keystone Resource Management (K-ORC)              |
 | `crossplane.c5c3.io`          | v1alpha1     | XControlPlaneCluster, XHypervisorCluster, XStorageCluster                    | Consumer Interface (Crossplane XRDs)              |
 
-For detailed CRD specifications, see [CRD Definitions](./04-crds.md).
+For detailed CRD specifications, see [CRD Definitions](./04-architecture/01-crds.md).
 
 ## Repositories
 
@@ -81,4 +81,4 @@ OpenStack Release: **2025.2 (Flamingo)**
 Container images are built as Multi-Stage OCI images using `uv` as the Python package manager.
 They support structured patching (Service-Patches, Library-Patches, Constraint-Overrides) without requiring repository forks.
 Container images are tagged with the **upstream project version** (not the release series).
-The full list of currently integrated components, tag schema, versioning details, and build pipeline are documented in [Container Images](./17-container-images/).
+The full list of currently integrated components, tag schema, versioning details, and build pipeline are documented in [Container Images](./08-container-images/).

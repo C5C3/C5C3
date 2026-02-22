@@ -5,7 +5,7 @@
 **Repository:** [`github.com/rook/rook`](https://github.com/rook/rook)
 **Runs in:** Storage Cluster
 
-Kubernetes operator for Ceph management. For the cross-cluster storage integration and arbiter architecture, see [Storage Architecture](../09-storage-architecture.md).
+Kubernetes operator for Ceph management. For the cross-cluster storage integration and arbiter architecture, see [Storage Architecture](../04-architecture/06-storage.md).
 
 **Functions:**
 
