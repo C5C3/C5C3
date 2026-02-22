@@ -2,7 +2,7 @@
 
 The c5c3-operator is the central orchestration operator in CobaltCore. It reads a single `ControlPlane` CR and from it creates, configures, and monitors all infrastructure and OpenStack service CRs. This page documents the ControlPlane CRD, the orchestration reconciler, infrastructure lifecycle, service CR projection, K-ORC integration, and rollout strategy.
 
-For the high-level architecture, see [Control Plane — C5C3 Operator](../03-components/01-control-plane.md#c5c3-operator). For CRD definitions, see [CRDs](../04-architecture/01-crds.md).
+For the high-level architecture, see [Control Plane — C5C3 Operator](../03-components/01-control-plane/01-c5c3-operator.md). For CRD definitions, see [CRDs](../04-architecture/01-crds.md).
 
 ## Design Principle: Configuration Control Plane
 
@@ -555,7 +555,7 @@ After Keystone is Ready, the c5c3-operator creates K-ORC CRs for service catalog
 3. **Create Service Users** (`managementPolicy: managed`): One User per service
 4. **Create Application Credentials** (`managementPolicy: managed`): One ApplicationCredential per service, pushed to OpenBao via PushSecret
 
-For the full K-ORC flow, see [Control Plane — K-ORC](../03-components/01-control-plane.md#openstack-resource-controller-k-orc). For the credential lifecycle, see [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md).
+For the full K-ORC flow, see [Control Plane — K-ORC](../03-components/01-control-plane/05-korc.md). For the credential lifecycle, see [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md).
 
 ## SecretAggregate CRD
 

@@ -42,7 +42,7 @@ This page documents all external dependencies of the Keystone Operator: the secr
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-See [Control Plane — Service Dependencies](../03-components/01-control-plane.md#openstack-service-dependencies) for the full dependency matrix across all services.
+See [Control Plane — Service Dependencies](../03-components/01-control-plane/) for the full dependency matrix across all services.
 
 ## OpenBao / ESO Secret Flow
 
@@ -175,7 +175,7 @@ spec:
 
 ## MariaDB Interaction
 
-The Keystone Operator interacts with MariaDB through the MariaDB Operator's CRDs (see [Control Plane — Infrastructure Service Operators](../03-components/01-control-plane.md#infrastructure-service-operators)).
+The Keystone Operator interacts with MariaDB through the MariaDB Operator's CRDs (see [Control Plane — Infrastructure Service Operators](../03-components/01-control-plane/06-infrastructure-operators.md)).
 
 **Resources created by the Keystone reconciler:**
 
@@ -195,7 +195,7 @@ This string is rendered into `keystone.conf` under `[database] connection =`.
 
 ## Memcached Interaction
 
-Keystone uses Memcached for token caching and general-purpose caching. The Memcached cluster is managed by the [memcached-operator](../03-components/01-control-plane.md#memcached-operator).
+Keystone uses Memcached for token caching and general-purpose caching. The Memcached cluster is managed by the [memcached-operator](../03-components/01-control-plane/06-infrastructure-operators.md#memcached-operator).
 
 **Discovery:** Memcached pods are accessed via a headless Service, enabling DNS-based discovery. Each pod gets a stable DNS name (e.g., `memcached-0.memcached:11211`).
 
@@ -283,7 +283,7 @@ keystone-manage bootstrap \
 | Service | `keystone` | Identity service in service catalog |
 | Endpoints | `public`, `internal`, `admin` | Keystone API endpoints |
 
-**Chicken-and-egg with K-ORC:** The bootstrap Job creates foundational resources (domain, roles, service catalog) that [K-ORC](../03-components/01-control-plane.md#openstack-resource-controller-k-orc) later imports as unmanaged resources.
+**Chicken-and-egg with K-ORC:** The bootstrap Job creates foundational resources (domain, roles, service catalog) that [K-ORC](../03-components/01-control-plane/05-korc.md) later imports as unmanaged resources.
 Subsequent Keystone resources (service users, application credentials, additional endpoints) are then managed by K-ORC.
 This two-phase approach resolves the circular dependency: Keystone must exist before K-ORC can talk to it, but K-ORC needs the bootstrap resources to operate.
 

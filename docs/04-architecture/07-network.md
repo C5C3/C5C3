@@ -71,7 +71,7 @@ For the agent overview on hypervisor nodes, see [Component Interaction](./02-com
 
 ## OVN Architecture Detail
 
-OVN (Open Virtual Network) forms the SDN backend for CobaltCore. The Northbound and Southbound databases run in the Control Plane Cluster, deployed and managed by the [ovn-operator](../03-components/01-control-plane.md).
+OVN (Open Virtual Network) forms the SDN backend for CobaltCore. The Northbound and Southbound databases run in the Control Plane Cluster, deployed and managed by the [ovn-operator](../03-components/01-control-plane/03-ovn-operator.md).
 
 **Data Flow Through the OVN Stack:**
 
@@ -123,7 +123,7 @@ OVN (Open Virtual Network) forms the SDN backend for CobaltCore. The Northbound 
 
 **Raft Consensus for NB/SB:**
 
-Both the OVN Northbound and Southbound DB run as 3-replica Raft clusters. The [ovn-operator](../03-components/01-control-plane.md) in the Control Plane Cluster manages deployment and configuration. A leader handles write operations, the two followers replicate synchronously. On leader failure, Raft consensus automatically elects a new leader (see also [High Availability](./04-high-availability.md)).
+Both the OVN Northbound and Southbound DB run as 3-replica Raft clusters. The [ovn-operator](../03-components/01-control-plane/03-ovn-operator.md) in the Control Plane Cluster manages deployment and configuration. A leader handles write operations, the two followers replicate synchronously. On leader failure, Raft consensus automatically elects a new leader (see also [High Availability](./04-high-availability.md)).
 
 ## Network Segmentation
 
@@ -252,5 +252,5 @@ CobaltCore supports two network models for VM connectivity:
 * Requires physical VLAN setup on switches (VLAN trunk to hypervisors)
 * VM gets direct L2 access to physical network
 * Higher performance (no encapsulation overhead)
-* Configuration via [neutron-operator](../03-components/01-control-plane.md) (Provider Network Definition) and OVN NB (Logical Switch with localnet port)
+* Configuration via [neutron-operator](../03-components/01-control-plane/02-service-operators.md) (Provider Network Definition) and OVN NB (Logical Switch with localnet port)
 * Typical use cases: Legacy applications with L2 requirements, bare-metal-like network connectivity

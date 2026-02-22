@@ -1,6 +1,6 @@
 # Implementation
 
-CobaltCore's architecture is documented across the preceding chapters — from the [modular operator architecture](../03-components/01-control-plane.md) and [CRD definitions](../04-architecture/01-crds.md) to the [config generation pipeline](../05-deployment/03-service-configuration/01-config-generation.md) and [secret management](../05-deployment/02-secret-management.md).
+CobaltCore's architecture is documented across the preceding chapters — from the [modular operator architecture](../03-components/01-control-plane/) and [CRD definitions](../04-architecture/01-crds.md) to the [config generation pipeline](../05-deployment/03-service-configuration/01-config-generation.md) and [secret management](../05-deployment/02-secret-management.md).
 This chapter bridges the gap between architecture and code by documenting the concrete implementation of operators using Operator SDK and controller-runtime.
 
 The implementation follows a **Keystone-first** strategy: the Keystone Operator is built first as a complete reference implementation, establishing patterns and shared libraries that all subsequent operators will reuse.

@@ -2,7 +2,7 @@
 
 This page documents how CobaltCore CRDs are implemented in Go using Kubebuilder markers, how status conditions are managed, and how validation webhooks enforce constraints. The Keystone CRD serves as the reference implementation — subsequent operators follow the same patterns.
 
-For the high-level CRD design, see [Control Plane — Keystone Operator](../03-components/01-control-plane.md#keystone-operator) and [CRDs](../04-architecture/01-crds.md).
+For the high-level CRD design, see [Control Plane — Keystone Operator](../03-components/01-control-plane/02-service-operators.md#keystone-operator) and [CRDs](../04-architecture/01-crds.md).
 
 ## Keystone API Types
 

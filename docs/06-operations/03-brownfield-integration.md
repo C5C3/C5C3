@@ -138,7 +138,7 @@ spec:
 ### Step 2: Import Existing Keystone Resources (unmanaged)
 
 K-ORC's `managementPolicy: unmanaged` imports existing OpenStack resources as **read-only**. K-ORC does not modify or delete these resources — it only reads their current state via Keystone API filters (name, tags, ID).
-This is the same mechanism used in the [greenfield bootstrap](../03-components/01-control-plane.md#openstack-resource-controller-k-orc) to import resources created by the Keystone Bootstrap Job.
+This is the same mechanism used in the [greenfield bootstrap](../03-components/01-control-plane/05-korc.md) to import resources created by the Keystone Bootstrap Job.
 
 Import the brownfield Keystone resources that K-ORC needs to reference when creating Application Credentials:
 
@@ -736,7 +736,7 @@ Deploy the CobaltCore infrastructure services alongside the brownfield environme
 * **Memcached Operator** + Memcached CR
 * **CobaltCore Service Operators** (keystone-operator, nova-operator, glance-operator, neutron-operator, cinder-operator)
 
-> **See also:** [Infrastructure Service Operators](../03-components/01-control-plane.md#infrastructure-service-operators) for deployment details and HelmRelease examples.
+> **See also:** [Infrastructure Service Operators](../03-components/01-control-plane/06-infrastructure-operators.md) for deployment details and HelmRelease examples.
 
 At this point, CobaltCore infrastructure is running but no OpenStack services are deployed through it yet.
 

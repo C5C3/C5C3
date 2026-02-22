@@ -563,7 +563,7 @@ status:
           expiresAt: "2024-04-15T00:00:00Z"
 ```
 
-> **See also:** [K-ORC section](../../03-components/01-control-plane.md#openstack-resource-controller-k-orc) for K-ORC architecture, CRD types, management policies, and deployment details.
+> **See also:** [K-ORC section](../../03-components/01-control-plane/05-korc.md) for K-ORC architecture, CRD types, management policies, and deployment details.
 
 ## K-ORC Credential Flow
 
@@ -612,7 +612,7 @@ K-ORC requires credentials for accessing OpenStack APIs. Using Application Crede
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **See also:** [K-ORC Credential Management](../../03-components/01-control-plane.md#openstack-resource-controller-k-orc) for the concrete PushSecret and ExternalSecret manifests that implement steps 5–6.
+> **See also:** [K-ORC Credential Management](../../03-components/01-control-plane/05-korc.md) for the concrete PushSecret and ExternalSecret manifests that implement steps 5–6.
 
 ## Application Credential Distribution to Service Operators
 

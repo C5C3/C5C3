@@ -55,7 +55,7 @@ Manages `metav1.Condition` entries on operator status objects.
 
 ### database/
 
-Encapsulates interaction with the [MariaDB Operator's](../03-components/01-control-plane.md#infrastructure-service-operators) CRDs.
+Encapsulates interaction with the [MariaDB Operator's](../03-components/01-control-plane/06-infrastructure-operators.md) CRDs.
 
 | Function | Description |
 | --- | --- |

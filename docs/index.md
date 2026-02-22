@@ -53,7 +53,7 @@ For a detailed architecture description, see [Architecture Overview](./02-archit
 | `cinder.openstack.c5c3.io`    | v1alpha1     | Cinder                                                                       | Block Storage                                     |
 | `ovn.c5c3.io`                 | v1alpha1     | OVNCluster, OVNChassis                                                       | OVN SDN Backend                                   |
 | `ovs.c5c3.io`                 | v1alpha1     | OVSNode                                                                      | OVS Node Status                                   |
-| `hypervisor.c5c3.io`          | v1, v1alpha1 | Hypervisor, Eviction, Migration                                              | Hypervisor Lifecycle                              |
+| `hypervisor.c5c3.io`          | v1, v1alpha1 | Hypervisor (v1), Eviction, Migration (v1alpha1)                              | Hypervisor Lifecycle                              |
 | `ceph.c5c3.io`                | v1alpha1     | RemoteCluster, RemoteArbiter                                                 | Ceph Stretched Cluster Arbiter                    |
 | `cortex.c5c3.io`              | v1alpha1     | Cortex                                                                       | Intelligent Scheduler (optional)                  |
 | `openstack.k-orc.cloud`       | v1alpha1     | Domain, Project, Role, Group, Service, Endpoint, User, ApplicationCredential | Keystone Resource Management (K-ORC)              |

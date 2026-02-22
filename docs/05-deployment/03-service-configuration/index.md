@@ -9,7 +9,7 @@ This section documents how configuration is generated, validated, customized, an
 | Principle | Description |
 | --- | --- |
 | **Structured over Raw** | CRD fields provide typed, validated configuration instead of raw INI strings |
-| **Secrets Separated** | Credentials are never stored in CRDs. Connection strings in ConfigMaps are assembled at reconciliation time from K8s Secrets — credential lifecycle is managed externally via OpenBao and ESO (see [Secret Management](../02-secret-management.md)) |
+| **Secrets Separated** | Credentials are never stored in CRDs or Git. Connection strings (including credentials) in ConfigMaps are assembled at reconciliation time from K8s Secrets — the CRD itself never contains sensitive values. Credential lifecycle is managed externally via OpenBao and ESO (see [Secret Management](../02-secret-management.md)) |
 | **Immutable ConfigMaps** | Each config change produces a new hash-named ConfigMap, enabling clean rollbacks and triggering rolling restarts |
 | **Operator-Owned Defaults** | Sensible per-release defaults are embedded in operator code — operators know which defaults are appropriate for each OpenStack release |
 | **Escape Hatches Available** | Override mechanisms beyond CRD fields are under design (see [Customization](./03-customization.md)) |

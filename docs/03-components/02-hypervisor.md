@@ -119,7 +119,7 @@ The c5c3 agents (Hypervisor Node Agent, HA Agent, Nova Compute) communicate with
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Note:** For LibVirt/Hypervisor Backend upgrades see [14-upgrade-lifecycle.md](../06-operations/01-upgrades.md).
+> **Note:** For LibVirt/Hypervisor Backend upgrades see [Upgrades](../06-operations/01-upgrades.md).
 
 ## Hypervisor Node Agent
 
