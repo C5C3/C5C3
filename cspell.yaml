@@ -36,67 +36,65 @@ noConfigSearch: true
 words:
   - ALASCA
   - Alertmanager
-  - apiextensions
-  - applicationcredential
-  - APIV
   - anchore
-  - Anchore
-  - appsv
+  - apiextensions
+  - apierrors
+  - apimachinery
+  - APIV
+  - applicationcredential
   - appctl
   - approle
+  - appsv
   - asctime
+  - attestations
   - authtoken
-  - BAREMETAL
   - baremetal
-  - Baremetal
   - batchv
   - bindep
   - binpacking
-  - attestations
-  - buildx
-  - cdxgen
-  - brownfield
   - blockpool
+  - brownfield
+  - buildx
   - Bxxxx
   - Bxxxxxxxxxxxxxxxxxxx
   - CADF
+  - cdxgen
   - cephfs
   - cephx
   - chardev
-  - CloudHypervisor
   - CISA
   - cloudoperators
+  - clusterrole
+  - clusterrolebinding
+  - clustersecretstore
   - cobaltcore
-  - coverprofile
-  - cosign
-  - cyclonedx
   - controll
   - controlplane
   - controlplaneio
   - corev
+  - cosign
+  - coverprofile
   - cpus
-  - Creds
+  - credentialrotation
   - creds
+  - crds
+  - crossplane
   - crudini
   - ctmpl
-  - crds
-  - CROSSPLANE
-  - Crossplane
-  - crossplane
+  - cyclonedx
   - datapath
   - deepcopy
   - Descheduling
   - distroless
   - Dockerfiles
-  - dpkg
   - dogpile
   - dpdk
-  - DPDK
+  - dpkg
   - encap
   - Endpts
   - envtest
+  - externalsecrets
   - fernet
-  - Fernet
   - finalizer
   - Finalizers
   - fluxcd
@@ -104,21 +102,19 @@ words:
   - fluxreport
   - fsfe
   - galera
-  - GHCR
-  - Galera
   - gardenlinux
   - Gbps
   - geneve
-  - Geneve
+  - GHCR
   - gitops
   - godoc
   - golangci
+  - gomega
   - Gophercloud
-  - gunicorn
-  - Grype
   - gopsutil
+  - Grype
+  - gunicorn
   - hana
-  - HANA
   - helmrelease
   - hypervisorclusters
   - idempotently
@@ -126,92 +122,91 @@ words:
   - ironcore
   - journalctl
   - Keyspace
-  - KNOWLEDGES
-  - Knowledges
   - keystoneauth
   - keystonemiddleware
+  - knowledges
   - Kolla
   - korc
   - Kubebuilder
-  - kubelet
   - kubeconf
   - kubeconfig
   - kubeconfigs
+  - kubelet
   - kustomization
-  - Kustomization
   - Kustomizations
   - LACP
   - letsencrypt
   - levelname
-  - librbd
+  - libapache
   - libffi
   - libpq
+  - librbd
   - libssl
   - libvirtd
   - localnet
   - LOCI
-  - OIDC
   - maint
-  - metav
-  - Memtouch
   - memtouch
+  - metav
   - mgmt
-  - Mgmt
   - msecs
   - multitenant
   - mysqld
   - netdev
-  - northd
   - nonroot
+  - northd
   - novaclient
   - NUMA
   - nvme
   - objectstore
   - ofproto
+  - OIDC
   - openbao
   - openstackclusters
   - openvswitch
   - OVSDB
   - ovsd
+  - pedigree
   - Placem
   - Postcopy
+  - printcolumn
   - Provid
   - Prysm
-  - pedigree
   - purl
-  - pypi
-  - pydep
+  - pushsecrets
   - pymemcache
   - pymysql
+  - pypi
+  - rados
   - radosgw
-  - Rados
-  - RADOS
   - renovatebot
   - RHOSO
   - SASL
   - SBOM
   - SBOMs
+  - secretaggregate
+  - serviceaccount
   - Sigstore
-  - subresource
   - SLSA
   - SPDX
   - stefanzweifel
-  - Syft
   - storageclusters
+  - subresource
+  - Syft
+  - testutil
   - traceparent
   - tracestate
+  - uwsgi
   - valkey
-  - Valkey
   - vaultpath
-  - Vexxhost
-  - venv
   - vcpu
   - vcpus
+  - venv
+  - Vexxhost
   - virsh
+  - virtualenv
   - vitepress
   - vswitchd
-  - uwsgi
-  - virtualenv
   - WSGI
   - xcontrolplanecluster
   - xcontrolplaneclusters
@@ -224,31 +219,5 @@ words:
   - xstoragecluster
   - xstorageclusters
   - YAOOK
-  - apierrors
-  - apimachinery
-  - clusterrole
-  - clusterrolebinding
-  - clustersecretstore
-  - credentialrotation
-  - envtestsetup
-  - errcheck
-  - externalsecrets
-  - gofmt
-  - goimports
-  - gomega
-  - gosimple
-  - govet
-  - ineffassign
-  - jetstack
-  - libapache
-  - libpcre
-  - libpython
-  - printcolumn
-  - pushsecrets
-  - robfig
-  - secretaggregate
-  - serviceaccount
-  - staticcheck
-  - testutil
 
 version: "0.2"
