@@ -6,6 +6,7 @@ SPDX-PackageDownloadLocation = "https://github.com/C5C3/C5C3"
 
 [[annotations]]
 path = [
+  ".planwerk/**",
   "package*.json",
   ".github/CODEOWNERS",
   ".github/renovate.json",
