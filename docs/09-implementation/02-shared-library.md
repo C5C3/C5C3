@@ -35,6 +35,7 @@ The monorepo approach trades release independence for development velocity — a
 │  job/           Kubernetes Job and CronJob management                       │
 │  secrets/       ESO secret readiness and PushSecret helpers                 │
 │  plugins/       Plugin and middleware config rendering                      │
+│  policy/        Policy file rendering and validation                       │
 │  tls/           cert-manager Certificate CR handling                        │
 │  types/         Shared Go struct definitions                                │
 │                                                                             │
@@ -72,9 +73,10 @@ Implements the config generation pipeline documented in [Config Generation](../0
 | `MergeDefaults(userConfig, defaults map[string]map[string]string) map[string]map[string]string` | Merge user-provided config with operator defaults (user values take precedence) |
 | `CreateImmutableConfigMap(ctx, client, owner, name, data) (*corev1.ConfigMap, error)` | Create an immutable ConfigMap with a content-hash suffix in its name |
 | `InjectSecrets(config map[string]map[string]string, secrets map[string]string) map[string]map[string]string` | Assemble connection strings from resolved secret values (e.g., `mysql+pymysql://USERNAME:PASSWORD@HOST:PORT/DB`) |
+| `InjectOsloPolicyConfig(config map[string]map[string]string, policyFilePath string)` | Inject `[oslo_policy] policy_file = <path>` into the INI config when policy overrides are present |
 
 The config package directly implements the pipeline from [Config Generation](../05-deployment/03-service-configuration/01-config-generation.md): CRD spec → resolve secrets → apply defaults → render INI → immutable ConfigMap.
-Override mechanisms described in [Customization](../05-deployment/03-service-configuration/03-customization.md) (configOverrides, conf.d pattern) are supported via `MergeDefaults` with user-provided overrides taking precedence.
+Override mechanisms described in [Customization](../05-deployment/03-service-configuration/03-customization.md) (configOverrides, conf.d pattern) are supported via `MergeDefaults` with user-provided overrides taking precedence. When `policyOverrides` are configured, `InjectOsloPolicyConfig` adds the `[oslo_policy]` section pointing to the rendered `policy.yaml` file (see `policy/` package).
 
 ### deployment/
 
@@ -144,6 +146,17 @@ type MiddlewareSpec struct {
 }
 ```
 
+### policy/
+
+Provides oslo.policy file rendering, merging, and validation for OpenStack services. All OpenStack services support a `policy.yaml` file that overrides the default API authorization rules defined in code (policy-in-code).
+
+| Function | Description |
+| --- | --- |
+| `RenderPolicyYAML(rules map[string]string) (string, error)` | Render a rule map as YAML suitable for oslo.policy consumption |
+| `MergePolicies(inline, external map[string]string) map[string]string` | Merge inline rules over external rules (inline takes precedence) |
+| `LoadPolicyFromConfigMap(ctx, client, namespace, name string) (map[string]string, error)` | Read and parse the `policy.yaml` key from a user-provided ConfigMap |
+| `ValidatePolicyRules(rules map[string]string) field.ErrorList` | Validate rule syntax (valid YAML, non-empty keys, non-empty values) |
+
 ### tls/
 
 Integrates with cert-manager for TLS certificate provisioning.
@@ -212,6 +225,21 @@ type CacheSpec struct {
 type SecretRefSpec struct {
     Name string `json:"name"`
     Key  string `json:"key,omitempty"`
+}
+
+// PolicySpec defines oslo.policy override configuration for an OpenStack service.
+type PolicySpec struct {
+    // Rules contains inline policy rule overrides.
+    // Keys are oslo.policy rule names (e.g., "compute:create").
+    // Values are oslo.policy rule definitions (e.g., "role:admin").
+    // Inline rules take precedence over ConfigMap rules.
+    // +optional
+    Rules map[string]string `json:"rules,omitempty"`
+
+    // ConfigMapRef references a user-provided ConfigMap containing a
+    // "policy.yaml" key with rule overrides.
+    // +optional
+    ConfigMapRef *corev1.LocalObjectReference `json:"configMapRef,omitempty"`
 }
 ```
 
@@ -293,6 +321,7 @@ import (
     "github.com/c5c3/c5c3/internal/common/job"
     "github.com/c5c3/c5c3/internal/common/secrets"
     "github.com/c5c3/c5c3/internal/common/plugins"
+    "github.com/c5c3/c5c3/internal/common/policy"
 )
 
 func (r *KeystoneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

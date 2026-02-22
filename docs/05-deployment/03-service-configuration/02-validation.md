@@ -46,6 +46,8 @@ When a user or GitOps tool applies a Service CR, the Kubernetes API server valid
 | **Enum constraints** | `cache.backend: redis` rejected if not in allowed values |
 | **Format validation** | `spec.database.port: 99999` rejected (out of range) |
 | **Structural rules** | Unknown fields rejected (with `x-kubernetes-preserve-unknown-fields: false`) |
+| **Policy override structure** | `policyOverrides` validated as correct shape (rules as map, configMapRef as object reference) |
+| **Policy XValidation** | CEL rule ensures at least `rules` or `configMapRef` is set when `policyOverrides` is present |
 
 **Error reporting:** Immediate rejection by `kubectl apply` or the API client:
 
@@ -75,6 +77,8 @@ After a CR passes API server validation, the Service Operator performs deeper se
 | **Cross-resource validation** | Keystone must be `Ready` before Nova can configure auth |
 | **Dependency readiness** | Infrastructure services (MariaDB, RabbitMQ, Valkey) must be operational |
 | **Semantic checks** | Ceph pool name must match the configured Ceph cluster, OVN connection format must be valid |
+| **Policy ConfigMap existence** | If `policyOverrides.configMapRef` is set, the referenced ConfigMap must exist and contain a `policy.yaml` key |
+| **Policy YAML validity** | The `policy.yaml` content must be parseable YAML with a flat `string → string` mapping |
 
 **Status conditions:** Operators report validation results as conditions on the Service CR:
 
@@ -85,7 +89,7 @@ After a CR passes API server validation, the Service Operator performs deeper se
 | `KeystoneAuthReady` | True/False | `CredentialValid` / `CredentialExpired` | Application credential valid |
 | `CephConnected` | True/False | `PoolAccessible` / `PoolNotFound` | Ceph RBD pool accessible |
 | `OVNConnected` | True/False | `Connected` / `Unreachable` | OVN NB/SB database reachable |
-| `ConfigReady` | True/False | `Rendered` / `DependencyNotMet` | Configuration successfully rendered |
+| `ConfigReady` | True/False | `Rendered` / `DependencyNotMet` / `PolicyConfigMapMissing` | Configuration successfully rendered (includes policy.yaml if policyOverrides set) |
 | `Ready` | True/False | `AllChecksPass` / `ConfigError` | Overall service readiness |
 
 **Error reporting:** Conditions are visible via `kubectl describe` and can be monitored by Prometheus:
@@ -120,6 +124,7 @@ After the ConfigMap is mounted and the pod starts, OpenStack's oslo.config libra
 | **Connection failures** | Database or messaging connection fails after config is parsed |
 | **Permission errors** | Keystone auth fails due to expired/invalid credentials |
 | **Missing dependencies** | Required Python modules not available for configured backend |
+| **Policy rule syntax** | oslo.policy validates rule definitions at service startup (e.g., invalid check strings, unknown roles) |
 
 **Error reporting:** Pod logs and Kubernetes events:
 

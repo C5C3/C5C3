@@ -540,6 +540,10 @@ spec:
         api: 3
         scheduler: 2
         conductor: 2
+      policyOverrides:                     # Per-service policy overrides
+        rules:
+          "compute:create": "role:member"
+          "compute:delete": "role:admin"
     neutron:
       enabled: true
       replicas: 3
@@ -561,6 +565,9 @@ spec:
       issuerRef:
         name: letsencrypt-prod
         kind: ClusterIssuer
+    policyOverrides:                       # Global policy rules for all services
+      rules:
+        "admin_required": "role:admin"
   korc:
     cloudCredentialsRef:
       cloudName: openstack

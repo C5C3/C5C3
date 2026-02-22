@@ -39,6 +39,17 @@ Each Service Operator in CobaltCore follows a deterministic pipeline to translat
 │  is written from Go structs. Connection strings are assembled from          │
 │  host + port + credentials + database name.                                 │
 │                                                                             │
+│  Step 4b: RENDER POLICY FILE (conditional)                                  │
+│  ──────────────────────────────────────────                                 │
+│  If spec.policyOverrides is set:                                            │
+│  • If configMapRef is set, read the referenced ConfigMap and parse          │
+│    its policy.yaml key into a rule map.                                     │
+│  • Merge inline rules over external rules (inline takes precedence).        │
+│  • Render the merged rules into YAML format (policy.yaml).                  │
+│  • Inject [oslo_policy] policy_file = /etc/<service>/policy.yaml            │
+│    into the INI config from Step 4.                                         │
+│  If spec.policyOverrides is nil, this step is skipped entirely.             │
+│                                                                             │
 │  Step 5: CREATE / UPDATE CONFIGMAP                                          │
 │  ────────────────────────────────                                           │
 │  The rendered INI content is placed into a ConfigMap. The ConfigMap name    │
@@ -324,6 +335,11 @@ data:
     [DEFAULT]
     transport_url = rabbit://nova:****@rabbitmq.rabbitmq-system.svc:5672/nova
     ...
+    [oslo_policy]
+    policy_file = /etc/nova/policy.yaml
+  policy.yaml: |
+    "compute:create": "role:member"
+    "compute:delete": "role:admin"
   logging.conf: |
     [loggers]
     keys = root, nova
@@ -335,6 +351,7 @@ data:
 - The hash suffix (`a1b2c3d4`) is computed from the config content — identical content produces the same name
 - `ownerReferences` ensure the ConfigMap is garbage-collected when the Service CR is deleted
 - Old ConfigMaps are retained briefly for rollback, then garbage-collected by the operator
+- The `policy.yaml` key is present only when `spec.policyOverrides` is set — the `[oslo_policy]` INI section and the `policy.yaml` data key are generated together in Step 4b
 
 ## Secret Injection
 
