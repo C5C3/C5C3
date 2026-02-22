@@ -11,19 +11,19 @@ CobaltCore operators are tested across three levels: unit tests for pure busines
 │                                                                             │
 │                          ┌───────────┐                                      │
 │                         ╱             ╲                                     │
-│                        ╱   E2E Tests   ╲       Chainsaw (YAML-based)       │
-│                       ╱  (Chainsaw)     ╲      Real cluster (kind)         │
-│                      ╱   ~10 scenarios   ╲     Slow, high confidence       │
-│                     ╱─────────────────────╲                                │
+│                        ╱   E2E Tests   ╲       Chainsaw (YAML-based)        │
+│                       ╱  (Chainsaw)     ╲      Real cluster (kind)          │
+│                      ╱   ~10 scenarios   ╲     Slow, high confidence        │
+│                     ╱─────────────────────╲                                 │
 │                    ╱                       ╲                                │
-│                   ╱   Integration Tests     ╲   envtest (API server +      │
-│                  ╱   (envtest)               ╲  etcd, no kubelet)          │
+│                   ╱   Integration Tests     ╲   envtest (API server +       │
+│                  ╱   (envtest)               ╲  etcd, no kubelet)           │
 │                 ╱    ~20-30 test cases        ╲ Medium speed                │
-│                ╱──────────────────────────────╲                            │
-│               ╱                                ╲                           │
-│              ╱         Unit Tests               ╲  go test, table-driven  │
-│             ╱          ~50-100 test cases         ╲ Fast, isolated         │
-│            ╱──────────────────────────────────────╲                       │
+│                ╱───────────────────────────────╲                            │
+│               ╱                                 ╲                           │
+│              ╱         Unit Tests                ╲  go test, table-driven   │
+│             ╱          ~50-100 test cases         ╲ Fast, isolated          │
+│            ╱───────────────────────────────────────╲                        │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

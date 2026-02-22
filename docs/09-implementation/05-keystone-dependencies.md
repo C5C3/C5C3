@@ -17,17 +17,17 @@ This page documents all external dependencies of the Keystone Operator: the secr
 │  │ Store ready    │  │ (Galera ready) │  │ (Pods ready)   │                 │
 │  └───────┬────────┘  └───────┬────────┘  └───────┬────────┘                 │
 │          │                   │                   │                          │
-│  ┌───────┴────────┐         │                   │                          │
-│  │ cert-manager   │         │                   │                          │
-│  │ (TLS certs)    │         │                   │                          │
-│  └───────┬────────┘         │                   │                          │
+│  ┌───────┴────────┐         │                   │                           │
+│  │ cert-manager   │         │                   │                           │
+│  │ (TLS certs)    │         │                   │                           │
+│  └───────┬────────┘         │                   │                           │
 │          │                   │                   │                          │
 │          └───────────────────┼───────────────────┘                          │
 │                              │                                              │
 │                              ▼                                              │
 │  Phase 1: Keystone Operator                                                 │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                    keystone-operator                                 │    │
+│  │                    keystone-operator                                │    │
 │  │  Reconciles: Keystone CR → Deployment, Service, Jobs, CronJobs      │    │
 │  └────────────────────────────┬────────────────────────────────────────┘    │
 │                               │                                             │
@@ -224,10 +224,10 @@ Keystone uses Fernet tokens, which require symmetric encryption keys that must b
 │                                                                             │
 │  Key States:                                                                │
 │                                                                             │
-│  ┌──────────┐  rotate   ┌──────────┐  rotate   ┌──────────┐  rotate       │
-│  │ Staging  │ ────────▶ │ Primary  │ ────────▶ │Secondary │ ────────▶ ×   │
-│  │ (key N)  │           │ (key N)  │           │ (key N)  │  (removed)    │
-│  └──────────┘           └──────────┘           └──────────┘               │
+│  ┌──────────┐  rotate   ┌──────────┐  rotate   ┌──────────┐  rotate         │
+│  │ Staging  │ ────────▶ │ Primary  │ ────────▶ │Secondary │ ────────▶ ×     │
+│  │ (key N)  │           │ (key N)  │           │ (key N)  │  (removed)      │
+│  └──────────┘           └──────────┘           └──────────┘                 │
 │                                                                             │
 │  Index 0: Staging key   — used for validation only, will become Primary     │
 │  Index 1: Primary key   — used for signing new tokens                       │

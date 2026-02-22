@@ -28,13 +28,13 @@ The monorepo approach trades release independence for development velocity — a
 │                       internal/common/ PACKAGES                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  conditions/    Condition management for Status.Conditions                   │
+│  conditions/    Condition management for Status.Conditions                  │
 │  config/        INI config rendering pipeline                               │
 │  database/      MariaDB CR interaction and db_sync jobs                     │
 │  deployment/    Deployment and Service creation                             │
 │  job/           Kubernetes Job and CronJob management                       │
 │  secrets/       ESO secret readiness and PushSecret helpers                 │
-│  plugins/       Plugin and middleware config rendering                       │
+│  plugins/       Plugin and middleware config rendering                      │
 │  tls/           cert-manager Certificate CR handling                        │
 │  types/         Shared Go struct definitions                                │
 │                                                                             │
@@ -224,21 +224,21 @@ Operators interact exclusively with Kubernetes Secrets. The full secret lifecycl
 │                       SECRET FLOW                                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌──────────┐    ExternalSecret    ┌─────────────┐    Operator reads       │
-│  │ OpenBao  │ ──────────────────▶  │ K8s Secret  │ ──────────────────▶     │
-│  │          │    (ESO syncs)       │             │    secret values        │
-│  └──────────┘                      └─────────────┘                         │
+│  ┌──────────┐    ExternalSecret    ┌─────────────┐    Operator reads        │
+│  │ OpenBao  │ ──────────────────▶  │ K8s Secret  │ ──────────────────▶      │
+│  │          │    (ESO syncs)       │             │    secret values         │
+│  └──────────┘                      └─────────────┘                          │
 │       ▲                                                                     │
-│       │            PushSecret      ┌─────────────┐    Operator writes      │
-│       └─────────────────────────── │ K8s Secret  │ ◀──────────────────     │
-│              (ESO pushes)          │ (generated) │    generated secrets    │
-│                                    └─────────────┘                         │
+│       │            PushSecret      ┌─────────────┐    Operator writes       │
+│       └─────────────────────────── │ K8s Secret  │ ◀──────────────────      │
+│              (ESO pushes)          │ (generated) │    generated secrets     │
+│                                    └─────────────┘                          │
 │                                                                             │
 │  Direction 1 (read):                                                        │
-│  OpenBao → ESO ExternalSecret → K8s Secret → Operator reads → Config       │
+│  OpenBao → ESO ExternalSecret → K8s Secret → Operator reads → Config        │
 │                                                                             │
 │  Direction 2 (write-back):                                                  │
-│  Operator generates secret → K8s Secret → ESO PushSecret → OpenBao         │
+│  Operator generates secret → K8s Secret → ESO PushSecret → OpenBao          │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

@@ -412,7 +412,7 @@ The generated Application Credentials are pushed to OpenBao via PushSecrets and 
 
 ```text
 ┌───────────────────────────────────────────────────────────────────────────────┐
-│        BROWNFIELD CREDENTIAL DISTRIBUTION (K-ORC → OpenBao → Consumer)       │
+│        BROWNFIELD CREDENTIAL DISTRIBUTION (K-ORC → OpenBao → Consumer)        │
 ├───────────────────────────────────────────────────────────────────────────────┤
 │                                                                               │
 │  K-ORC writes K8s Secrets:                                                    │
@@ -692,30 +692,30 @@ Repeat the script, service, and timer for each OpenStack service on the respecti
 A full migration gradually transitions from a brownfield OpenStack to a fully CobaltCore-managed deployment. Scenario A (Credential Bridge) serves as Phase 1.
 
 ```text
-┌───────────────────────────────────────────────────────────────────────────────┐
-│                    MIGRATION PHASES                                           │
-├───────────────────────────────────────────────────────────────────────────────┤
-│                                                                               │
-│  Phase 1              Phase 2              Phase 3              Phase 4       │
-│  Credential Bridge    CobaltCore Infra     Per-Service          Decommission  │
-│  (= Scenario A)       Deployment           Transition           Brownfield    │
-│                                                                               │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐ │
-│  │              │    │              │    │              │    │              │ │
-│  │ Import       │    │ Deploy       │    │ Switch from  │    │ Remove       │ │
-│  │ brownfield   │    │ MariaDB      │    │ unmanaged    │    │ brownfield   │ │
-│  │ resources    │    │ RabbitMQ     │    │ → managed    │    │ services     │ │
-│  │ into K-ORC   │───▶│ Valkey       │───▶│ per service  │───▶│              │ │
-│  │              │    │ Operators    │    │              │    │ Verify       │ │
-│  │ Create       │    │              │    │ Migrate data │    │ CobaltCore   │ │
-│  │ AppCreds     │    │ Deploy       │    │ per service  │    │ is fully     │ │
-│  │              │    │ CobaltCore   │    │              │    │ operational  │ │
-│  │              │    │ Operators    │    │              │    │              │ │
-│  └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘ │
-│                                                                               │
-│  Duration: hours      Duration: hours      Duration: days/weeks  Duration: hours│
-│                                                                               │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    MIGRATION PHASES                                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Phase 1              Phase 2              Phase 3              Phase 4         │
+│  Credential Bridge    CobaltCore Infra     Per-Service          Decommission    │
+│  (= Scenario A)       Deployment           Transition           Brownfield      │
+│                                                                                 │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │
+│  │              │    │              │    │              │    │              │   │
+│  │ Import       │    │ Deploy       │    │ Switch from  │    │ Remove       │   │
+│  │ brownfield   │    │ MariaDB      │    │ unmanaged    │    │ brownfield   │   │
+│  │ resources    │    │ RabbitMQ     │    │ → managed    │    │ services     │   │
+│  │ into K-ORC   │───▶│ Valkey       │───▶│ per service  │───▶│              │   │
+│  │              │    │ Operators    │    │              │    │ Verify       │   │
+│  │ Create       │    │              │    │ Migrate data │    │ CobaltCore   │   │
+│  │ AppCreds     │    │ Deploy       │    │ per service  │    │ is fully     │   │
+│  │              │    │ CobaltCore   │    │              │    │ operational  │   │
+│  │              │    │ Operators    │    │              │    │              │   │
+│  └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘   │
+│                                                                                 │
+│  Duration: hours      Duration: hours      Duration: days/weeks Duration: hours │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Phase 1: Credential Bridge
