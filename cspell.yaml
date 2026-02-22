@@ -224,5 +224,31 @@ words:
   - xstoragecluster
   - xstorageclusters
   - YAOOK
+  - apierrors
+  - apimachinery
+  - clusterrole
+  - clusterrolebinding
+  - clustersecretstore
+  - credentialrotation
+  - envtestsetup
+  - errcheck
+  - externalsecrets
+  - gofmt
+  - goimports
+  - gomega
+  - gosimple
+  - govet
+  - ineffassign
+  - jetstack
+  - libapache
+  - libpcre
+  - libpython
+  - printcolumn
+  - pushsecrets
+  - robfig
+  - secretaggregate
+  - serviceaccount
+  - staticcheck
+  - testutil
 
 version: "0.2"
