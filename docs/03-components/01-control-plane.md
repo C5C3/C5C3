@@ -88,7 +88,7 @@ The Control Plane consists of a **modular operator architecture** where each Ope
 **Advantages of modular architecture:**
 
 * **Single Responsibility**: Each operator has exactly one task
-* **Independent Releases**: Service-Operator updates without full-stack deployment (see [Upgrade & Lifecycle](../14-upgrades.md))
+* **Independent Releases**: Service-Operator updates without full-stack deployment (see [Upgrade & Lifecycle](../06-operations/01-upgrades.md))
 * **Better Testability**: Isolated unit and integration tests per operator
 * **Flexible Scaling**: Deploy only needed operators
 * **Clear Ownership**: Dedicated teams per operator possible
@@ -144,7 +144,7 @@ The **c5c3-operator** is the central orchestration operator. It manages dependen
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-For the Go type definitions, orchestration reconciler, and rollout strategy, see [C5C3 Operator Implementation](../19-implementation/08-c5c3-operator.md).
+For the Go type definitions, orchestration reconciler, and rollout strategy, see [C5C3 Operator Implementation](../09-implementation/08-c5c3-operator.md).
 
 **Provided CRDs:**
 
@@ -356,7 +356,7 @@ spec:
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 
-The **keystone-operator** manages the Keystone Identity Service. Creation of service users and application credentials is done via K-ORC. For the reconciler architecture, sub-reconciler pattern, and dependency flow, see [Keystone Reconciler](../19-implementation/04-keystone-reconciler.md) and [Keystone Dependencies](../19-implementation/05-keystone-dependencies.md).
+The **keystone-operator** manages the Keystone Identity Service. Creation of service users and application credentials is done via K-ORC. For the reconciler architecture, sub-reconciler pattern, and dependency flow, see [Keystone Reconciler](../09-implementation/04-keystone-reconciler.md) and [Keystone Dependencies](../09-implementation/05-keystone-dependencies.md).
 
 **Provided CRDs:**
 
@@ -421,7 +421,7 @@ status:
   endpoint: https://keystone.openstack.svc.cluster.local:5000
 ```
 
-> **Note:** The `image.tag` field accepts upstream version tags (e.g., `28.0.0`), patch revision tags (e.g., `28.0.0-p1`), branch tags (e.g., `stable-2025.2`), and commit SHA tags (e.g., `a1b2c3d`). For the full tag schema and versioning details, see [Container Images — Tag Schema](../17-container-images/02-versioning.md#tag-schema).
+> **Note:** The `image.tag` field accepts upstream version tags (e.g., `28.0.0`), patch revision tags (e.g., `28.0.0-p1`), branch tags (e.g., `stable-2025.2`), and commit SHA tags (e.g., `a1b2c3d`). For the full tag schema and versioning details, see [Container Images — Tag Schema](../08-container-images/02-versioning.md#tag-schema).
 >
 > **Note:** Service users, application credentials, Keystone services, and endpoints are
 > not managed by the keystone-operator, but via K-ORC CRs (see [K-ORC](#openstack-resource-controller-k-orc)).
@@ -1210,7 +1210,7 @@ status:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-> **Note:** Cortex is optional and must be explicitly enabled. Detailed Cortex documentation see section [Cortex Scheduling](../08-cortex-scheduling.md).
+> **Note:** Cortex is optional and must be explicitly enabled. Detailed Cortex documentation see section [Cortex Scheduling](../04-architecture/05-cortex-scheduling.md).
 
 
 ## Tempest Operator (Optional)
@@ -1559,7 +1559,7 @@ spec:
 
 * **`unmanaged`**: K-ORC imports an existing OpenStack resource as read-only via filters (name, tags, ID).
   K-ORC does not modify or delete the resource. Status reflects the external state.
-  Use for: Brownfield deployments (see [Brownfield Integration](../16-brownfield-integration.md)), shared resources managed by other tools.
+  Use for: Brownfield deployments (see [Brownfield Integration](../06-operations/03-brownfield-integration.md)), shared resources managed by other tools.
 
 **Deployment (HelmRelease):**
 
