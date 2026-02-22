@@ -16,7 +16,19 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Overview', link: '/03-components/' },
-          { text: 'Control Plane', link: '/03-components/01-control-plane' },
+          {
+            text: 'Control Plane',
+            collapsed: true,
+            items: [
+              { text: 'Overview', link: '/03-components/01-control-plane/' },
+              { text: 'C5C3 Operator', link: '/03-components/01-control-plane/01-c5c3-operator' },
+              { text: 'Service Operators', link: '/03-components/01-control-plane/02-service-operators' },
+              { text: 'OVN Operator', link: '/03-components/01-control-plane/03-ovn-operator' },
+              { text: 'Optional Services', link: '/03-components/01-control-plane/04-optional-services' },
+              { text: 'K-ORC', link: '/03-components/01-control-plane/05-korc' },
+              { text: 'Infrastructure Operators', link: '/03-components/01-control-plane/06-infrastructure-operators' },
+            ]
+          },
           { text: 'Hypervisor', link: '/03-components/02-hypervisor' },
           { text: 'Management', link: '/03-components/03-management' },
           { text: 'Storage', link: '/03-components/04-storage' },

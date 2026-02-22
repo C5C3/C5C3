@@ -283,12 +283,12 @@ Consumers (tenants) provision OpenStack environments through [Crossplane](./07-c
 
 **Provisioning:** Gardener
 
-* OpenStack Control Plane Services (e.g., Nova API, Neutron API, Keystone, Glance — extensible with additional services). See [Control Plane](./03-components/01-control-plane.md) for details.
+* OpenStack Control Plane Services (e.g., Nova API, Neutron API, Keystone, Glance — extensible with additional services). See [Control Plane](./03-components/01-control-plane/) for details.
 * [Cortex Scheduler](./04-architecture/05-cortex-scheduling.md) (intelligent placement, optional)
 * Tempest (recurring integration tests, optional)
-* [K-ORC](./03-components/01-control-plane.md#openstack-resource-controller-k-orc) (declarative OpenStack resource management via CRDs)
+* [K-ORC](./03-components/01-control-plane/05-korc.md) (declarative OpenStack resource management via CRDs)
 * **ovn-operator** (OVN SDN Backend: Northbound/Southbound DB)
-* **[Infrastructure Services](./03-components/01-control-plane.md#infrastructure-service-operators):**
+* **[Infrastructure Services](./03-components/01-control-plane/06-infrastructure-operators.md):**
   * MariaDB Operator (Galera cluster for DB backend)
   * Valkey Operator (Sentinel for caching)
   * RabbitMQ Operator (message queue for OpenStack)
