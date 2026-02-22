@@ -31,11 +31,11 @@ The v1alpha1 CRDs cover the following configuration aspects per service:
 | **ML2/Network** | — | — | Type/mechanism drivers, OVN | — | — | — |
 | **Image** | Repository, tag | Repository, tag | Repository, tag | Repository, tag | Repository, tag | Repository, tag |
 | **Replicas** | Count | API, scheduler, conductor | Count | Count | API, scheduler, volume | Count |
+| **Policy Rules** | policyOverrides | policyOverrides | policyOverrides | policyOverrides | policyOverrides | policyOverrides |
 
 **What is not (yet) CRD-configurable:**
 
 - oslo.log verbosity levels and format
-- oslo.policy custom rules
 - API rate limiting (`oslo_limit`)
 - WSGI worker counts (currently derived from replicas)
 - Advanced oslo.messaging tuning (prefetch count, heartbeat)
@@ -151,10 +151,114 @@ Some configuration needs can be addressed either through config overrides or thr
 | Tune a timeout or worker count | Config override (fast, no rebuild) | Not appropriate |
 | Enable a debug flag | Config override | Not appropriate |
 | Fix a bug in OpenStack code | Not possible via config | Image patch (see [Patching](../../08-container-images/03-patching.md)) |
-| Add a custom oslo.policy rule | Config override (policy.yaml) | Not appropriate |
+| Add a custom oslo.policy rule | `policyOverrides` in CRD | Not appropriate |
 | Add a vendor driver/plugin | Not possible via config | Image patch (add dependency) |
 
 **Rule of thumb:** If the change is a runtime setting that oslo.config reads, use a config override. If the change requires modifying Python code or adding packages, use image patching.
+
+## Policy Override Support
+
+OpenStack services use [oslo.policy](https://docs.openstack.org/oslo.policy/latest/) for API authorization. Each service ships with default rules defined in code (policy-in-code). Operators can override these defaults to implement custom RBAC — for example, restricting certain API actions to specific roles or enabling read-only access patterns.
+
+CobaltCore exposes this via a dedicated `policyOverrides` field in every service CRD. Unlike `extraConfig` (which handles INI-format oslo.config options), `policyOverrides` handles YAML-format oslo.policy rules.
+
+### CRD Field
+
+All service CRDs include:
+
+```yaml
+spec:
+  policyOverrides:
+    # Inline rules — small, focused overrides
+    rules:
+      "<rule-name>": "<rule-definition>"
+    # External ConfigMap — large policy sets
+    configMapRef:
+      name: <configmap-name>
+```
+
+The `PolicySpec` type is defined in the shared library (see [Shared Library — types/](../../09-implementation/02-shared-library.md#types)).
+
+### Inline Rules
+
+For a small number of targeted overrides, inline rules are the simplest approach:
+
+```yaml
+spec:
+  policyOverrides:
+    rules:
+      "compute:create": "role:member"
+      "compute:delete": "role:admin"
+      "compute:resize": "role:admin"
+```
+
+### External ConfigMap Reference
+
+For large policy sets, reference a user-provided ConfigMap:
+
+```yaml
+spec:
+  policyOverrides:
+    configMapRef:
+      name: nova-custom-policies
+```
+
+The referenced ConfigMap must contain a `policy.yaml` key:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nova-custom-policies
+  namespace: openstack
+data:
+  policy.yaml: |
+    "compute:create": "role:member"
+    "compute:delete": "role:admin"
+    "compute:resize": "role:admin"
+    "compute:shelve": "role:member"
+    "compute:unshelve": "role:member"
+```
+
+### Combined: Inline + ConfigMap
+
+Both can be specified simultaneously. Inline rules take precedence over ConfigMap rules when rule names collide:
+
+```yaml
+spec:
+  policyOverrides:
+    configMapRef:
+      name: nova-base-policies     # Base policy set from ConfigMap
+    rules:
+      "compute:delete": "role:admin"  # Override: stricter than ConfigMap
+```
+
+### Merge Precedence
+
+```text
+Lowest priority                                     Highest priority
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│  policy-in-code  │    │  ConfigMap rules │    │  Inline rules    │
+│  (upstream       │───▶│  (configMapRef)  │───▶│  (spec.rules)    │
+│   defaults)      │    │                  │    │                  │
+└──────────────────┘    └──────────────────┘    └──────────────────┘
+```
+
+- **policy-in-code** — OpenStack's built-in defaults are always the base layer
+- **ConfigMap rules** — override policy-in-code when rule names match
+- **Inline rules** — override both ConfigMap and policy-in-code
+
+### Runtime Behavior
+
+When `policyOverrides` is set, the operator automatically:
+
+1. Merges inline and ConfigMap rules (inline wins on collision)
+2. Renders the merged rules as `policy.yaml` in the service ConfigMap
+3. Injects `[oslo_policy] policy_file = /etc/<service>/policy.yaml` into the INI config
+
+No manual `[oslo_policy]` configuration is needed. If `policyOverrides` is removed from the CRD, the operator removes both the `policy.yaml` key and the `[oslo_policy]` section, reverting to policy-in-code defaults.
+
+For the config generation pipeline details, see [Config Generation — Step 4b](./01-config-generation.md). For validation rules, see [Validation](./02-validation.md).
 
 ## Per-Service Configuration Patterns
 

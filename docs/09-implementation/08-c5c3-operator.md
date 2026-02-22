@@ -30,6 +30,7 @@ package v1alpha1
 
 import (
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+    commonv1 "github.com/c5c3/c5c3/internal/common/types"
 )
 
 // +kubebuilder:object:root=true
@@ -64,7 +65,7 @@ type ControlPlaneSpec struct {
     // Services defines per-service configuration.
     Services ServicesSpec `json:"services"`
 
-    // Global defines cluster-wide settings (TLS, monitoring).
+    // Global defines cluster-wide settings (TLS, monitoring, policy).
     // +optional
     Global *GlobalSpec `json:"global,omitempty"`
 
@@ -97,6 +98,18 @@ type InfraCacheSpec struct {
     Replicas int32 `json:"replicas"`
 }
 
+// GlobalSpec defines cluster-wide settings applied to all services.
+type GlobalSpec struct {
+    // TLS configures cluster-wide TLS.
+    // +optional
+    TLS *TLSSpec `json:"tls,omitempty"`
+
+    // PolicyOverrides defines global oslo.policy rules applied to all services.
+    // Per-service policyOverrides take precedence over global rules.
+    // +optional
+    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+}
+
 // ServicesSpec defines per-service configuration.
 type ServicesSpec struct {
     Keystone  *KeystoneServiceSpec  `json:"keystone,omitempty"`
@@ -105,6 +118,49 @@ type ServicesSpec struct {
     Glance    *GlanceServiceSpec    `json:"glance,omitempty"`
     Cinder    *CinderServiceSpec    `json:"cinder,omitempty"`
     Placement *PlacementServiceSpec `json:"placement,omitempty"`
+}
+
+// KeystoneServiceSpec defines Keystone-specific settings in the ControlPlane.
+type KeystoneServiceSpec struct {
+    Enabled         bool                 `json:"enabled"`
+    Replicas        int32                `json:"replicas"`
+    Fernet          *FernetServiceSpec   `json:"fernet,omitempty"`
+    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+}
+
+// NovaServiceSpec defines Nova-specific settings in the ControlPlane.
+type NovaServiceSpec struct {
+    Enabled         bool                 `json:"enabled"`
+    Replicas        NovaReplicasSpec     `json:"replicas"`
+    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+}
+
+// NeutronServiceSpec defines Neutron-specific settings in the ControlPlane.
+type NeutronServiceSpec struct {
+    Enabled         bool                 `json:"enabled"`
+    Replicas        int32                `json:"replicas"`
+    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+}
+
+// GlanceServiceSpec defines Glance-specific settings in the ControlPlane.
+type GlanceServiceSpec struct {
+    Enabled         bool                 `json:"enabled"`
+    Replicas        int32                `json:"replicas"`
+    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+}
+
+// CinderServiceSpec defines Cinder-specific settings in the ControlPlane.
+type CinderServiceSpec struct {
+    Enabled         bool                 `json:"enabled"`
+    Replicas        CinderReplicasSpec   `json:"replicas"`
+    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+}
+
+// PlacementServiceSpec defines Placement-specific settings in the ControlPlane.
+type PlacementServiceSpec struct {
+    Enabled         bool                 `json:"enabled"`
+    Replicas        int32                `json:"replicas"`
+    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
 }
 
 // ControlPlaneStatus defines the observed state of the ControlPlane.
@@ -139,6 +195,8 @@ type ServiceStatus struct {
 | `infrastructure.cache` | `InfraCacheSpec` | Memcached replica count |
 | `services.<name>` | `*ServiceSpec` | Per-service settings (enabled, replicas, service-specific options) |
 | `global.tls` | `TLSSpec` | Cluster-wide TLS configuration |
+| `global.policyOverrides` | `*PolicySpec` | Global oslo.policy rules applied to all services (per-service overrides take precedence) |
+| `services.<name>.policyOverrides` | `*PolicySpec` | Per-service oslo.policy rules (overrides global rules on name collision) |
 | `korc` | `*KORCSpec` | K-ORC integration (bootstrap resource imports) |
 
 ### Status Conditions
@@ -361,6 +419,91 @@ spec:
     adminPasswordSecretRef:
       name: keystone-admin-credentials
     region: RegionOne            # from ControlPlane.spec.region
+```
+
+### Policy Projection
+
+When the c5c3-operator creates service CRs, it merges global and per-service policy overrides:
+
+- **Global rules** (`global.policyOverrides`) serve as the base layer for all services
+- **Per-service rules** (`services.<name>.policyOverrides`) override global rules when rule names collide
+- **Per-service `configMapRef`** takes precedence over the global `configMapRef`
+
+**Projection logic:**
+
+```go
+func projectPolicyOverrides(global, perService *commonv1.PolicySpec) *commonv1.PolicySpec {
+    if global == nil && perService == nil {
+        return nil
+    }
+    result := &commonv1.PolicySpec{}
+
+    // ConfigMapRef: per-service wins over global
+    if perService != nil && perService.ConfigMapRef != nil {
+        result.ConfigMapRef = perService.ConfigMapRef
+    } else if global != nil && global.ConfigMapRef != nil {
+        result.ConfigMapRef = global.ConfigMapRef
+    }
+
+    // Rules: merge global as base, per-service overrides
+    result.Rules = map[string]string{}
+    if global != nil {
+        for k, v := range global.Rules {
+            result.Rules[k] = v
+        }
+    }
+    if perService != nil {
+        for k, v := range perService.Rules {
+            result.Rules[k] = v // per-service wins
+        }
+    }
+    if len(result.Rules) == 0 {
+        result.Rules = nil
+    }
+    return result
+}
+```
+
+**Example — ControlPlane with global and per-service policies:**
+
+```yaml
+apiVersion: c5c3.io/v1alpha1
+kind: ControlPlane
+metadata:
+  name: production
+spec:
+  global:
+    policyOverrides:
+      rules:
+        "admin_required": "role:admin"         # Base rule for all services
+        "service_role": "role:service"
+  services:
+    nova:
+      enabled: true
+      replicas:
+        api: 3
+        scheduler: 2
+        conductor: 2
+      policyOverrides:
+        rules:
+          "compute:create": "role:member"
+          "compute:delete": "role:admin"
+```
+
+**Projected Nova CR:**
+
+```yaml
+apiVersion: openstack.c5c3.io/v1alpha1
+kind: Nova
+spec:
+  policyOverrides:
+    rules:
+      # From global
+      "admin_required": "role:admin"
+      "service_role": "role:service"
+      # From per-service
+      "compute:create": "role:member"
+      "compute:delete": "role:admin"
 ```
 
 ### Alternative: Keystone CR (Brownfield Mode)

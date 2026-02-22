@@ -76,6 +76,13 @@ type KeystoneSpec struct {
     // +optional
     Plugins []commonv1.PluginSpec `json:"plugins,omitempty"`
 
+    // PolicyOverrides defines custom oslo.policy rules for the service.
+    // When set, the operator renders a policy.yaml and configures
+    // oslo_policy.policy_file automatically.
+    // +optional
+    // +kubebuilder:validation:XValidation:rule="self.rules != null || self.configMapRef != null",message="at least one of rules or configMapRef must be set"
+    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+
     // ExtraConfig provides free-form INI sections for configuration
     // not covered by explicit CRD fields.
     // +optional
@@ -136,6 +143,8 @@ The `Middleware` and `Plugins` fields are generic and reusable across all Cobalt
 
 **`spec.plugins[]`** — Service-specific plugins or drivers. For Keystone, this includes identity drivers like `keystone-keycloak-backend`. For other services, this covers volume drivers (Cinder), ML2 mechanism drivers (Neutron), etc. Each entry specifies a plugin name, the INI section it configures, and key-value configuration.
 
+**`spec.policyOverrides`** — Custom oslo.policy rules for the service. Supports both inline rules (`rules` map) and external ConfigMap references (`configMapRef`). Inline rules take precedence over ConfigMap rules. When set, the operator automatically renders a `policy.yaml` file and configures `[oslo_policy] policy_file` in the service config. See [Customization — Policy Override Support](../05-deployment/03-service-configuration/03-customization.md#policy-override-support).
+
 **`spec.extraConfig`** — Free-form `map[string]map[string]string` for INI sections the operator does not explicitly model. This is the escape hatch described in [Customization](../05-deployment/03-service-configuration/03-customization.md) — it allows configuring any oslo.config option without requiring a CRD change.
 
 **Example — Keystone with audit middleware and Keycloak backend:**
@@ -195,6 +204,46 @@ spec:
     identity:
       domain_specific_drivers_enabled: "true"
       domain_config_dir: /etc/keystone/domains
+```
+
+**Example — Keystone with policy overrides:**
+
+```yaml
+apiVersion: keystone.openstack.c5c3.io/v1alpha1
+kind: Keystone
+metadata:
+  name: keystone
+  namespace: openstack
+spec:
+  replicas: 3
+  image:
+    repository: ghcr.io/c5c3/keystone
+    tag: "28.0.0"
+  database:
+    clusterRef:
+      name: mariadb
+    database: keystone
+    secretRef:
+      name: keystone-db-credentials
+      key: password
+  cache:
+    clusterRef:
+      name: memcached
+    backend: dogpile.cache.pymemcache
+
+  # Policy overrides — inline rules
+  policyOverrides:
+    rules:
+      "identity:create_project": "role:admin"
+      "identity:list_users": "role:admin or role:reader"
+      "identity:get_user": "role:admin or role:reader"
+
+  # Policy overrides — combined with external ConfigMap
+  # policyOverrides:
+  #   configMapRef:
+  #     name: keystone-custom-policies
+  #   rules:
+  #     "identity:create_project": "role:admin"  # inline overrides ConfigMap
 ```
 
 ## Status Conditions
@@ -316,6 +365,23 @@ func (r *Keystone) validate() (admission.Warnings, error) {
                 p.ConfigSection))
         }
         sections[p.ConfigSection] = true
+    }
+
+    // Validate policyOverrides — at least one source, no empty rule names
+    if r.Spec.PolicyOverrides != nil {
+        po := r.Spec.PolicyOverrides
+        if po.Rules == nil && po.ConfigMapRef == nil {
+            allErrs = append(allErrs, field.Required(
+                field.NewPath("spec", "policyOverrides"),
+                "at least one of rules or configMapRef must be set"))
+        }
+        for ruleName := range po.Rules {
+            if ruleName == "" {
+                allErrs = append(allErrs, field.Invalid(
+                    field.NewPath("spec", "policyOverrides", "rules"),
+                    ruleName, "rule name must not be empty"))
+            }
+        }
     }
 
     if len(allErrs) > 0 {
