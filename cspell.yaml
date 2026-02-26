@@ -162,6 +162,7 @@ words:
   - objectstore
   - ofproto
   - OIDC
+  - OSISM
   - openbao
   - openstackclusters
   - openvswitch
@@ -182,6 +183,7 @@ words:
   - rados
   - radosgw
   - renovatebot
+  - rollouts
   - RHOSO
   - SASL
   - SBOM
