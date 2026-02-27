@@ -41,7 +41,7 @@ OpenBao runs as an HA cluster in the Management Cluster (namespace `openbao-syst
 | KV v2    | `kv-v2/infrastructure/` | Infrastructure credentials        | `kv-v2/infrastructure/mariadb`, `kv-v2/infrastructure/rabbitmq`, `kv-v2/infrastructure/valkey` |
 | KV v2    | `kv-v2/ceph/`           | Ceph auth keys                    | `kv-v2/ceph/client-nova`, `kv-v2/ceph/client-cinder`, `kv-v2/ceph/client-glance`               |
 | PKI      | `pki/`                  | TLS certificates                  | `pki/issue/openstack-internal`, `pki/issue/api-external`                                       |
-| Database | `database/mariadb/`     | Dynamic DB credentials (optional) | `database/mariadb/creds/nova-rw`, `database/mariadb/creds/neutron-rw`                          |
+| Database | `database/mariadb/`     | Dynamic DB credentials            | `database/mariadb/creds/nova-rw`, `database/mariadb/creds/nova-ro`                             |
 
 ## Auth Methods
 
@@ -64,6 +64,7 @@ OpenBao runs as an HA cluster in the Management Cluster (namespace `openbao-syst
 | `push-ceph-keys`       | `kv-v2/data/ceph/*`                                                                                    | create, update       |
 | `push-app-credentials` | `kv-v2/data/openstack/*/app-credential`                                                                | create, update       |
 | `ci-cd-provisioner`    | `kv-v2/data/*`                                                                                         | create, update, read |
+| `db-exporter`          | `database/mariadb/creds/*-ro`                                                                          | read                 |
 | `pki-issuer`           | `pki/issue/*`                                                                                          | create, update       |
 
 ## ESO Integration
@@ -104,6 +105,26 @@ The External Secrets Operator (ESO) runs in each cluster and synchronizes secret
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+## Database Secret Engine
+
+The OpenBao [Database Secret Engine](https://openbao.org/docs/secrets/databases/) dynamically generates short-lived database credentials. This is used by the OpenStack Database Exporters to obtain read-only access to individual service databases.
+
+Each OpenStack service database has a corresponding read-only role configured in OpenBao:
+
+| Role            | Database       | Permissions | Consumer                                |
+| --------------- | -------------- | ----------- | --------------------------------------- |
+| `nova-ro`       | `nova`         | SELECT      | `openstack-database-exporter-nova`      |
+| `neutron-ro`    | `neutron`      | SELECT      | `openstack-database-exporter-neutron`   |
+| `cinder-ro`     | `cinder`       | SELECT      | `openstack-database-exporter-cinder`    |
+| `glance-ro`     | `glance`       | SELECT      | `openstack-database-exporter-glance`    |
+| `keystone-ro`   | `keystone`     | SELECT      | `openstack-database-exporter-keystone`  |
+| `heat-ro`       | `heat`         | SELECT      | `openstack-database-exporter-heat`      |
+| `ironic-ro`     | `ironic`       | SELECT      | `openstack-database-exporter-ironic`    |
+| `octavia-ro`    | `octavia`      | SELECT      | `openstack-database-exporter-octavia`   |
+| `placement-ro`  | `placement`    | SELECT      | `openstack-database-exporter-placement` |
+
+Each role creates a MariaDB user with `SELECT`-only grants on the respective database. Credentials have a configurable TTL (default: 1h) and are automatically revoked by OpenBao after expiry. ESO refreshes the credentials before expiry to ensure uninterrupted exporter operation.
+
 ## Complete Secret Inventory
 
 | Secret Type                      | OpenBao Path                               | Engine | Consumer(s)                            | Cluster       |
@@ -133,6 +154,15 @@ The External Secrets Operator (ESO) runs in each cluster and synchronizes secret
 | Kubeconfig Control Plane         | `kv-v2/infrastructure/kubeconfig-cp`       | KV v2  | FluxCD                                 | Management    |
 | Kubeconfig Hypervisor            | `kv-v2/infrastructure/kubeconfig-hv`       | KV v2  | FluxCD                                 | Management    |
 | Kubeconfig Storage               | `kv-v2/infrastructure/kubeconfig-st`       | KV v2  | FluxCD                                 | Management    |
+| DB Exporter RO Creds (Nova)      | `database/mariadb/creds/nova-ro`           | DB     | openstack-database-exporter-nova       | Control Plane |
+| DB Exporter RO Creds (Neutron)   | `database/mariadb/creds/neutron-ro`        | DB     | openstack-database-exporter-neutron    | Control Plane |
+| DB Exporter RO Creds (Cinder)    | `database/mariadb/creds/cinder-ro`         | DB     | openstack-database-exporter-cinder     | Control Plane |
+| DB Exporter RO Creds (Glance)    | `database/mariadb/creds/glance-ro`         | DB     | openstack-database-exporter-glance     | Control Plane |
+| DB Exporter RO Creds (Keystone)  | `database/mariadb/creds/keystone-ro`       | DB     | openstack-database-exporter-keystone   | Control Plane |
+| DB Exporter RO Creds (Heat)      | `database/mariadb/creds/heat-ro`           | DB     | openstack-database-exporter-heat       | Control Plane |
+| DB Exporter RO Creds (Ironic)    | `database/mariadb/creds/ironic-ro`         | DB     | openstack-database-exporter-ironic     | Control Plane |
+| DB Exporter RO Creds (Octavia)   | `database/mariadb/creds/octavia-ro`        | DB     | openstack-database-exporter-octavia    | Control Plane |
+| DB Exporter RO Creds (Placement) | `database/mariadb/creds/placement-ro`      | DB     | openstack-database-exporter-placement  | Control Plane |
 | TLS Certificates                 | `pki/issue/openstack-internal`             | PKI    | OpenStack APIs                         | Control Plane |
 
 ## Multi-Cluster Secret Distribution
