@@ -49,6 +49,7 @@ This chapter describes the observability architecture of CobaltCore: Metrics, Lo
 │  MariaDB     │ │  libvirt-exp │
 │  RabbitMQ    │ │  OVS Stats   │
 │  Valkey      │ │              │
+│  OS DB Exp.* │ │              │
 │              │ │ Logs:        │
 │ Logs:        │ │  Agent Logs  │
 │  OS Services │ │  LibVirt     │
@@ -61,11 +62,11 @@ This chapter describes the observability architecture of CobaltCore: Metrics, Lo
 
 ## Signal-Cluster Matrix
 
-| Signal  | Control Plane Cluster                        | Hypervisor Cluster                              | Management Cluster                 |
-| ------- | -------------------------------------------- | ----------------------------------------------- | ---------------------------------- |
-| Metrics | Service Operators, MariaDB, RabbitMQ, Valkey | node-exporter, libvirt-exporter, OVS statistics | Greenhouse aggregation, federation |
-| Logs    | OpenStack Services, Infrastructure logs      | Agent logs, LibVirt logs                        | Central log store                  |
-| Traces  | API request traces (oslo.metrics, OTEL)      | Agent spans                                     | Trace backend (Jaeger / Tempo)     |
+| Signal  | Control Plane Cluster                                                       | Hypervisor Cluster                              | Management Cluster                 |
+| ------- | --------------------------------------------------------------------------- | ----------------------------------------------- | ---------------------------------- |
+| Metrics | Service Operators, MariaDB, RabbitMQ, Valkey, OS DB Exporters (per service) | node-exporter, libvirt-exporter, OVS statistics | Greenhouse aggregation, federation |
+| Logs    | OpenStack Services, Infrastructure logs                                     | Agent logs, LibVirt logs                        | Central log store                  |
+| Traces  | API request traces (oslo.metrics, OTEL)                                     | Agent spans                                     | Trace backend (Jaeger / Tempo)     |
 
 ## Principles
 
