@@ -32,7 +32,7 @@ Each operator is scaffolded with Operator SDK:
 cd operators/keystone
 operator-sdk init \
   --domain openstack.c5c3.io \
-  --repo github.com/c5c3/c5c3/operators/keystone
+  --repo github.com/c5c3/forge/operators/keystone
 
 operator-sdk create api \
   --group keystone \
@@ -50,13 +50,13 @@ This generates the base project structure: `main.go`, `api/v1alpha1/` types, `in
 │                       MONOREPO LAYOUT                                       │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  c5c3/c5c3/                                                                 │
+│  c5c3/forge/                                                                │
 │  ├── go.work                          # Go Workspace root                   │
 │  ├── Makefile                         # Top-level build targets             │
 │  │                                                                          │
 │  ├── internal/                                                              │
 │  │   └── common/                      # Shared library                      │
-│  │       ├── go.mod                   # module: github.com/c5c3/c5c3/       │
+│  │       ├── go.mod                   # module: github.com/c5c3/forge/      │
 │  │       │                            #   internal/common                   │
 │  │       ├── conditions/              # Condition helpers                   │
 │  │       ├── config/                  # INI config rendering                │
@@ -111,18 +111,18 @@ Each operator module references the shared library via a `replace` directive for
 
 ```go
 // operators/keystone/go.mod
-module github.com/c5c3/c5c3/operators/keystone
+module github.com/c5c3/forge/operators/keystone
 
 go 1.25
 
 require (
-    github.com/c5c3/c5c3/internal/common v0.0.0
+    github.com/c5c3/forge/internal/common v0.0.0
     sigs.k8s.io/controller-runtime v0.23.1
     k8s.io/apimachinery v0.35.1
     k8s.io/client-go v0.35.1
 )
 
-replace github.com/c5c3/c5c3/internal/common => ../../internal/common
+replace github.com/c5c3/forge/internal/common => ../../internal/common
 ```
 
 > **Note:** The `replace` directive is only relevant when building outside the Go Workspace (e.g., in CI without `go.work`). Within the workspace, `go.work`'s `use` directive takes precedence.

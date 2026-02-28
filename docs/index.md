@@ -65,7 +65,7 @@ For detailed CRD specifications, see [CRD Definitions](./04-architecture/01-crds
 
 | Repository                    | Description                              |
 | ----------------------------- | ---------------------------------------- |
-| `github.com/c5c3/c5c3`        | Monorepo (Operators, Agents, Components) |
+| `github.com/c5c3/forge`       | Monorepo (Operators, Agents, Components) |
 | `github.com/cobaltcore-dev/*` | Prysm, Cortex, Aurora, Labels Injector   |
 
 For a complete list of dependencies and related projects, see [Related Projects](./A1-related-projects.md).

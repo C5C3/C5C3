@@ -30,7 +30,7 @@ package v1alpha1
 
 import (
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-    commonv1 "github.com/c5c3/c5c3/internal/common/types"
+    commonv1 "github.com/c5c3/forge/internal/common/types"
 )
 
 // +kubebuilder:object:root=true

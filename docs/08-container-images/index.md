@@ -84,7 +84,7 @@ The C5C3 strategy is based on an analysis of OpenStack LOCI and Vexxhost Atmosph
 - **Release-scoped patches**: Patches are organized as `patches/<service>/<release>/`, allowing different patches per OpenStack release within the same C5C3 branch
 - **Library patching**: Explicit support for patches at the dependency level (e.g., oslo.messaging, python-novaclient)
 - **Constraint overrides**: Targeted version pin changes for individual libraries, scoped per release
-- **Monorepo structure**: Dockerfiles live in the `c5c3/c5c3` monorepo, not in separate repos per service
+- **Monorepo structure**: Dockerfiles live in the `c5c3/forge` monorepo, not in separate repos per service
 - **Focus on Ubuntu Noble**: A single base image instead of multi-distro to reduce complexity
 
 ## Container Registry

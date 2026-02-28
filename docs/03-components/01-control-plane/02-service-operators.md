@@ -4,7 +4,7 @@ Each core OpenStack service is managed by a dedicated operator running in the Co
 
 ## Keystone Operator
 
-**Repository:** `github.com/c5c3/c5c3/operators/keystone`
+**Repository:** `github.com/c5c3/forge/operators/keystone`
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 
@@ -81,7 +81,7 @@ status:
 
 ## Glance Operator
 
-**Repository:** `github.com/c5c3/c5c3/operators/glance`
+**Repository:** `github.com/c5c3/forge/operators/glance`
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 
@@ -153,7 +153,7 @@ status:
 
 ## Placement Operator
 
-**Repository:** `github.com/c5c3/c5c3/operators/placement`
+**Repository:** `github.com/c5c3/forge/operators/placement`
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 
@@ -209,7 +209,7 @@ status:
 
 ## Nova Operator
 
-**Repository:** `github.com/c5c3/c5c3/operators/nova`
+**Repository:** `github.com/c5c3/forge/operators/nova`
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 
@@ -318,7 +318,7 @@ status:
 
 ## Neutron Operator
 
-**Repository:** `github.com/c5c3/c5c3/operators/neutron`
+**Repository:** `github.com/c5c3/forge/operators/neutron`
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 
@@ -405,7 +405,7 @@ status:
 
 ## Cinder Operator
 
-**Repository:** `github.com/c5c3/c5c3/operators/cinder`
+**Repository:** `github.com/c5c3/forge/operators/cinder`
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 

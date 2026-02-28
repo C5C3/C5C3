@@ -314,14 +314,14 @@ A simplified example showing how the Keystone reconciler uses shared library pac
 
 ```go
 import (
-    "github.com/c5c3/c5c3/internal/common/conditions"
-    "github.com/c5c3/c5c3/internal/common/config"
-    "github.com/c5c3/c5c3/internal/common/database"
-    "github.com/c5c3/c5c3/internal/common/deployment"
-    "github.com/c5c3/c5c3/internal/common/job"
-    "github.com/c5c3/c5c3/internal/common/secrets"
-    "github.com/c5c3/c5c3/internal/common/plugins"
-    "github.com/c5c3/c5c3/internal/common/policy"
+    "github.com/c5c3/forge/internal/common/conditions"
+    "github.com/c5c3/forge/internal/common/config"
+    "github.com/c5c3/forge/internal/common/database"
+    "github.com/c5c3/forge/internal/common/deployment"
+    "github.com/c5c3/forge/internal/common/job"
+    "github.com/c5c3/forge/internal/common/secrets"
+    "github.com/c5c3/forge/internal/common/plugins"
+    "github.com/c5c3/forge/internal/common/policy"
 )
 
 func (r *KeystoneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
