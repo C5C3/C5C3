@@ -144,7 +144,7 @@ export default defineConfig({
       },
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/c5c3/c5c3' },
+      { icon: 'github', link: 'https://github.com/c5c3/forge' },
     ],
   },
 })

@@ -1,6 +1,6 @@
 # C5C3 Operator
 
-**Repository:** `github.com/c5c3/c5c3`
+**Repository:** `github.com/c5c3/forge`
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `c5c3-system`
 

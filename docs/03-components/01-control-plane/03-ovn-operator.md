@@ -1,6 +1,6 @@
 # OVN Operator
 
-**Repository:** `github.com/c5c3/c5c3/operators/ovn`
+**Repository:** `github.com/c5c3/forge/operators/ovn`
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `ovn-system`
 

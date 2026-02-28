@@ -2,7 +2,7 @@
 
 ## OpenStack Hypervisor Operator
 
-**Repository:** `github.com/c5c3/c5c3/operators/hypervisor`
+**Repository:** `github.com/c5c3/forge/operators/hypervisor`
 **Runs in:** Hypervisor Cluster (Deployment)
 
 The Kubernetes operator for managing the lifecycle of hypervisor nodes. It runs in the **Hypervisor Cluster** and watches Kubernetes Nodes to create and manage Hypervisor CRDs. For the complete state machine and lifecycle flows, see [Hypervisor Lifecycle](../04-architecture/03-hypervisor-lifecycle.md).
@@ -174,7 +174,7 @@ Go-based agent that monitors LibVirt events on each hypervisor node.
 
 ## OVS Agent
 
-**Repository:** `github.com/c5c3/c5c3/agents/ovs-agent`
+**Repository:** `github.com/c5c3/forge/agents/ovs-agent`
 **Runs in:** Hypervisor Cluster (DaemonSet on each node)
 
 The OVS Agent runs on **every hypervisor node** and provides introspection for Open vSwitch (OVS). It is the networking counterpart to the Hypervisor Node Agent.

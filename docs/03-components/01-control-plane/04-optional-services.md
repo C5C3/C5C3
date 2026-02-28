@@ -4,7 +4,7 @@ These operators provide optional capabilities that extend the core OpenStack dep
 
 ## Cortex Operator (Optional)
 
-**Repository:** `github.com/c5c3/c5c3/operators/cortex`
+**Repository:** `github.com/c5c3/forge/operators/cortex`
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 
@@ -121,7 +121,7 @@ status:
 
 ## Tempest Operator (Optional)
 
-**Repository:** `github.com/c5c3/c5c3/operators/tempest`
+**Repository:** `github.com/c5c3/forge/operators/tempest`
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 

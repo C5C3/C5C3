@@ -113,7 +113,7 @@ When patches are applied (see [Patching](./03-patching.md)), the SBOM is enriche
       {
         "type": "backport",
         "diff": {
-          "url": "https://github.com/c5c3/c5c3/blob/stable/1.0/patches/nova/2025.2/0001-fix-live-migration-timeout-handling.patch"
+          "url": "https://github.com/c5c3/forge/blob/stable/1.0/patches/nova/2025.2/0001-fix-live-migration-timeout-handling.patch"
         },
         "resolves": [
           {
@@ -144,7 +144,7 @@ When patches are applied (see [Patching](./03-patching.md)), the SBOM is enriche
       {
         "type": "backport",
         "diff": {
-          "url": "https://github.com/c5c3/c5c3/blob/stable/1.0/patches/oslo.messaging/2025.2/0001-fix-rabbit-reconnect-on-connection-reset.patch"
+          "url": "https://github.com/c5c3/forge/blob/stable/1.0/patches/oslo.messaging/2025.2/0001-fix-rabbit-reconnect-on-connection-reset.patch"
         }
       }
     ]

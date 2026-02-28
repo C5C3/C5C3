@@ -308,7 +308,7 @@ jobs:
 ## Directory Structure in the Monorepo
 
 ```text
-c5c3/c5c3/
+c5c3/forge/
 ├── images/
 │   ├── python-base/
 │   │   └── Dockerfile
