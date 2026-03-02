@@ -2,6 +2,11 @@
 
 CobaltCore defines several Custom Resource Definitions (CRDs) for declarative management of hypervisors, evictions, migrations, storage arbiters, network status, Keystone identity resources (via K-ORC), control plane orchestration, secret aggregation, and credential rotation. The following CRDs form the central API interface of the system. For Cortex scheduling CRDs, see [Cortex Scheduling](./05-cortex-scheduling.md#cortex-custom-resource-definitions-crds).
 
+**CRD API Version Maturity:** CRDs within the same API group may have different version levels reflecting their maturity.
+The Hypervisor and Eviction CRDs (`hypervisor.c5c3.io/v1`) have reached stable status after extensive production use,
+while the Migration CRD (`hypervisor.c5c3.io/v1alpha1`) is newer and its API surface is still evolving.
+New CRDs generally start at `v1alpha1` and are promoted to `v1beta1` then `v1` via conversion webhooks as they stabilize.
+
 ## Hypervisor CRD (`hypervisor.c5c3.io/v1`)
 
 Represents a hypervisor node in the cluster. For the complete hypervisor state machine, see [Hypervisor Lifecycle](./03-hypervisor-lifecycle.md).
