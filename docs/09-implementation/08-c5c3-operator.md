@@ -79,6 +79,7 @@ type InfrastructureSpec struct {
     Database    InfraDatabaseSpec    `json:"database"`
     Messaging   InfraMessagingSpec   `json:"messaging"`
     Cache       InfraCacheSpec       `json:"cache"`
+    Valkey      InfraValkeySpec      `json:"valkey"`
 }
 
 // InfraDatabaseSpec defines the MariaDB Galera cluster.
@@ -95,6 +96,11 @@ type InfraMessagingSpec struct {
 
 // InfraCacheSpec defines the Memcached deployment.
 type InfraCacheSpec struct {
+    Replicas int32 `json:"replicas"`
+}
+
+// InfraValkeySpec defines the Valkey cluster.
+type InfraValkeySpec struct {
     Replicas int32 `json:"replicas"`
 }
 
@@ -193,6 +199,7 @@ type ServiceStatus struct {
 | `infrastructure.database` | `InfraDatabaseSpec` | MariaDB Galera cluster size and storage |
 | `infrastructure.messaging` | `InfraMessagingSpec` | RabbitMQ cluster size |
 | `infrastructure.cache` | `InfraCacheSpec` | Memcached replica count |
+| `infrastructure.valkey` | `InfraValkeySpec` | Valkey cluster size |
 | `services.<name>` | `*ServiceSpec` | Per-service settings (enabled, replicas, service-specific options) |
 | `global.tls` | `TLSSpec` | Cluster-wide TLS configuration |
 | `global.policyOverrides` | `*PolicySpec` | Global oslo.policy rules applied to all services (per-service overrides take precedence) |
@@ -280,8 +287,6 @@ The c5c3-operator reconciler reads the ControlPlane CR and executes a phased dep
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
-
-<!-- TODO: Add Valkey to InfrastructureSpec Go type definition for consistency with the reconciliation flow diagram above -->
 
 ## Infrastructure Lifecycle and Dynamic Endpoint Discovery
 
@@ -493,7 +498,7 @@ spec:
 **Projected Nova CR:**
 
 ```yaml
-apiVersion: openstack.c5c3.io/v1alpha1
+apiVersion: nova.openstack.c5c3.io/v1alpha1
 kind: Nova
 spec:
   policyOverrides:
@@ -721,6 +726,7 @@ func (r *ControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
         Owns(&mariadbv1alpha1.MariaDB{}).
         Owns(&rabbitmqv1beta1.RabbitmqCluster{}).
         Owns(&memcachedv1alpha1.Memcached{}).
+        Owns(&valkeyv1alpha1.Valkey{}).
         Owns(&keystonev1alpha1.Keystone{}).
         Owns(&novav1alpha1.Nova{}).
         Owns(&neutronv1alpha1.Neutron{}).
@@ -747,5 +753,6 @@ func (r *ControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups=k8s.mariadb.com,resources=mariadbs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rabbitmq.com,resources=rabbitmqclusters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=memcached.c5c3.io,resources=memcacheds,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=valkey.c5c3.io,resources=valkeys,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openstack.k-orc.cloud,resources=services;endpoints;users;applicationcredentials;domains;projects;roles,verbs=get;list;watch;create;update;patch;delete
 ```

@@ -51,7 +51,7 @@ The following options are design concepts for extending configuration beyond CRD
 A structured YAML field that maps to INI sections and keys:
 
 ```yaml
-apiVersion: openstack.c5c3.io/v1alpha1
+apiVersion: nova.openstack.c5c3.io/v1alpha1
 kind: Nova
 metadata:
   name: nova
@@ -80,7 +80,7 @@ spec:
 A string field containing raw INI content, appended after operator-generated config:
 
 ```yaml
-apiVersion: openstack.c5c3.io/v1alpha1
+apiVersion: nova.openstack.c5c3.io/v1alpha1
 kind: Nova
 metadata:
   name: nova

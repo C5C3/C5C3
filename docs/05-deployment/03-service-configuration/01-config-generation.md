@@ -70,7 +70,7 @@ Nova is the most complex service — multiple databases, messaging, Keystone aut
 **CRD fields (simplified):**
 
 ```yaml
-apiVersion: openstack.c5c3.io/v1alpha1
+apiVersion: nova.openstack.c5c3.io/v1alpha1
 kind: Nova
 metadata:
   name: nova
@@ -179,7 +179,7 @@ lock_path = /var/lib/nova/tmp
 ### Keystone: CRD to keystone.conf
 
 ```yaml
-apiVersion: openstack.c5c3.io/v1alpha1
+apiVersion: keystone.openstack.c5c3.io/v1alpha1
 kind: Keystone
 metadata:
   name: keystone
@@ -236,7 +236,7 @@ enable_proxy_headers_parsing = true
 Neutron is notable because a single CRD produces **multiple configuration files**.
 
 ```yaml
-apiVersion: openstack.c5c3.io/v1alpha1
+apiVersion: neutron.openstack.c5c3.io/v1alpha1
 kind: Neutron
 metadata:
   name: neutron
@@ -327,7 +327,7 @@ metadata:
     app.kubernetes.io/name: nova
     app.kubernetes.io/managed-by: nova-operator
   ownerReferences:
-    - apiVersion: openstack.c5c3.io/v1alpha1
+    - apiVersion: nova.openstack.c5c3.io/v1alpha1
       kind: Nova
       name: nova
 data:
