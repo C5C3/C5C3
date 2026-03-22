@@ -335,22 +335,25 @@ Each service operator creates its **own** database, RabbitMQ vhost, etc. within 
 ```text
 c5c3-operator creates:                Service operators create:
 ┌──────────────────┐                   ┌──────────────────────────┐
-│ MariaDB CR       │                   │ Database: keystone       │
-│ (Galera cluster) │ ◀───────────────  │ Database: nova           │
-│                  │   clusterRef      │ Database: nova_api       │
-└──────────────────┘                   │ Database: neutron        │
-                                       │ Database: glance         │
-┌──────────────────┐                   │ Database: cinder         │
-│ RabbitMQ CR      │                   ├──────────────────────────┤
-│ (Cluster)        │ ◀───────────────  │ vhost: nova              │
-│                  │   clusterRef      │ vhost: neutron           │
-└──────────────────┘                   │ vhost: cinder            │
+│ MariaDB CR       │                   │ MariaDB Database CRs:    │
+│ (Galera cluster) │ ◀───────────────  │   keystone, nova,        │
+│                  │   clusterRef      │   nova_api, neutron,     │
+└──────────────────┘                   │   glance, cinder         │
+                                       ├──────────────────────────┤
+┌──────────────────┐                   │ Topology Operator CRs:   │
+│ RabbitMQ CR      │                   │   Vhost: nova            │
+│ (Cluster)        │ ◀───────────────  │   User:  nova            │
+│                  │   clusterRef      │   Permission: nova (rw)  │
+└──────────────────┘                   │   Vhost: neutron         │
+                                       │   User:  neutron         │
+┌──────────────────┐                   │   Permission: neutron    │
+│ Memcached CR     │  (shared, no      │   Vhost: cinder          │
+│ (Pods)           │   per-service     │   User:  cinder          │
+└──────────────────┘   resources)      │   Permission: cinder     │
                                        └──────────────────────────┘
-┌──────────────────┐
-│ Memcached CR     │  (shared, no per-service resources)
-│ (Pods)           │
-└──────────────────┘
 ```
+
+In managed mode, each service operator uses the shared `messaging/` library (see [Shared Library](./02-shared-library.md#messaging)) to create RabbitMQ Topology Operator CRs (`Vhost`, `User`, `Permission`) — analogous to how they use the `database/` library for MariaDB CRs. In brownfield mode, no Topology CRs are created; the operator uses explicit hosts directly.
 
 ## ControlPlane-to-Service CR Projection
 
@@ -752,6 +755,7 @@ func (r *ControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups=placement.openstack.c5c3.io,resources=placements,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=k8s.mariadb.com,resources=mariadbs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rabbitmq.com,resources=rabbitmqclusters,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rabbitmq.com,resources=vhosts;users;permissions;queues;exchanges;bindings;policies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=memcached.c5c3.io,resources=memcacheds,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=valkey.c5c3.io,resources=valkeys,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openstack.k-orc.cloud,resources=services;endpoints;users;applicationcredentials;domains;projects;roles,verbs=get;list;watch;create;update;patch;delete

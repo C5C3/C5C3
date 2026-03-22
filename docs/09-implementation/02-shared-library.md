@@ -33,6 +33,7 @@ The monorepo approach trades release independence for development velocity — a
 │  database/      MariaDB CR interaction and db_sync jobs                     │
 │  deployment/    Deployment and Service creation                             │
 │  job/           Kubernetes Job and CronJob management                       │
+│  messaging/     RabbitMQ Topology Operator CR interaction                   │
 │  secrets/       ESO secret readiness and PushSecret helpers                 │
 │  plugins/       Plugin and middleware config rendering                      │
 │  policy/        Policy file rendering and validation                       │
@@ -62,6 +63,79 @@ Encapsulates interaction with the [MariaDB Operator's](../03-components/01-contr
 | `EnsureDatabase(ctx, client, owner, spec) (bool, error)` | Create or verify a MariaDB `Database` CR. Returns true when ready. |
 | `EnsureDatabaseUser(ctx, client, owner, spec) (bool, error)` | Create or verify a MariaDB `User` CR with `Grant` CR for privileges. |
 | `RunDBSyncJob(ctx, client, owner, image, command, env) (bool, error)` | Run a `db_sync` Kubernetes Job using the service image. Returns true when completed. |
+
+### messaging/
+
+Encapsulates interaction with the [RabbitMQ Messaging Topology Operator's](../03-components/01-control-plane/06-infrastructure-operators.md#rabbitmq-messaging-topology-operator) CRDs. Analogous to the `database/` package — each service operator uses this package to create per-service vhosts, users, and permissions as Kubernetes CRs. In brownfield mode (explicit hosts), no Topology CRs are created.
+
+| Function | Description |
+| --- | --- |
+| `EnsureVhost(ctx, client, owner, spec) (bool, error)` | Create or verify a Topology `Vhost` CR. Returns true when ready. |
+| `EnsureUser(ctx, client, owner, spec) (bool, error)` | Create or verify a Topology `User` CR with credentials from the referenced Secret. |
+| `EnsurePermission(ctx, client, owner, spec) (bool, error)` | Create or verify a Topology `Permission` CR granting configure/write/read on the vhost. |
+| `IsMessagingReady(ctx, client, namespace, vhostName, userName string) (bool, error)` | Check if the Vhost, User, and Permission CRs all report ready status conditions. |
+| `ResolveEndpoint(ctx, client, namespace string, msgSpec MessagingSpec) (string, int32, error)` | Resolve the AMQP endpoint from either the RabbitmqCluster CR status (managed mode) or explicit hosts (brownfield mode). |
+
+**Usage in a service operator's `reconcileMessaging()`:**
+
+```go
+func (r *NovaReconciler) reconcileMessaging(ctx context.Context,
+    nova *novav1alpha1.Nova) (ctrl.Result, error) {
+
+    msgSpec := nova.Spec.Messaging
+
+    if msgSpec.ClusterRef != nil {
+        // Managed mode: create Topology CRs (Vhost, User, Permission)
+        vhostReady, err := messaging.EnsureVhost(ctx, r.Client, nova, messaging.VhostSpec{
+            Name:       "nova",
+            ClusterRef: msgSpec.ClusterRef,
+        })
+        if err != nil || !vhostReady {
+            conditions.SetCondition(&nova.Status.Conditions, metav1.Condition{
+                Type:   "MessagingReady",
+                Status: metav1.ConditionFalse,
+                Reason: "WaitingForVhost",
+            })
+            return ctrl.Result{RequeueAfter: 15 * time.Second}, err
+        }
+
+        userReady, err := messaging.EnsureUser(ctx, r.Client, nova, messaging.UserSpec{
+            ClusterRef: msgSpec.ClusterRef,
+            SecretRef:  msgSpec.SecretRef,
+        })
+        if err != nil || !userReady {
+            conditions.SetCondition(&nova.Status.Conditions, metav1.Condition{
+                Type:   "MessagingReady",
+                Status: metav1.ConditionFalse,
+                Reason: "WaitingForUser",
+            })
+            return ctrl.Result{RequeueAfter: 15 * time.Second}, err
+        }
+
+        permReady, err := messaging.EnsurePermission(ctx, r.Client, nova, messaging.PermissionSpec{
+            Vhost:      "nova",
+            UserRef:    nova.Name + "-rabbitmq-user",
+            ClusterRef: msgSpec.ClusterRef,
+        })
+        if err != nil || !permReady {
+            conditions.SetCondition(&nova.Status.Conditions, metav1.Condition{
+                Type:   "MessagingReady",
+                Status: metav1.ConditionFalse,
+                Reason: "WaitingForPermission",
+            })
+            return ctrl.Result{RequeueAfter: 15 * time.Second}, err
+        }
+    }
+    // Brownfield mode: skip Topology CR creation, use hosts directly
+
+    conditions.SetCondition(&nova.Status.Conditions, metav1.Condition{
+        Type:   "MessagingReady",
+        Status: metav1.ConditionTrue,
+        Reason: "MessagingAvailable",
+    })
+    return ctrl.Result{}, nil
+}
+```
 
 ### config/
 
@@ -310,7 +384,7 @@ The `EXTRA_PACKAGES` build argument is populated from `extra-packages.yaml` by t
 
 ## Usage Example
 
-A simplified example showing how the Keystone reconciler uses shared library packages:
+A simplified example showing how the Keystone reconciler uses shared library packages (Keystone does not use messaging — for a messaging example, see the `messaging/` package above):
 
 ```go
 import (
@@ -319,6 +393,7 @@ import (
     "github.com/c5c3/forge/internal/common/database"
     "github.com/c5c3/forge/internal/common/deployment"
     "github.com/c5c3/forge/internal/common/job"
+    "github.com/c5c3/forge/internal/common/messaging"  // used by Nova, Neutron, Cinder
     "github.com/c5c3/forge/internal/common/secrets"
     "github.com/c5c3/forge/internal/common/plugins"
     "github.com/c5c3/forge/internal/common/policy"

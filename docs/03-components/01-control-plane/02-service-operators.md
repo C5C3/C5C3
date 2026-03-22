@@ -263,6 +263,8 @@ spec:
     #   - external-rmq:5672
     secretRef:
       name: nova-rabbitmq-credentials
+    # Managed mode: nova-operator creates Topology CRs (Vhost, User, Permission)
+    # via the shared messaging/ library — see Shared Library docs
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
@@ -302,6 +304,8 @@ status:
   conditions:
     - type: Ready
       status: "True"
+    - type: MessagingReady
+      status: "True"           # Topology CRs (Vhost, User, Permission) are ready
     - type: APIReady
       status: "True"
     - type: SchedulerReady
@@ -361,6 +365,7 @@ spec:
     #   - external-rmq:5672
     secretRef:
       name: neutron-rabbitmq-credentials
+    # Managed mode: neutron-operator creates Topology CRs (Vhost, User, Permission)
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
@@ -397,6 +402,8 @@ status:
   conditions:
     - type: Ready
       status: "True"
+    - type: MessagingReady
+      status: "True"           # Topology CRs (Vhost, User, Permission) are ready
     - type: OVNConnected
       status: "True"
   endpoint: https://neutron.openstack.svc.cluster.local:9696
@@ -450,6 +457,7 @@ spec:
     #   - external-rmq:5672
     secretRef:
       name: cinder-rabbitmq-credentials
+    # Managed mode: cinder-operator creates Topology CRs (Vhost, User, Permission)
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
@@ -481,6 +489,8 @@ status:
   conditions:
     - type: Ready
       status: "True"
+    - type: MessagingReady
+      status: "True"           # Topology CRs (Vhost, User, Permission) are ready
     - type: CephConnected
       status: "True"
   endpoint: https://cinder.openstack.svc.cluster.local:8776

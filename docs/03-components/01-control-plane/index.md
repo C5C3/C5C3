@@ -116,12 +116,12 @@ The Control Plane consists of a **modular operator architecture** where each Ope
 
 **Infrastructure Service Operators:**
 
-| Service       | Operator                  | License    | HA Mode                  | Maturity   |
-| ------------- | ------------------------- | ---------- | ------------------------ | ---------- |
-| **MariaDB**   | mariadb-operator          | MIT        | Galera + MaxScale        | Production |
-| **Valkey**    | valkey-operator (SAP)     | Apache 2.0 | Sentinel/Primary-Replica | Production |
-| **RabbitMQ**  | cluster-operator          | MPL-2.0    | Native Clustering        | Production |
-| **Memcached** | memcached-operator (C5C3) | Apache 2.0 | Anti-Affinity + PDB      | Production |
+| Service       | Operator                                        | License    | HA Mode                  | Maturity   |
+| ------------- | ----------------------------------------------- | ---------- | ------------------------ | ---------- |
+| **MariaDB**   | mariadb-operator                                | MIT        | Galera + MaxScale        | Production |
+| **Valkey**    | valkey-operator (SAP)                           | Apache 2.0 | Sentinel/Primary-Replica | Production |
+| **RabbitMQ**  | cluster-operator + messaging-topology-operator  | MPL-2.0    | Native Clustering        | Production |
+| **Memcached** | memcached-operator (C5C3)                       | Apache 2.0 | Anti-Affinity + PDB      | Production |
 
 ## OpenStack Service Dependencies
 

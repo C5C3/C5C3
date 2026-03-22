@@ -8,10 +8,10 @@ FluxCD enables the definition of dependencies between Kustomizations:
 ├───────────────────────────────────────────────────────────────────┤
 │                                                                   │
 │  1. Infrastructure Operators (Base)                               │
-│     ┌─────────────┐   ┌─────────────┐   ┌─────────────┐           │
-│     │  MariaDB    │   │  Valkey     │   │  RabbitMQ   │           │
-│     │  Operator   │   │  Operator   │   │  Operator   │           │
-│     └──────┬──────┘   └──────┬──────┘   └──────┬──────┘           │
+│     ┌─────────────┐   ┌─────────────┐   ┌─────────────────────┐   │
+│     │  MariaDB    │   │  Valkey     │   │  RabbitMQ Cluster + │   │
+│     │  Operator   │   │  Operator   │   │  Topology Operator  │   │
+│     └──────┬──────┘   └──────┬──────┘   └──────────┬──────────┘   │
 │            │                 │                 │                  │
 │            └─────────────────┼─────────────────┘                  │
 │                              │                                    │
@@ -48,7 +48,7 @@ FluxCD enables the definition of dependencies between Kustomizations:
 
 > **Note:** The c5c3-operator orchestrates the entire deployment order:
 >
-> 1. Creates Infrastructure CRs (MariaDB, RabbitMQ, Valkey, Memcached) -- external Operators provision
+> 1. Creates Infrastructure CRs (MariaDB, RabbitMQ, Valkey, Memcached) -- external Operators provision; Service Operators create RabbitMQ Topology CRs (Vhost, User, Permission) via the Messaging Topology Operator
 > 2. Waits for Infrastructure readiness
 > 3. Creates Service CRs -- dedicated Service Operators deploy OpenStack Services
 > 4. Coordinates [Credential Lifecycle Management](./01-credential-lifecycle.md)

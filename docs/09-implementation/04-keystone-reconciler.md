@@ -99,6 +99,13 @@ func main() {
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets;pushsecrets,verbs=get;list;watch;create;update;patch
 ```
 
+> **Note:** Service operators that depend on RabbitMQ (Nova, Neutron, Cinder) require additional RBAC for the Messaging Topology Operator CRDs:
+>
+> ```go
+> // +kubebuilder:rbac:groups=rabbitmq.com,resources=rabbitmqclusters,verbs=get;list;watch
+> // +kubebuilder:rbac:groups=rabbitmq.com,resources=vhosts;users;permissions,verbs=get;list;watch;create;update;patch;delete
+> ```
+
 **Watches** — the controller watches the Keystone CR and all owned resources:
 
 ```go
@@ -157,6 +164,8 @@ For image build details and tag schema, see [Build Pipeline](../08-container-ima
 ## Sub-Reconciler Pattern
 
 The main `Reconcile` function calls sub-reconcilers sequentially. Each sub-reconciler handles one responsibility and returns early (requeue) if its precondition is not met.
+
+> **Note:** Keystone does not use RabbitMQ. For services that depend on messaging (Nova, Neutron, Cinder), the sub-reconciler chain is extended with a `reconcileMessaging()` step between `reconcileDatabase()` and `reconcileConfig()`. This step creates RabbitMQ Topology Operator CRs (`Vhost`, `User`, `Permission`) via the shared `messaging/` library and sets the `MessagingReady` condition. See [Shared Library — messaging/](./02-shared-library.md#messaging) for the implementation.
 
 ### reconcileSecrets()
 
