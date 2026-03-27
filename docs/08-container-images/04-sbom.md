@@ -53,10 +53,10 @@ CobaltCore uses **CycloneDX 1.5** (JSON) as the SBOM format.
 │         └── Constraint overrides → version annotation           │
 │                                                                 │
 │  4. Attest and sign                                             │
-│     └── actions/attest-sbom                                     │
-│         ├── Signs with Sigstore (keyless, OIDC-bound)           │
-│         ├── Stores attestation in GHCR as OCI artifact          │
-│         └── Verifiable via gh attestation verify                │
+│     ├── actions/attest → GitHub Attestations API (SBOM)         │
+│     │   ├── Signs with Sigstore (keyless, OIDC-bound)           │
+│     │   └── Stores attestation in GHCR as OCI artifact          │
+│     └── cosign sign → separate keyless image signature          │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -173,51 +173,80 @@ When a constraint override changes a package version (e.g., for a CVE fix), the 
 
 ## GitHub Actions Integration
 
-SBOM generation is integrated into the image build workflow as additional steps after the image push. A new SBOM is generated and attested for every image that is pushed to the registry:
+SBOM generation, vulnerability scanning, attestation, and signing are integrated into the image build workflow as supply chain steps after each image is pushed. The same steps are applied to `python-base`, `venv-builder`, and each service image.
 
 ```yaml
-- name: Build and Push
-  id: push
-  uses: docker/build-push-action@v6
+# Build step (non-PR: multi-arch push; PR: amd64-only load)
+- name: Build service image
+  id: build-service
+  uses: docker/build-push-action@...  # SHA-pinned
   with:
-    context: .
-    file: images/${{ matrix.service }}/Dockerfile
-    build-contexts: |
-      ${{ matrix.service }}=src/${{ matrix.service }}
-    platforms: linux/amd64,linux/arm64
     push: ${{ github.event_name != 'pull_request' }}
-    tags: |
-      ghcr.io/c5c3/${{ matrix.service }}:${{ env.VERSION }}
-    cache-from: type=gha
-    cache-to: type=gha,mode=max
-    provenance: mode=max
+    # ... (no provenance: mode=max — provenance is not enabled separately)
 
-# Generate SBOM from the final image
+# Generate SBOM from the pushed image (non-PR only)
 - name: Generate SBOM
   if: github.event_name != 'pull_request'
-  uses: anchore/sbom-action@v0
+  uses: anchore/sbom-action@...  # SHA-pinned
   with:
-    image: ghcr.io/c5c3/${{ matrix.service }}@${{ steps.push.outputs.digest }}
+    image: <image>@${{ steps.build-service.outputs.digest }}
     format: cyclonedx-json
-    output-file: sbom.cyclonedx.json
+    output-file: sbom-<service>.cyclonedx.json
+    upload-artifact: false
 
-# Sign and attach SBOM as OCI attestation
+# Vulnerability scan via Grype — two variants, mutually exclusive:
+# Non-PR: scan the SBOM (image already in registry)
+- name: Scan for vulnerabilities (SBOM)
+  if: github.event_name != 'pull_request'
+  uses: anchore/scan-action@...  # SHA-pinned
+  with:
+    sbom: sbom-<service>.cyclonedx.json
+    severity-cutoff: high
+    fail-build: false
+    output-format: sarif
+
+# PR: scan the loaded image directly (SBOM not generated on PR)
+- name: Scan for vulnerabilities (image)
+  if: github.event_name == 'pull_request'
+  uses: anchore/scan-action@...
+  with:
+    image: <composite-tag>
+    severity-cutoff: high
+    fail-build: false
+    output-format: sarif
+
+# Upload SARIF to GitHub Security tab (runs always, even on scan failure)
+- name: Upload SARIF
+  if: always() && sarif output present
+  uses: github/codeql-action/upload-sarif@...  # SHA-pinned
+  with:
+    sarif_file: <sarif-file>
+    category: grype-<service>
+
+# Attest SBOM to GHCR via GitHub Attestations API (non-PR only)
 - name: Attest SBOM
   if: github.event_name != 'pull_request'
-  uses: actions/attest-sbom@v2
+  uses: actions/attest@...  # SHA-pinned (note: actions/attest, not actions/attest-sbom)
   with:
-    subject-name: ghcr.io/c5c3/${{ matrix.service }}
-    subject-digest: ${{ steps.push.outputs.digest }}
-    sbom-path: sbom.cyclonedx.json
+    subject-name: <image>
+    subject-digest: ${{ steps.build-service.outputs.digest }}
+    sbom-path: sbom-<service>.cyclonedx.json
     push-to-registry: true
+
+# Sign the image with cosign keyless signing (non-PR only)
+- name: Sign image
+  if: github.event_name != 'pull_request'
+  run: cosign sign --yes <image>@${{ steps.build-service.outputs.digest }}
 ```
 
 **Key properties:**
 
 - **`anchore/sbom-action`**: Runs Syft against the pushed image, producing a CycloneDX 1.5 JSON file
-- **`actions/attest-sbom`**: Signs the SBOM with Sigstore (keyless, bound to the GitHub Actions OIDC identity) and stores the attestation as an OCI referrer artifact in GHCR
-- **`provenance: mode=max`**: Generates SLSA provenance attestation alongside the SBOM
-- **No SBOM on PRs**: Pull requests only build, they do not generate or attest SBOMs
+- **`anchore/scan-action`**: Runs Grype for vulnerability scanning, outputs SARIF; non-PR builds scan the SBOM, PRs scan the loaded image directly
+- **`github/codeql-action/upload-sarif`**: Uploads the Grype SARIF report to the GitHub Security tab
+- **`actions/attest`**: Signs the SBOM with Sigstore (keyless, bound to the GitHub Actions OIDC identity) and stores the attestation as an OCI referrer artifact in GHCR
+- **`cosign sign`**: Additional keyless image signing via cosign for cross-platform verification
+- **No SBOM on PRs**: Pull requests only build (amd64) and scan by image; they do not generate SBOMs or attestations
 
 ### Required Workflow Permissions
 
@@ -225,8 +254,9 @@ SBOM generation is integrated into the image build workflow as additional steps 
 permissions:
   contents: read
   packages: write
-  id-token: write       # Sigstore OIDC signing
-  attestations: write   # GitHub Attestations API
+  id-token: write        # Sigstore OIDC signing (SBOM attestation + cosign)
+  attestations: write    # GitHub Attestations API
+  security-events: write # SARIF upload to GitHub Security tab
 ```
 
 ## Verification
@@ -260,9 +290,9 @@ cosign verify-attestation \
 | Tool | Role | Input | Output |
 | --- | --- | --- | --- |
 | **Syft** (Anchore) | Primary SBOM generator | Final container image | CycloneDX 1.5 JSON |
-| **actions/attest-sbom** | Signing and attestation | SBOM file + image digest | Signed OCI attestation in GHCR |
-| **cosign** (Sigstore) | Verification | Image reference | Attestation validation |
-| **Grype** (Anchore) | Vulnerability scanning | SBOM or image | Vulnerability report |
+| **actions/attest** | SBOM attestation via GitHub Attestations API | SBOM file + image digest | Signed OCI attestation in GHCR |
+| **cosign** (Sigstore) | Image signing | Image digest | Cosign signature in GHCR |
+| **Grype** (Anchore) via `anchore/scan-action` | Vulnerability scanning | SBOM or image | SARIF report → GitHub Security tab |
 
 ### Why Syft
 
