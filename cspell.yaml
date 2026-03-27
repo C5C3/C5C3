@@ -95,6 +95,7 @@ words:
   - Endpts
   - envtest
   - externalsecrets
+  - fanout
   - fernet
   - finalizer
   - Finalizers
@@ -179,6 +180,7 @@ words:
   - pymemcache
   - pymysql
   - pypi
+  - rabbitmqclusters
   - rados
   - radosgw
   - renovatebot
@@ -201,6 +203,8 @@ words:
   - uwsgi
   - valkey
   - vaultpath
+  - vhost
+  - vhosts
   - vcpu
   - vcpus
   - venv

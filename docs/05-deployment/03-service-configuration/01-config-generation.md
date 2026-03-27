@@ -20,8 +20,11 @@ Each Service Operator in CobaltCore follows a deterministic pipeline to translat
 │  ──────────────────────────────────────────────────                         │
 │  For each infrastructure dependency (database, messaging, cache):           │
 │  • Managed mode (clusterRef set): Operator reads the referenced             │
-│    infrastructure CR (e.g. MariaDB CR) and resolves endpoints from          │
-│    its status fields. Creates per-service resources (Database, User CRs).   │
+│    infrastructure CR (e.g. MariaDB CR, RabbitmqCluster CR) and resolves     │
+│    endpoints from its status fields. Creates per-service resources:         │
+│    - Database: MariaDB Database + User CRs (via database/ library)          │
+│    - Messaging: Topology Vhost + User + Permission CRs (via messaging/      │
+│      library, reconciled by the RabbitMQ Messaging Topology Operator)       │
 │  • Brownfield mode (host/port set): Operator uses explicit endpoints.       │
 │    No infrastructure CRs are created.                                       │
 │  Then reads K8s Secrets referenced in secretRef fields (from ESO/OpenBao).  │
