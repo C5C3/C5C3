@@ -48,10 +48,17 @@ All three types work identically in the CI pipeline — `git checkout` handles b
 
 ### Configuration
 
-Refs are configured per component and per OpenStack release in `releases/<version>/source-refs.yaml`:
+Refs are configured per component and per OpenStack release in `releases/<version>/source-refs.yaml`. The current file only contains the services that are in the build matrix — additional services and library entries are added as they are onboarded:
 
 ```yaml
-# releases/2025.2/source-refs.yaml
+# releases/2025.2/source-refs.yaml (current state)
+keystone: "28.0.0"    # tag
+```
+
+As additional services are added to the build matrix, they are listed here:
+
+```yaml
+# releases/2025.2/source-refs.yaml (future state, illustrative)
 
 # Services
 keystone: "28.0.0"                                            # tag
@@ -76,38 +83,57 @@ This file is the single source of truth for what version of each component is bu
 
 ## Tag Schema
 
-Each image receives multiple tags. Since C5C3 builds images for multiple OpenStack releases, the upstream version already identifies the release (e.g., Keystone 28.0.0 belongs to 2025.2, Keystone 27.0.0 to 2025.1):
+### Service Images
+
+Each service image build produces three tags:
 
 | Tag | Example | Property | Usage |
 | --- | --- | --- | --- |
-| **Upstream version** | `28.0.0` | Mutable (updated on patch revision) | CRD reference, default tag |
-| **Version + patch revision** | `28.0.0-p1` | Immutable | When patches are applied to a release (see [Patching](./03-patching.md)) |
-| **Branch** | `stable-1.0` | Mutable (points to latest build) | Tracking, not for production |
-| **Commit SHA** | `a1b2c3d` | Immutable | Debugging, exact reference |
+| **Composite** | `28.0.0-p0-main-a1b2c3d` | Immutable | Primary identifier — always pushed. Encodes version, patch count, branch, and commit SHA |
+| **Upstream version** | `28.0.0` | Mutable | Pushed on `main` branch only. Used in CRD image references |
+| **Short SHA** | `a1b2c3d` | Immutable | Always pushed. Useful for debugging |
 | **Digest** | `sha256:abc123...` | Immutable | Maximum reproducibility |
 
-**Patch revision (`-pN`):**
+**Composite tag format:** `<version>-p<patch-count>-<branch>-<short-sha>`
 
-When patches are applied to an existing release (e.g., a bugfix backport on Keystone 28.0.0), the patch revision is incremented:
+- `<version>` — the source ref from `source-refs.yaml` (e.g. `28.0.0`)
+- `<patch-count>` — number of `.patch` files in `patches/<service>/<release>/` (e.g. `p0` when no patches are active)
+- `<branch>` — the C5C3 branch with `/` replaced by `-` (e.g. `main`, `stable-1-0`)
+- `<short-sha>` — first 7 characters of the commit SHA
+
+**The upstream version tag** (e.g. `keystone:28.0.0`) is restricted to the `main` branch to prevent silent overwrites across branches. Builds from `stable/**` branches are identifiable via the composite tag's branch component.
 
 ```text
-ghcr.io/c5c3/keystone:28.0.0      ← Original release
-ghcr.io/c5c3/keystone:28.0.0-p1   ← With one C5C3 patch
-ghcr.io/c5c3/keystone:28.0.0-p2   ← With two C5C3 patches
+# Examples for a Keystone build from main with 0 patches:
+ghcr.io/c5c3/keystone:28.0.0-p0-main-a1b2c3d   ← composite (immutable)
+ghcr.io/c5c3/keystone:28.0.0                    ← version (main only, mutable)
+ghcr.io/c5c3/keystone:a1b2c3d                   ← short SHA (immutable)
+
+# After adding one patch:
+ghcr.io/c5c3/keystone:28.0.0-p1-main-b2c3d4e   ← composite reflects patch count
+ghcr.io/c5c3/keystone:28.0.0                    ← updated to point to patched build
 ```
 
-The `28.0.0` tag is updated to point to the latest patch level, so existing deployments automatically receive the patches on the next pull.
+### Base Images
+
+Base images (`python-base`, `venv-builder`) use a simpler tag scheme:
+
+| Tag | Example | Property |
+| --- | --- | --- |
+| `latest` | `python-base:latest` | Mutable |
+| `<commit-sha>` | `python-base:abc123...` (full SHA) | Immutable |
 
 ## Adding a New OpenStack Release
 
-When a new OpenStack release is published (e.g., 2026.1), it is added to the existing C5C3 branch:
+Currently only `releases/2025.2/` is configured. When a new OpenStack release is published (e.g., 2026.1), it is added to the existing C5C3 branch:
 
 1. **Add constraints**: Create `releases/2026.1/upper-constraints.txt` from `openstack/requirements` branch `stable/2026.1`
 2. **Add source refs**: Create `releases/2026.1/source-refs.yaml` with refs for each service
-3. **Add to build matrix**: Include `"2026.1"` in the `release` matrix (see [Build Pipeline — Workflow](./01-build-pipeline.md#workflow))
-4. **Create patch directories**: Add empty `patches/<service>/2026.1/` directories
-5. **Build & test**: CI builds all images, Tempest tests run
-6. **Update CRDs**: Image tags in the ControlPlane/Service CRDs for new deployments (see [CRDs](../04-architecture/01-crds.md))
+3. **Add extra packages**: Create `releases/2026.1/extra-packages.yaml` with per-service pip extras and apt packages
+4. **Add to build matrix**: Include `"2026.1"` in the `release` matrix (see [Build Pipeline — Workflow](./01-build-pipeline.md#workflow))
+5. **Create patch directories**: Add empty `patches/<service>/2026.1/` directories if needed
+6. **Build & test**: CI builds all images, Tempest tests run
+7. **Update CRDs**: Image tags in the ControlPlane/Service CRDs for new deployments (see [CRDs](../04-architecture/01-crds.md))
 
 ```text
 ┌────────────────────────────────────────────────────────────────┐
@@ -122,11 +148,12 @@ When a new OpenStack release is published (e.g., 2026.1), it is added to the exi
 │  2. Add source refs                                            │
 │     # Create releases/2026.1/source-refs.yaml with refs        │
 │                                                                │
-│  3. Add to build matrix                                        │
-│     release: ["2026.1", "2025.2", "2025.1"]                    │
+│  3. Add extra packages                                         │
+│     # Create releases/2026.1/extra-packages.yaml               │
+│     # with pip_extras, pip_packages, apt_packages per service  │
 │                                                                │
-│  4. Create patch directories                                   │
-│     mkdir -p patches/{keystone,nova,...}/2026.1                │
+│  4. Add to build matrix                                        │
+│     release: ["2026.1", "2025.2"]                              │
 │                                                                │
 │  5. Build & test                                               │
 │     # CI builds all images, Tempest tests run                  │
@@ -142,10 +169,9 @@ When a new OpenStack release is published (e.g., 2026.1), it is added to the exi
 When an OpenStack release reaches end-of-life:
 
 1. Remove from the build matrix
-2. Remove `releases/<version>/upper-constraints.txt`
+2. Remove `releases/<version>/` directory (upper-constraints.txt, source-refs.yaml, extra-packages.yaml)
 3. Remove `patches/<service>/<version>/` directories
-4. Remove `overrides/<version>/constraints.txt`
-5. Remove `releases/<version>/source-refs.yaml`
+4. Remove `overrides/<version>/constraints.txt` if present
 
 ## Automated Dependency Updates (Renovate)
 

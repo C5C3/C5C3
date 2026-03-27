@@ -23,19 +23,19 @@ CobaltCore builds its own OCI-compliant container images for all OpenStack servi
 │                                                                 │
 │  ubuntu:noble (24.04 LTS)                                       │
 │       │                                                         │
-│       ├──▶ c5c3/python-base:3.12-noble                          │
+│       ├──▶ c5c3/python-base:latest                              │
 │       │    ├── Python 3.12, runtime libraries                   │
 │       │    ├── PATH=/var/lib/openstack/bin:$PATH                │
-│       │    └── Service user (UID 42424)                         │
+│       │    └── openstack user (UID/GID 42424, shared)           │
 │       │         │                                               │
 │       │         └──▶ c5c3/<service>  (final runtime image)      │
 │       │              ├── COPY --from=build /var/lib/openstack   │
 │       │              └── Service-specific system packages       │
 │       │                                                         │
-│       └──▶ c5c3/venv-builder:3.12-noble                         │
+│       └──▶ c5c3/venv-builder:latest                             │
 │            ├── Build dependencies (gcc, python3-dev, libssl-dev)│
-│            ├── uv (Python package manager)                      │
-│            └── upper-constraints.txt                            │
+│            ├── uv 0.10.9 (Python package manager)               │
+│            └── Common pre-installed packages (no constraints)   │
 │                 │                                               │
 │                 └──▶ Build stage (discarded)                    │
 │                      └── Compiles venv into                     │
@@ -93,33 +93,35 @@ The C5C3 strategy is based on an analysis of OpenStack LOCI and Vexxhost Atmosph
 ghcr.io/c5c3/<service>:<tag>
 ```
 
-**Tag schema:**
+**Tag schema (service images):**
 
-| Tag format | Example | Usage |
-| --- | --- | --- |
-| `<upstream-version>` | `28.0.0` | Release tag (default) |
-| `<upstream-version>-p<N>` | `28.0.0-p1` | Release with patch revision |
-| `<branch>` | `stable-2025.2` | Branch tracking (mutable) |
-| `<short-sha>` | `a1b2c3d` | Commit-based (immutable) |
+| Tag format | Example | Property | Usage |
+| --- | --- | --- | --- |
+| `<version>-p<N>-<branch>-<sha>` | `28.0.0-p0-main-a1b2c3d` | Immutable | Primary tag — always pushed |
+| `<upstream-version>` | `28.0.0` | Mutable | Pushed on `main` branch only (see [Versioning](./02-versioning.md#tag-schema)) |
+| `<short-sha>` | `a1b2c3d` | Immutable | Always pushed |
+
+**Tag schema (base images):**
+
+| Tag format | Example | Property | Usage |
+| --- | --- | --- | --- |
+| `latest` | `python-base:latest` | Mutable | Points to the most recent build |
+| `<commit-sha>` | `python-base:<sha>` | Immutable | Full commit SHA, pushed alongside `latest` |
 
 **Currently integrated services:**
 
-| Component | Upstream Version | Image |
-| --- | --- | --- |
-| Keystone | 28.0.0 | `ghcr.io/c5c3/keystone:28.0.0` |
-| Nova | 32.1.0 | `ghcr.io/c5c3/nova:32.1.0` |
-| Neutron | 27.0.1 | `ghcr.io/c5c3/neutron:27.0.1` |
-| Glance | 31.0.0 | `ghcr.io/c5c3/glance:31.0.0` |
-| Cinder | 27.0.0 | `ghcr.io/c5c3/cinder:27.0.0` |
-| Placement | 14.0.0 | `ghcr.io/c5c3/placement:14.0.0` |
-| OVN | 24.03.4 | `ghcr.io/c5c3/ovn:24.03.4` |
-| OVS | 3.4.1 | `ghcr.io/c5c3/ovs:3.4.1` |
-| Tempest | 41.0.0 | `ghcr.io/c5c3/tempest:41.0.0` |
-| Cortex | 0.5.0 | `ghcr.io/c5c3/cortex:0.5.0` |
+| Component | Upstream Version | Image | Status |
+| --- | --- | --- | --- |
+| Keystone | 28.0.0 | `ghcr.io/c5c3/keystone:28.0.0` | Built by CI |
+| Nova | — | `ghcr.io/c5c3/nova` | Dockerfile exists, not yet in build matrix |
+| Neutron | — | `ghcr.io/c5c3/neutron` | Dockerfile exists, not yet in build matrix |
+| Glance | — | `ghcr.io/c5c3/glance` | Dockerfile exists, not yet in build matrix |
+| Cinder | — | `ghcr.io/c5c3/cinder` | Dockerfile exists, not yet in build matrix |
+| Placement | — | `ghcr.io/c5c3/placement` | Dockerfile exists, not yet in build matrix |
 
-> **Note:** OVN and OVS are built from C source and follow a separate build pipeline. Tempest and Cortex use their own build pipelines. The Python-based pipeline described here applies to the core OpenStack services (Keystone, Nova, Neutron, Glance, Cinder, Placement).
->
 > **Note:** Infrastructure services (Memcached, MariaDB, RabbitMQ, Valkey) use upstream container images directly and are not built by C5C3. They are managed by their respective operators (see [Infrastructure Service Operators](../03-components/01-control-plane/06-infrastructure-operators.md)).
+>
+> **Note:** OVN and OVS require a separate C-source build pipeline that has not yet been implemented.
 
 ## Further Reading
 
