@@ -140,6 +140,7 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Related Projects', link: '/A1-related-projects' },
+          { text: 'LLM-Assisted Development', link: '/A2-llm-assisted-development' },
         ]
       },
     ],
