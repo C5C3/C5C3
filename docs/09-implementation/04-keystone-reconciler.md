@@ -21,11 +21,12 @@ For the CRD type definitions and webhooks, see [CRD Implementation](./03-crd-imp
 │  └────────┬─────────┘                                                       │
 │           │ SecretsReady=True                                               │
 │           ▼                                                                 │
-│  ┌───────────────────┐                                                      │
-│  │ reconcileDatabase │  Ensure MariaDB Database + User CRs                  │
-│  │                   │  Run db_sync Job (keystone-manage db_sync)           │
-│  └────────┬──────────┘                                                      │
-│           │ DatabaseReady=True                                              │
+│  ┌──────────────────┐                                                       │
+│  │ reconcileConfig  │  Read CRD → Resolve secrets → Apply defaults          │
+│  │                  │  → Render keystone.conf + api-paste.ini               │
+│  │                  │  → Create immutable ConfigMap (content-hash)          │
+│  └────────┬─────────┘                                                       │
+│           │ returns configMapName                                           │
 │           ▼                                                                 │
 │  ┌─────────────────────┐                                                    │
 │  │ reconcileFernetKeys │  Generate Fernet keys (fernet_setup)               │
@@ -34,12 +35,24 @@ For the CRD type definitions and webhooks, see [CRD Implementation](./03-crd-imp
 │  └────────┬────────────┘                                                    │
 │           │ FernetKeysReady=True                                            │
 │           ▼                                                                 │
-│  ┌──────────────────┐                                                       │
-│  │ reconcileConfig  │  Read CRD → Resolve secrets → Apply defaults          │
-│  │                  │  → Render keystone.conf + api-paste.ini               │
-│  │                  │  → Create immutable ConfigMap (content-hash)          │
-│  └────────┬─────────┘                                                       │
-│           │                                                                 │
+│  ┌──────────────────────────┐                                               │
+│  │ reconcileCredentialKeys  │  Generate credential keys                     │
+│  │                          │  Create rotation CronJob                      │
+│  └────────┬─────────────────┘                                               │
+│           │ CredentialKeysReady=True                                         │
+│           ▼                                                                 │
+│  ┌───────────────────┐                                                      │
+│  │ reconcileDatabase │  Ensure MariaDB Database + User CRs                  │
+│  │                   │  Run db_sync Job (keystone-manage db_sync)           │
+│  └────────┬──────────┘                                                      │
+│           │ DatabaseReady=True                                              │
+│           ▼                                                                 │
+│  ┌─────────────────────────┐                                                │
+│  │ reconcileNetworkPolicy  │  Create/update NetworkPolicy                   │
+│  │                         │  (runs before Deployment so pods are born      │
+│  │                         │   into restricted network)                     │
+│  └────────┬────────────────┘                                                │
+│           │ NetworkPolicyReady=True                                          │
 │           ▼                                                                 │
 │  ┌──────────────────────┐                                                   │
 │  │ reconcileDeployment  │  Create/update Deployment (WSGI server)           │
@@ -47,6 +60,12 @@ For the CRD type definitions and webhooks, see [CRD Implementation](./03-crd-imp
 │  │                      │  Volume mounts: config, fernet-keys, credentials  │
 │  └────────┬─────────────┘                                                   │
 │           │ DeploymentReady=True                                            │
+│           ▼                                                                 │
+│  ┌──────────────────┐                                                       │
+│  │ reconcileHPA     │  Create/update/delete HorizontalPodAutoscaler         │
+│  │                  │  (based on spec.autoscaling)                          │
+│  └────────┬─────────┘                                                       │
+│           │ HPAReady=True                                                    │
 │           ▼                                                                 │
 │  ┌─────────────────────┐                                                    │
 │  │ reconcileBootstrap  │  Run bootstrap Job (keystone-manage bootstrap)     │
@@ -93,10 +112,15 @@ func main() {
 // +kubebuilder:rbac:groups=keystone.openstack.c5c3.io,resources=keystones/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=keystone.openstack.c5c3.io,resources=keystones/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=core,resources=services;configmaps;secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=services;configmaps;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=batch,resources=jobs;cronjobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=k8s.mariadb.com,resources=databases;users;grants,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets;pushsecrets,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 ```
 
 > **Note:** Service operators that depend on RabbitMQ (Nova, Neutron, Cinder) require additional RBAC for the Messaging Topology Operator CRDs:
@@ -116,10 +140,17 @@ func (r *KeystoneReconciler) SetupWithManager(mgr ctrl.Manager) error {
         Owns(&corev1.Service{}).
         Owns(&corev1.ConfigMap{}).
         Owns(&batchv1.Job{}).
+        Owns(&policyv1.PodDisruptionBudget{}).
+        Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
+        Owns(&networkingv1.NetworkPolicy{}).
         Owns(&batchv1.CronJob{}).
-        Watches(&corev1.Secret{},
-            handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(),
-                &keystonev1alpha1.Keystone{})).
+        // Watch Secrets and map to the Keystone CRs that reference them.
+        // ESO-managed secrets are owned by the ExternalSecret controller,
+        // not by the Keystone CR, so EnqueueRequestForOwner would never
+        // match them. This MapFunc performs a namespace-scoped lookup instead.
+        Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(
+            secretToKeystoneMapper(mgr.GetClient()),
+        )).
         Complete(r)
 }
 ```
@@ -165,11 +196,12 @@ For image build details and tag schema, see [Build Pipeline](../08-container-ima
 
 The main `Reconcile` function calls sub-reconcilers sequentially. Each sub-reconciler handles one responsibility and returns early (requeue) if its precondition is not met.
 
+> **Note:** `reconcileConfig()` runs early (immediately after secrets) because both `reconcileFernetKeys()` and `reconcileDatabase()` require the rendered `keystone.conf` ConfigMap — the Fernet rotation CronJob and the `db_sync` Job both mount it.
+>
 > **Note:** Keystone does not use RabbitMQ. For services that depend on messaging (Nova, Neutron, Cinder), the
 > sub-reconciler chain is extended with a `reconcileMessaging()` step between `reconcileDatabase()` and
-> `reconcileConfig()`. This step creates RabbitMQ Topology Operator CRs (`Vhost`, `User`, `Permission`) via the
+> `reconcileNetworkPolicy()`. This step creates RabbitMQ Topology Operator CRs (`Vhost`, `User`, `Permission`) via the
 > shared `messaging/` library and sets the `MessagingReady` condition.
-> See [Shared Library — messaging/](./02-shared-library.md#messaging) for the implementation.
 
 ### reconcileSecrets()
 
@@ -225,6 +257,35 @@ func (r *KeystoneReconciler) reconcileSecrets(ctx context.Context,
 }
 ```
 
+### reconcileConfig()
+
+Implements the config generation pipeline from [Config Generation](../05-deployment/03-service-configuration/01-config-generation.md). This runs immediately after secrets because the resulting ConfigMap is required by subsequent sub-reconcilers (Fernet rotation CronJob, db_sync Job, Deployment).
+
+1. **Read CRD spec** — Extract database, cache, fernet, bootstrap, middleware, plugins, and extraConfig fields.
+2. **Resolve secrets** — Read Kubernetes Secrets (ESO-provided) and extract credential values.
+3. **Apply defaults** — Merge CRD values with Keystone-specific defaults for the target OpenStack release.
+4. **Render INI** — Generate `keystone.conf` from the merged config map. Plugin config sections from `spec.plugins` and `spec.extraConfig` are merged into the output.
+5. **Render api-paste.ini** — Generate the WSGI pipeline configuration. The base Keystone pipeline is extended with middleware filters from `spec.middleware[]`.
+6. **Create immutable ConfigMap** — Hash the rendered config content and create a ConfigMap with the hash in its name (e.g., `keystone-config-a3f8b2c1`).
+
+If the config content changes, a new ConfigMap is created and the Deployment is updated to reference it, triggering a rolling restart. See [Validation](../05-deployment/03-service-configuration/02-validation.md) for how validation operates across the pipeline.
+
+### reconcileFernetKeys()
+
+Generates the initial Fernet key set and configures periodic rotation:
+
+1. **Initial generation** — Runs a Job with `keystone-manage fernet_setup` (or generates keys directly in the operator) and stores them in a Kubernetes Secret.
+2. **Rotation CronJob** — Creates a CronJob that runs `keystone-manage fernet_rotate` on the configured schedule, updates the Secret, and triggers a rolling restart via annotation change.
+3. **OpenBao backup** (optional) — Creates a PushSecret CR to back up Fernet keys to `kv-v2/openstack/keystone/fernet-keys` in OpenBao. See [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md) for the PushSecret pattern.
+
+### reconcileCredentialKeys()
+
+Generates the initial credential key set and configures periodic rotation. This follows the same pattern as Fernet keys but for Keystone's credential encryption:
+
+1. **Initial generation** — Runs a Job with `keystone-manage credential_setup` and stores keys in a Kubernetes Secret.
+2. **Rotation CronJob** — Creates a CronJob that runs `keystone-manage credential_rotate` on the configured schedule (`spec.credentialKeys.rotationSchedule`).
+3. **Key retention** — Controlled by `spec.credentialKeys.maxActiveKeys` (minimum 3).
+
 ### reconcileDatabase()
 
 Creates MariaDB Database and User CRs (watched by the MariaDB Operator) and runs the `db_sync` Job using the Keystone image. Supports both managed (ClusterRef) and brownfield (explicit host/port) modes:
@@ -234,7 +295,8 @@ Creates MariaDB Database and User CRs (watched by the MariaDB Operator) and runs
 
 ```go
 func (r *KeystoneReconciler) reconcileDatabase(ctx context.Context,
-    keystone *keystonev1alpha1.Keystone) (ctrl.Result, error) {
+    keystone *keystonev1alpha1.Keystone,
+    configMapName string) (ctrl.Result, error) {
 
     dbSpec := keystone.Spec.Database
 
@@ -283,26 +345,12 @@ func (r *KeystoneReconciler) reconcileDatabase(ctx context.Context,
 
 For database migration patterns during upgrades, see [Upgrades](../06-operations/01-upgrades.md).
 
-### reconcileFernetKeys()
+### reconcileNetworkPolicy()
 
-Generates the initial Fernet key set and configures periodic rotation:
+Creates or updates a Kubernetes `NetworkPolicy` restricting ingress and egress traffic for Keystone API pods (CC-0039). This runs before `reconcileDeployment()` so that pods are born into a restricted network rather than running unrestricted until the policy is applied.
 
-1. **Initial generation** — Runs a Job with `keystone-manage fernet_setup` (or generates keys directly in the operator) and stores them in a Kubernetes Secret.
-2. **Rotation CronJob** — Creates a CronJob that runs `keystone-manage fernet_rotate` on the configured schedule, updates the Secret, and triggers a rolling restart via annotation change.
-3. **OpenBao backup** (optional) — Creates a PushSecret CR to back up Fernet keys to `kv-v2/openstack/keystone/fernet-keys` in OpenBao. See [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md) for the PushSecret pattern.
-
-### reconcileConfig()
-
-Implements the config generation pipeline from [Config Generation](../05-deployment/03-service-configuration/01-config-generation.md):
-
-1. **Read CRD spec** — Extract database, cache, fernet, bootstrap, middleware, plugins, and extraConfig fields.
-2. **Resolve secrets** — Read Kubernetes Secrets (ESO-provided) and extract credential values.
-3. **Apply defaults** — Merge CRD values with Keystone-specific defaults for the target OpenStack release.
-4. **Render INI** — Generate `keystone.conf` from the merged config map. Plugin config sections from `spec.plugins` and `spec.extraConfig` are merged into the output.
-5. **Render api-paste.ini** — Generate the WSGI pipeline configuration. The base Keystone pipeline is extended with middleware filters from `spec.middleware[]`.
-6. **Create immutable ConfigMap** — Hash the rendered config content and create a ConfigMap with the hash in its name (e.g., `keystone-config-a3f8b2c1`).
-
-If the config content changes, a new ConfigMap is created and the Deployment is updated to reference it, triggering a rolling restart. See [Validation](../05-deployment/03-service-configuration/02-validation.md) for how validation operates across the pipeline.
+- When `spec.networkPolicy` is set: creates a NetworkPolicy allowing ingress on TCP 5000 from specified sources and auto-deriving egress rules for DNS, MariaDB, and Memcached.
+- When `spec.networkPolicy` is nil: deletes any existing NetworkPolicy, allowing unrestricted traffic.
 
 ### reconcileDeployment()
 
@@ -395,6 +443,14 @@ func (r *KeystoneReconciler) reconcileDeployment(ctx context.Context,
 }
 ```
 
+### reconcileHPA()
+
+Creates, updates, or deletes a `HorizontalPodAutoscaler` for the Keystone API deployment (CC-0038):
+
+- When `spec.autoscaling` is set: creates an HPA targeting the Keystone deployment with the specified min/max replicas and CPU/memory utilization targets. At least one of `targetCPUUtilization` or `targetMemoryUtilization` must be set (enforced by CEL validation).
+- When `spec.autoscaling` is nil: deletes any existing HPA, restoring static replica count from `spec.replicas`.
+- `spec.resources` must be set for HPA utilization calculations to work (the defaulting webhook injects sensible defaults when unset).
+
 ### reconcileBootstrap()
 
 Runs the Keystone bootstrap Job using the same service image:
@@ -419,7 +475,10 @@ The admin password is injected from the `keystone-admin-credentials` Secret (pro
 | MariaDB not ready | Requeue, wait for MariaDB Operator | 30s | `DatabaseReady=False` |
 | db_sync Job failed | Requeue, Job will be retried | 60s | `DatabaseReady=False` |
 | Fernet key generation failed | Requeue with backoff | 30s | `FernetKeysReady=False` |
+| Credential key generation failed | Requeue with backoff | 30s | `CredentialKeysReady=False` |
+| NetworkPolicy creation failed | Return error, controller-runtime retries | Exponential | `NetworkPolicyReady=False` |
 | Deployment not available | Requeue, wait for rollout | 10s | `DeploymentReady=False` |
+| HPA creation/update failed | Return error, controller-runtime retries | Exponential | `HPAReady=False` |
 | Bootstrap Job failed | Requeue, Job will be retried | 60s | `BootstrapReady=False` |
 | Unrecoverable API error | Return error (controller-runtime handles backoff) | Exponential | — |
 
@@ -435,7 +494,7 @@ ctrl.SetControllerReference(keystone, resource, r.Scheme)
 
 This enables:
 
-* **Automatic garbage collection** — When the Keystone CR is deleted, all owned resources (Deployments, Services, ConfigMaps, Jobs, CronJobs) are automatically cleaned up by the Kubernetes garbage collector.
+* **Automatic garbage collection** — When the Keystone CR is deleted, all owned resources (Deployments, Services, ConfigMaps, Jobs, CronJobs, PodDisruptionBudgets, HorizontalPodAutoscalers, NetworkPolicies) are automatically cleaned up by the Kubernetes garbage collector.
 * **Watch triggers** — Changes to owned resources trigger reconciliation of the owning Keystone CR.
 
 **Finalizers** are used when external cleanup is required (e.g., removing MariaDB Database CRs that are not owned by the Keystone CR). The finalizer ensures the reconciler has an opportunity to clean up before the Keystone CR is deleted.

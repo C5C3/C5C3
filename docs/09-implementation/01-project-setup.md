@@ -8,19 +8,16 @@ CobaltCore uses a **Go Workspace** (`go.work`) to manage multiple operator modul
 
 ```go
 // go.work
-go 1.25
+go 1.25.7
 
 use (
     ./internal/common
     ./operators/keystone
-    ./operators/glance
-    ./operators/placement
-    ./operators/nova
-    ./operators/neutron
-    ./operators/cinder
     ./operators/c5c3
 )
 ```
+
+> **Note:** Additional operator modules (glance, nova, neutron, cinder, placement) will be added as they are implemented.
 
 Each `use` directive points to a Go module with its own `go.mod`. The workspace ensures that `internal/common` is resolved locally rather than fetched from a registry.
 
@@ -58,15 +55,18 @@ This generates the base project structure: `main.go`, `api/v1alpha1/` types, `in
 │  │   └── common/                      # Shared library                      │
 │  │       ├── go.mod                   # module: github.com/c5c3/forge/      │
 │  │       │                            #   internal/common                   │
+│  │       ├── bootstrap/               # Manager initialization             │
 │  │       ├── conditions/              # Condition helpers                   │
 │  │       ├── config/                  # INI config rendering                │
 │  │       ├── database/                # MariaDB CR interaction              │
-│  │       ├── deployment/              # Deployment/Service helpers          │
+│  │       ├── deployment/              # Deployment/Service/PDB/HPA helpers  │
 │  │       ├── job/                     # Job/CronJob management              │
 │  │       ├── secrets/                 # ESO secret readiness, PushSecret    │
 │  │       ├── plugins/                 # Plugin/middleware framework         │
+│  │       ├── policy/                  # oslo.policy rendering/validation    │
 │  │       ├── tls/                     # cert-manager integration            │
-│  │       └── types/                   # Shared Go type definitions          │
+│  │       ├── types/                   # Shared Go type definitions          │
+│  │       └── testutil/                # Test utilities and simulators       │
 │  │                                                                          │
 │  ├── operators/                                                             │
 │  │   ├── keystone/                    # Keystone Operator                   │
@@ -85,9 +85,7 @@ This generates the base project structure: `main.go`, `api/v1alpha1/` types, `in
 │  │   │   │   └── manager/                                                   │
 │  │   │   └── helm/                    # Helm chart                          │
 │  │   │       └── keystone-operator/                                         │
-│  │   ├── glance/                      # (same structure)                    │
-│  │   ├── nova/                        # (same structure)                    │
-│  │   └── ...                                                                │
+│  │   └── c5c3/                        # Orchestration operator (scaffolded) │
 │  │                                                                          │
 │  ├── tests/                                                                 │
 │  │   └── e2e/                         # Chainsaw E2E tests                  │
@@ -134,14 +132,24 @@ The top-level Makefile orchestrates builds across all operators:
 | Target | Description |
 | --- | --- |
 | `make generate` | Run controller-gen to generate DeepCopy methods and CRD manifests for all operators |
+| `make generate-common` | Generate DeepCopy methods for `internal/common/types` only |
 | `make manifests` | Generate CRD, RBAC, and webhook manifests into `config/` directories |
 | `make build` | Compile all operator binaries |
 | `make test` | Run unit tests across all modules (see [Testing](./06-testing.md)) |
+| `make test-common` | Run unit tests for `internal/common` only |
+| `make test-operator` | Run unit tests for a single operator (requires `OPERATOR=`) |
 | `make test-integration` | Run envtest integration tests (see [Testing](./06-testing.md#integration-tests-envtest)) |
-| `make docker-build` | Build container images for all operators |
-| `make helm-package` | Package Helm charts for all operators (see [CI/CD & Packaging](./07-ci-cd-and-packaging.md#helm-chart-structure)) |
+| `make test-integration-common` | Run envtest integration tests for `internal/common` only |
+| `make docker-build` | Build container images (requires `OPERATOR=keystone\|c5c3`) |
+| `make helm-package` | Package Helm charts (requires `OPERATOR=keystone\|c5c3`) |
 | `make lint` | Run golangci-lint across all modules |
 | `make e2e` | Run Chainsaw E2E tests against a live cluster (see [Testing](./06-testing.md#e2e-tests-with-chainsaw)) |
+| `make tempest-test` | Run Tempest API tests (requires `SERVICE=keystone`) |
+| `make sync-crds` | Copy generated CRDs to Helm chart `crds/` directory |
+| `make verify-crd-sync` | Check for CRD drift between controller-gen output and Helm chart |
+| `make deploy-infra` | Deploy infrastructure dependencies (Flux, ESO, OpenBao, MariaDB, Memcached) |
+| `make teardown-infra` | Clean up infrastructure dependencies |
+| `make install-test-deps` | Install test dependencies |
 
 Individual operators can be targeted via the `OPERATOR` variable:
 

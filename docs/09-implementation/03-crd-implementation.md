@@ -61,6 +61,9 @@ type KeystoneSpec struct {
     // Fernet configures Fernet key rotation.
     Fernet FernetSpec `json:"fernet,omitempty"`
 
+    // CredentialKeys configures credential key rotation.
+    CredentialKeys CredentialKeysSpec `json:"credentialKeys,omitempty"`
+
     // Federation configures Keystone federation (optional).
     // +optional
     Federation *FederationSpec `json:"federation,omitempty"`
@@ -80,8 +83,28 @@ type KeystoneSpec struct {
     // When set, the operator renders a policy.yaml and configures
     // oslo_policy.policy_file automatically.
     // +optional
-    // +kubebuilder:validation:XValidation:rule="self.rules != null || self.configMapRef != null",message="at least one of rules or configMapRef must be set"
+    // +kubebuilder:validation:XValidation:rule="(has(self.rules) && size(self.rules) > 0) || self.configMapRef != null",message="at least one of rules or configMapRef must be set"
+    // +kubebuilder:validation:XValidation:rule="!has(self.rules) || self.rules.all(k, k != '')",message="policy rule name must not be empty"
     PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+
+    // Autoscaling configures horizontal pod autoscaling for the Keystone API deployment.
+    // When set, a HorizontalPodAutoscaler is created targeting the deployment.
+    // When removed, the HPA is deleted.
+    // +optional
+    Autoscaling *AutoscalingSpec `json:"autoscaling,omitempty"`
+
+    // NetworkPolicy configures network isolation for Keystone API pods.
+    // When set, a NetworkPolicy is created restricting ingress and egress traffic.
+    // When removed (nil), the NetworkPolicy is deleted and traffic flows unrestricted.
+    // +optional
+    NetworkPolicy *NetworkPolicySpec `json:"networkPolicy,omitempty"`
+
+    // Resources defines the CPU and memory requests and limits for the Keystone API
+    // container. When unset, the defaulting webhook injects sensible defaults
+    // (256Mi/512Mi memory, 100m/500m CPU) to ensure Burstable QoS class and
+    // enable HPA utilization calculations (CC-0042).
+    // +optional
+    Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 
     // ExtraConfig provides free-form INI sections for configuration
     // not covered by explicit CRD fields.
@@ -99,6 +122,71 @@ type FernetSpec struct {
     // +kubebuilder:validation:Minimum=3
     // +kubebuilder:default=3
     MaxActiveKeys int32 `json:"maxActiveKeys,omitempty"`
+}
+
+// CredentialKeysSpec defines credential key rotation configuration.
+type CredentialKeysSpec struct {
+    // RotationSchedule is a cron expression for credential key rotation.
+    // +kubebuilder:default="0 0 * * 0"
+    RotationSchedule string `json:"rotationSchedule,omitempty"`
+
+    // MaxActiveKeys is the maximum number of active credential keys.
+    // +kubebuilder:validation:Minimum=3
+    // +kubebuilder:default=3
+    MaxActiveKeys int32 `json:"maxActiveKeys,omitempty"`
+}
+
+// AutoscalingSpec defines the parameters for horizontal pod autoscaling (CC-0038).
+// +kubebuilder:validation:XValidation:rule="has(self.targetCPUUtilization) || has(self.targetMemoryUtilization)",message="at least one of targetCPUUtilization or targetMemoryUtilization must be set"
+type AutoscalingSpec struct {
+    // MinReplicas is the lower bound for the number of replicas.
+    // Defaults to the current spec.replicas value if unset.
+    // +optional
+    // +kubebuilder:validation:Minimum=1
+    MinReplicas *int32 `json:"minReplicas,omitempty"`
+
+    // MaxReplicas is the upper bound for the number of replicas.
+    // +kubebuilder:validation:Minimum=1
+    MaxReplicas int32 `json:"maxReplicas"`
+
+    // TargetCPUUtilization is the target average CPU utilization (percentage).
+    // +optional
+    // +kubebuilder:validation:Minimum=1
+    // +kubebuilder:validation:Maximum=100
+    TargetCPUUtilization *int32 `json:"targetCPUUtilization,omitempty"`
+
+    // TargetMemoryUtilization is the target average memory utilization (percentage).
+    // +optional
+    // +kubebuilder:validation:Minimum=1
+    // +kubebuilder:validation:Maximum=100
+    TargetMemoryUtilization *int32 `json:"targetMemoryUtilization,omitempty"`
+}
+
+// NetworkPolicySpec defines network isolation for Keystone API pods (CC-0039).
+// When applied, the operator creates a NetworkPolicy that restricts ingress
+// to TCP 5000 from the specified sources and auto-derives egress rules for
+// DNS, MariaDB (from database.ClusterRef), and Memcached (from cache.ClusterRef).
+// +kubebuilder:validation:XValidation:rule="size(self.ingress) > 0",message="at least one ingress source must be specified"
+type NetworkPolicySpec struct {
+    // Ingress defines the sources allowed to reach Keystone API on TCP 5000.
+    Ingress []NetworkPolicyIngressSource `json:"ingress"`
+
+    // AdditionalEgress defines extra egress rules appended after auto-derived
+    // rules (DNS, MariaDB, Memcached).
+    // +optional
+    AdditionalEgress []networkingv1.NetworkPolicyEgressRule `json:"additionalEgress,omitempty"`
+}
+
+// NetworkPolicyIngressSource defines a source from which traffic is allowed
+// to reach the Keystone API pods on TCP 5000 (CC-0039).
+type NetworkPolicyIngressSource struct {
+    // NamespaceSelector selects namespaces from which traffic is allowed.
+    NamespaceSelector map[string]string `json:"namespaceSelector"`
+
+    // PodSelector optionally restricts allowed traffic to pods matching
+    // these labels within the selected namespaces.
+    // +optional
+    PodSelector map[string]string `json:"podSelector,omitempty"`
 }
 
 // FederationSpec defines Keystone federation configuration.
@@ -119,6 +207,13 @@ type BootstrapSpec struct {
     // Region is the Keystone region name.
     // +kubebuilder:default="RegionOne"
     Region string `json:"region,omitempty"`
+
+    // PublicEndpoint is the externally routable Keystone endpoint URL used for
+    // --bootstrap-public-url. When unset, the cluster-local service DNS is used
+    // as a fallback. External clients (CLI users, Horizon, federation partners)
+    // require a routable address here (CC-0013).
+    // +optional
+    PublicEndpoint string `json:"publicEndpoint,omitempty"`
 }
 
 // KeystoneStatus defines the observed state of Keystone.
@@ -185,8 +280,7 @@ spec:
   middleware:
     - name: audit
       filterFactory: "audit_middleware:filter_factory"
-      position:
-        after: authtoken
+      position: after
       config:
         audit_map_file: /etc/keystone/audit_map.yaml
 
@@ -256,8 +350,11 @@ Each condition type reflects a discrete reconciliation phase. The `Ready` condit
 | **SecretsReady** | ESO-provided Kubernetes Secrets exist and contain expected keys |
 | **DatabaseReady** | MariaDB Database and User CRs are ready, db_sync Job completed |
 | **FernetKeysReady** | Fernet key Secret exists, rotation CronJob is configured |
-| **BootstrapReady** | Bootstrap Job completed successfully |
+| **CredentialKeysReady** | Credential key Secret exists, rotation CronJob is configured |
 | **DeploymentReady** | Keystone Deployment has all replicas available |
+| **HPAReady** | HorizontalPodAutoscaler is configured (or skipped when autoscaling is nil) |
+| **NetworkPolicyReady** | NetworkPolicy is configured (or skipped when networkPolicy is nil) |
+| **BootstrapReady** | Bootstrap Job completed successfully |
 
 **Condition progression during initial deployment:**
 
@@ -266,17 +363,21 @@ Each condition type reflects a discrete reconciliation phase. The `Ready` condit
 │                       CONDITION PROGRESSION                                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  t=0   SecretsReady=False     (waiting for ESO sync)                        │
-│  t=15s SecretsReady=True      (ESO secrets available)                       │
-│         DatabaseReady=False   (creating MariaDB CRs)                        │
-│  t=45s DatabaseReady=True     (db_sync completed)                           │
-│         FernetKeysReady=False (generating Fernet keys)                      │
-│  t=50s FernetKeysReady=True   (keys generated, CronJob created)             │
-│         DeploymentReady=False (pods starting)                               │
-│  t=80s DeploymentReady=True   (all replicas ready)                          │
-│         BootstrapReady=False  (running bootstrap job)                       │
-│  t=90s BootstrapReady=True    (bootstrap completed)                         │
-│         Ready=True            (all conditions met)                          │
+│  t=0   SecretsReady=False          (waiting for ESO sync)                   │
+│  t=15s SecretsReady=True           (ESO secrets available)                  │
+│         FernetKeysReady=False      (generating Fernet keys)                 │
+│  t=20s FernetKeysReady=True        (keys generated, CronJob created)        │
+│         CredentialKeysReady=False  (generating credential keys)             │
+│  t=25s CredentialKeysReady=True    (keys generated, CronJob created)        │
+│         DatabaseReady=False        (creating MariaDB CRs)                   │
+│  t=55s DatabaseReady=True          (db_sync completed)                      │
+│         NetworkPolicyReady=True    (policy applied)                         │
+│         DeploymentReady=False      (pods starting)                          │
+│  t=85s DeploymentReady=True        (all replicas ready)                     │
+│         HPAReady=True              (HPA configured or skipped)              │
+│         BootstrapReady=False       (running bootstrap job)                  │
+│  t=95s BootstrapReady=True         (bootstrap completed)                    │
+│         Ready=True                 (all conditions met)                     │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
