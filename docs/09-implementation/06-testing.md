@@ -13,7 +13,7 @@ CobaltCore operators are tested across three levels: unit tests for pure busines
 │                         ╱             ╲                                     │
 │                        ╱   E2E Tests   ╲       Chainsaw (YAML-based)        │
 │                       ╱  (Chainsaw)     ╲      Real cluster (kind)          │
-│                      ╱   ~10 scenarios   ╲     Slow, high confidence        │
+│                      ╱   ~15 scenarios   ╲     Slow, high confidence        │
 │                     ╱─────────────────────╲                                 │
 │                    ╱                       ╲                                │
 │                   ╱   Integration Tests     ╲   envtest (API server +       │
@@ -206,15 +206,20 @@ func TestKeystoneReconciler_CreatesDeployment(t *testing.T) {
 │      │   ├── 00-prerequisites.yaml  # ESO-simulated Secrets                 │
 │      │   ├── 01-keystone-cr.yaml    # Keystone CR to apply                  │
 │      │   └── 02-assertions.yaml     # Expected state assertions             │
+│      ├── autoscaling/                                                       │
+│      ├── brownfield-database/                                               │
+│      ├── credential-rotation/                                               │
+│      ├── deletion-cleanup/                                                  │
 │      ├── fernet-rotation/                                                   │
-│      │   ├── chainsaw-test.yaml                                             │
-│      │   └── ...                                                            │
+│      ├── image-upgrade/                                                     │
+│      ├── invalid-cr/                                                        │
+│      ├── middleware-config/                                                 │
 │      ├── missing-secret/                                                    │
-│      │   ├── chainsaw-test.yaml                                             │
-│      │   └── ...                                                            │
+│      ├── namespace-scoped-rbac/                                             │
+│      ├── network-policy/                                                    │
+│      ├── policy-overrides/                                                  │
+│      ├── resources/                                                         │
 │      └── scale/                                                             │
-│          ├── chainsaw-test.yaml                                             │
-│          └── ...                                                            │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -295,13 +300,20 @@ status:
 | Scenario | Description | Validates |
 | --- | --- | --- |
 | **Basic Deployment** | Apply Keystone CR, verify full readiness | Happy path, all sub-reconcilers |
-| **Image Upgrade** | Change `spec.image.tag`, verify rolling update | Deployment update, no downtime |
+| **Brownfield Database** | Apply CR with external database host/port | Brownfield mode, no MariaDB CRs created |
+| **Credential Rotation** | Trigger credential key rotation, verify key update | CronJob, CredentialKeysReady condition |
+| **Deletion Cleanup** | Delete Keystone CR, verify cleanup | Owner references, garbage collection |
 | **Fernet Rotation** | Trigger rotation, verify key count and restart | CronJob, Secret update, rolling restart |
-| **Database Failure** | Delete MariaDB Database CR, verify requeue | Error handling, condition degradation |
-| **Missing ESO Secret** | Apply Keystone CR without prerequisite Secrets | SecretsReady=False, requeue behavior |
+| **Image Upgrade** | Change `spec.image.tag`, verify rolling update | Deployment update, no downtime |
 | **Invalid CR** | Apply CR with invalid cron expression | Webhook rejection |
+| **Middleware Config** | Apply CR with WSGI middleware, verify api-paste.ini | Plugin/middleware rendering |
+| **Missing ESO Secret** | Apply Keystone CR without prerequisite Secrets | SecretsReady=False, requeue behavior |
+| **Namespace-Scoped RBAC** | Verify operator works with namespace-scoped permissions | RBAC, Roles/RoleBindings |
+| **Network Policy** | Apply CR with networkPolicy, verify NetworkPolicy resource | NetworkPolicyReady condition |
+| **Policy Overrides** | Apply CR with policyOverrides, verify policy.yaml | Policy rendering, oslo_policy config |
+| **Resources** | Apply CR with resource requests/limits, verify pod spec | Resource injection, QoS class |
 | **Scale Up/Down** | Change `spec.replicas`, verify pod count | Deployment scaling |
-| **Deletion** | Delete Keystone CR, verify cleanup | Owner references, garbage collection |
+| **Autoscaling** | Apply CR with autoscaling, verify HPA | HPAReady condition, HPA lifecycle |
 
 ## CI Test Execution
 

@@ -28,20 +28,31 @@ The monorepo approach trades release independence for development velocity — a
 │                       internal/common/ PACKAGES                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
+│  bootstrap/     Controller-runtime manager initialization                   │
 │  conditions/    Condition management for Status.Conditions                  │
 │  config/        INI config rendering pipeline                               │
 │  database/      MariaDB CR interaction and db_sync jobs                     │
-│  deployment/    Deployment and Service creation                             │
+│  deployment/    Deployment, Service, PDB, and HPA management               │
 │  job/           Kubernetes Job and CronJob management                       │
-│  messaging/     RabbitMQ Topology Operator CR interaction                   │
 │  secrets/       ESO secret readiness and PushSecret helpers                 │
 │  plugins/       Plugin and middleware config rendering                      │
 │  policy/        Policy file rendering and validation                       │
 │  tls/           cert-manager Certificate CR handling                        │
 │  types/         Shared Go struct definitions                                │
+│  testutil/      Test utilities (assertions, builders, envtest, simulators)  │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### bootstrap/
+
+Provides a shared entrypoint for all operator `main.go` files, encapsulating controller-runtime manager initialization, scheme registration, leader election, and namespace scoping.
+
+| Function | Description |
+| --- | --- |
+| `Run(cfg ManagerConfig) error` | Initialize and start a controller-runtime manager with the given configuration. Handles scheme setup, leader election, cache options, and graceful shutdown. |
+
+Each operator's `main.go` calls `bootstrap.Run()` with a `ManagerConfig` that specifies the scheme, leader election ID, and a setup function that registers controllers and webhooks.
 
 ### conditions/
 
@@ -60,9 +71,10 @@ Encapsulates interaction with the [MariaDB Operator's](../03-components/01-contr
 
 | Function | Description |
 | --- | --- |
-| `EnsureDatabase(ctx, client, owner, spec) (bool, error)` | Create or verify a MariaDB `Database` CR. Returns true when ready. |
-| `EnsureDatabaseUser(ctx, client, owner, spec) (bool, error)` | Create or verify a MariaDB `User` CR with `Grant` CR for privileges. |
-| `RunDBSyncJob(ctx, client, owner, image, command, env) (bool, error)` | Run a `db_sync` Kubernetes Job using the service image. Returns true when completed. |
+| `EnsureDatabase(ctx, client, scheme, owner, db) (bool, error)` | Create or verify a MariaDB `Database` CR. Returns true when ready. |
+| `EnsureDatabaseUser(ctx, client, scheme, owner, user, grant) (bool, error)` | Create or verify a MariaDB `User` CR with `Grant` CR for privileges. |
+| `RunDBSyncJob(ctx, client, scheme, owner, job) (bool, error)` | Run a `db_sync` Kubernetes Job using the service image. Returns true when completed. |
+| `IsDatabaseReady(db) bool` | Check if a MariaDB `Database` CR reports ready status. |
 
 ### messaging/
 
@@ -154,13 +166,16 @@ Override mechanisms described in [Customization](../05-deployment/03-service-con
 
 ### deployment/
 
-Creates and manages Kubernetes Deployments and Services.
+Creates and manages Kubernetes Deployments, Services, PodDisruptionBudgets, and HorizontalPodAutoscalers.
 
 | Function | Description |
 | --- | --- |
-| `EnsureDeployment(ctx, client, owner, spec) (bool, error)` | Create or update a Deployment. Returns true when available. |
-| `EnsureService(ctx, client, owner, spec) error` | Create or update a ClusterIP Service. |
-| `IsDeploymentReady(deployment *appsv1.Deployment) bool` | Check if all replicas are available. |
+| `EnsureDeployment(ctx, client, scheme, owner, deploy) (bool, error)` | Create or update a Deployment. Returns true when available. |
+| `EnsureService(ctx, client, scheme, owner, svc) error` | Create or update a ClusterIP Service. |
+| `EnsurePDB(ctx, client, scheme, owner, pdb) error` | Create or update a PodDisruptionBudget. |
+| `EnsureHPA(ctx, client, scheme, owner, hpa) error` | Create or update a HorizontalPodAutoscaler. |
+| `DeleteHPA(ctx, client, namespace, name) error` | Delete a HorizontalPodAutoscaler (used when `spec.autoscaling` is removed). |
+| `IsDeploymentReady(deploy *appsv1.Deployment) bool` | Check if all replicas are available. |
 
 ### job/
 
@@ -168,9 +183,11 @@ Manages one-shot Jobs and recurring CronJobs.
 
 | Function | Description |
 | --- | --- |
-| `RunJob(ctx, client, owner, spec) (bool, error)` | Create a Job and wait for completion. Returns true when succeeded. |
-| `EnsureCronJob(ctx, client, owner, spec) error` | Create or update a CronJob. |
+| `RunJob(ctx, client, scheme, owner, job) (bool, error)` | Create a Job and wait for completion. Returns true when succeeded. Detects PodSpec changes via hash annotation and recreates the Job when the spec changes. |
+| `EnsureCronJob(ctx, client, scheme, owner, cronJob) error` | Create or update a CronJob. |
 | `IsJobComplete(job *batchv1.Job) bool` | Check if a Job has completed successfully. |
+| `IsJobFailed(job *batchv1.Job) bool` | Check if a Job has failed. |
+| `PodSpecHash(spec *corev1.PodSpec) string` | Compute a SHA-256 hash of a PodSpec for change detection. |
 
 ### secrets/
 
@@ -227,9 +244,9 @@ Provides oslo.policy file rendering, merging, and validation for OpenStack servi
 | Function | Description |
 | --- | --- |
 | `RenderPolicyYAML(rules map[string]string) (string, error)` | Render a rule map as YAML suitable for oslo.policy consumption |
-| `MergePolicies(inline, external map[string]string) map[string]string` | Merge inline rules over external rules (inline takes precedence) |
-| `LoadPolicyFromConfigMap(ctx, client, namespace, name string) (map[string]string, error)` | Read and parse the `policy.yaml` key from a user-provided ConfigMap |
-| `ValidatePolicyRules(rules map[string]string) field.ErrorList` | Validate rule syntax (valid YAML, non-empty keys, non-empty values) |
+| `MergePolicies(base, override types.PolicySpec) types.PolicySpec` | Merge two PolicySpecs — override rules take precedence over base rules |
+| `LoadPolicyFromConfigMap(ctx, client, key client.ObjectKey) (map[string]string, error)` | Read and parse the `policy.yaml` key from a user-provided ConfigMap |
+| `ValidatePolicyRules(rules map[string]string, fldPath *field.Path) field.ErrorList` | Validate rule syntax (valid YAML, non-empty keys, non-empty values) |
 
 ### tls/
 
@@ -293,6 +310,13 @@ type CacheSpec struct {
     // Servers is the list of cache server endpoints (brownfield mode).
     // +optional
     Servers []string `json:"servers,omitempty"`
+    // Replicas is the number of Memcached pod replicas in the referenced cluster
+    // (managed mode). Used to generate the correct number of StatefulSet pod
+    // endpoints. Only used when ClusterRef is set.
+    // +optional
+    // +kubebuilder:default=3
+    // +kubebuilder:validation:Minimum=1
+    Replicas int32 `json:"replicas,omitempty"`
 }
 
 // SecretRefSpec references a Kubernetes Secret.
@@ -316,6 +340,18 @@ type PolicySpec struct {
     ConfigMapRef *corev1.LocalObjectReference `json:"configMapRef,omitempty"`
 }
 ```
+
+### testutil/
+
+Provides test infrastructure shared across all operator test suites. Organized into subdirectories:
+
+| Subdirectory | Purpose |
+| --- | --- |
+| `assertions/` | Gomega matchers and test assertion helpers |
+| `builders/` | Fluent builders for creating test CRDs and Kubernetes resources |
+| `envtest/` | Shared envtest setup and teardown utilities |
+| `fake_crds/` | CRD manifests for third-party resources (MariaDB, ESO) needed in envtest |
+| `simulators/` | Simulators for external controllers (e.g., simulating MariaDB Operator status updates) |
 
 ## Secret Flow Design Principle
 
