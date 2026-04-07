@@ -130,6 +130,7 @@ words:
   - knowledges
   - Kolla
   - korc
+  - Krkn
   - Kubebuilder
   - kubeconf
   - kubeconfig
@@ -200,6 +201,8 @@ words:
   - subresource
   - Syft
   - testutil
+  - Toxiproxy
+  - toxiproxy
   - traceparent
   - tracestate
   - uwsgi
