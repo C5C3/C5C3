@@ -1,4 +1,5 @@
-.claude
+.claude/*
+!.claude/skills/
 .serena
 node_modules/
 docs/.vitepress/dist/
