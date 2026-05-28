@@ -38,7 +38,9 @@ The existing E2E tests (see [Testing](./06-testing.md)) validate happy-path reco
 
 6. **GitHub Actions support** — official `chaos-mesh/chaos-mesh-action` installs Chaos Mesh into a kind cluster.
 
-### Complementary: Toxiproxy for Integration Tests
+### Complementary: Toxiproxy for Integration Tests <Badge type="info" text="planned" />
+
+> Not yet wired into forge — there is no Toxiproxy dependency or `database_resilience_test.go` today. The following is a proposed complement.
 
 For scenarios requiring fine-grained TCP-level fault injection (slow connections, partial reads,
 connection resets), Toxiproxy's Go client (`github.com/Shopify/toxiproxy/v2/client`) can be used
@@ -51,23 +53,17 @@ part of the E2E test suite but complements it at the integration test level.
 
 ### Chaos Mesh Installation
 
-Chaos Mesh is installed via Helm as part of the E2E infrastructure setup (`hack/deploy-infra.sh`), after FluxCD and before operator deployment:
+Chaos Mesh is **opt-in** and installed via a FluxCD `HelmRelease` kustomize overlay (`deploy/kind/chaos-mesh/` — `release.yaml`, `source.yaml`, `namespace.yaml`, `kustomization.yaml`), applied by `hack/deploy-infra.sh` only when `WITH_CHAOS_MESH=true`:
 
 ```bash
-# Step 9: Install Chaos Mesh (CI-only, no dashboard)
-helm repo add chaos-mesh https://charts.chaos-mesh.org
-helm install chaos-mesh chaos-mesh/chaos-mesh \
-  --namespace chaos-mesh --create-namespace \
-  --set dashboard.create=false \
-  --set dnsServer.create=false \
-  --set controllerManager.resources.requests.cpu=25m \
-  --set controllerManager.resources.requests.memory=256Mi \
-  --set chaosDaemon.resources.requests.cpu=100m \
-  --set chaosDaemon.resources.requests.memory=256Mi \
-  --wait --timeout "${HELMRELEASE_TIMEOUT}"
+# Opt in to Chaos Mesh; default Quick Start / production overlays omit it.
+WITH_CHAOS_MESH=true make deploy-infra
+# deploy-infra.sh then runs: kubectl apply -k deploy/kind/chaos-mesh
 ```
 
-For local development, Chaos Mesh can be skipped (`SKIP_CHAOS_MESH=true`) to reduce resource usage.
+The overlay's `release.yaml` pins `version: ">=2.6.0 <3.0.0"` and `dependsOn: cert-manager`; it does not set the resource/dashboard `--set` overrides shown in older drafts. For NetworkChaos, `deploy-infra.sh` also loads the required kernel modules (`ip_set`, `xt_set`, `sch_netem`).
+
+> The default flag is `WITH_CHAOS_MESH=false` (opt-in). There is no `SKIP_CHAOS_MESH` flag.
 
 ### kind Cluster Configuration
 
@@ -79,84 +75,87 @@ Chaos E2E tests run as a **separate GitHub Actions job** that depends on the sta
 
 ```yaml
 e2e-chaos:
-  runs-on: ubuntu-latest
-  needs: [e2e-operators]
-  if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'run-chaos')
-  timeout-minutes: 60
+  # Split into two matrix legs: Pod faults run on a Blacksmith runner; Network
+  # faults need a runner whose kernel exposes ip_set/xt_set/sch_netem, so they
+  # run on stock ubuntu-24.04 (CC-0047).
+  strategy:
+    matrix:
+      include:
+        - suite: pod
+          runner: blacksmith-4vcpu-ubuntu-2404
+        - suite: network
+          runner: ubuntu-24.04
+  runs-on: ${{ matrix.runner }}
+  needs: [changes, lint, shellcheck, test, test-integration, verify-codegen, chainsaw-lint, build-e2e-images]
+  # Non-blocking: chaos is informational and must not gate merges (CC-0054).
+  continue-on-error: true
+  # Runs when Go / chaos-test files change, or on PRs labeled run-chaos.
   steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version: "1.25"
-    - name: Create kind cluster and deploy infrastructure
-      run: make deploy-infra
-    - name: Install Chaos Mesh
-      uses: chaos-mesh/chaos-mesh-action@v0.5
-    - name: Deploy operators
-      run: make deploy OPERATOR=keystone
-    - name: Run chaos E2E tests
-      run: make e2e-chaos OPERATOR=keystone
+    - uses: ./.github/actions/setup-e2e-infra   # WITH_CHAOS_MESH=true
+    - run: ./hack/ci-deploy-operator.sh keystone
+    - run: chainsaw test --config tests/e2e-chaos/chainsaw-config.yaml <explicit test_dirs for ${{ matrix.suite }}>
 ```
 
-**Trigger policy:** Chaos tests run on every push to `main` and on PRs labeled `run-chaos`. They do **not** block every PR merge (3-5x slower than standard E2E tests).
+**Trigger policy:** the `e2e-operator` dependency was intentionally removed (CC-0049) so chaos runs in parallel; it is `continue-on-error: true` (non-blocking, CC-0054) and triggered by change-detection or the `run-chaos` label. Setup uses the `setup-e2e-infra` composite action + GHCR image load — not `chaos-mesh/chaos-mesh-action`.
 
 ### Makefile Target
 
 ```makefile
 .PHONY: e2e-chaos
 e2e-chaos: ## Run chaos E2E tests (requires Chaos Mesh in cluster)
-    chainsaw test tests/e2e-chaos/$(OPERATOR)/ \
-      --config tests/e2e-chaos/chainsaw-config.yaml \
-      --report-format junit-test \
-      --report-path _output/reports
+	@kubectl cluster-info >/dev/null 2>&1 || { echo "no reachable cluster"; exit 1; }
+	@kubectl get ns chaos-mesh >/dev/null 2>&1 || { \
+	  echo "chaos-mesh namespace missing — run WITH_CHAOS_MESH=true make deploy-infra"; exit 1; }
+	chainsaw test --config tests/e2e-chaos/chainsaw-config.yaml tests/e2e-chaos/
 ```
+
+The target takes no `OPERATOR` variable; report format/path are configured in `chainsaw-config.yaml`.
 
 ## Test Directory Layout
 
+Scenarios live **flat** directly under `tests/e2e-chaos/` (no per-operator `keystone/` level), with shared helper scripts alongside. The `chaos-mesh-health` test lives in the standard e2e tree under `tests/e2e/infrastructure/`.
+
 ```text
 tests/e2e-chaos/
-├── chainsaw-config.yaml                    # Chaos-specific Chainsaw config (longer timeouts)
-├── keystone/
-│   ├── mariadb-pod-kill/
-│   │   ├── chainsaw-test.yaml
-│   │   ├── 00-keystone-cr.yaml
-│   │   └── 01-podchaos-kill-mariadb.yaml
-│   ├── mariadb-network-latency/
-│   │   ├── chainsaw-test.yaml
-│   │   ├── 00-keystone-cr.yaml
-│   │   └── 01-networkchaos-latency.yaml
-│   ├── mariadb-network-partition/
-│   ├── memcached-pod-kill/
-│   ├── memcached-network-partition/
-│   ├── openbao-pod-kill/
-│   ├── cert-manager-pod-kill/
-│   ├── operator-pod-kill/
-│   ├── api-pod-kill-with-pdb/
-│   ├── cronjob-failure/
-│   └── multi-dependency-failure/
-└── infrastructure/
-    └── chaos-mesh-health/
-        └── chainsaw-test.yaml
+├── chainsaw-config.yaml                    # Chaos-specific Chainsaw config
+├── diagnostics.sh                          # Shared baseline/chaos catch-block helper
+├── unseal-openbao.sh
+├── mariadb-pod-kill/
+│   ├── chainsaw-test.yaml
+│   ├── 00-keystone-cr.yaml
+│   └── 01-podchaos-kill-mariadb.yaml
+├── mariadb-network-latency/
+├── mariadb-network-partition/
+├── memcached-pod-kill/
+├── openbao-pod-kill/
+├── operator-pod-crash/                     # mode: one (single-pod recovery, CC-0048)
+├── operator-pod-kill/                      # mode: all (leader re-election, CC-0066)
+├── api-pod-kill-pdb/
+└── cronjob-rotation-failure/
+
+tests/e2e/infrastructure/chaos-mesh-health/  # health check, standard e2e tree
 ```
+
+> Directory names align with forge: `api-pod-kill-pdb` (not `-with-pdb`), `cronjob-rotation-failure` (not `cronjob-failure`), and **two** operator-failure tests. The `cert-manager-pod-kill`, `memcached-network-partition`, and `multi-dependency-failure` directories below in the scenario catalog are **planned, not yet implemented**.
 
 ### Chainsaw Configuration for Chaos Tests
 
 ```yaml
 # tests/e2e-chaos/chainsaw-config.yaml
-apiVersion: chainsaw.kyverno.io/v1alpha1
+apiVersion: chainsaw.kyverno.io/v1alpha2
 kind: Configuration
 metadata:
-  name: chaos-e2e
+  name: cloud-operator-e2e-chaos
 spec:
   timeouts:
     apply: 30s
     assert: 300s       # 5m — chaos recovery is slower than happy-path
     cleanup: 120s      # Chaos CRs need cleanup time
-    delete: 60s
-    error: 60s
-    exec: 60s
+    delete: 30s        # matches happy-path; deliberately not relaxed
+    error: 30s
+    exec: 30s
   execution:
-    parallel: 2         # Lower parallelism — chaos tests compete for shared infra
+    parallel: 1         # Serial — prevents cross-test interference on shared infra
     failFast: true
   cleanup:
     skipDelete: false
@@ -293,13 +292,18 @@ spec:
 
 **Objective:** ESO ExternalSecrets temporarily fail to sync. Operator tolerates this because it reads Kubernetes Secrets (not OpenBao directly). Already-synced Secrets remain available. When OpenBao returns, ExternalSecrets resume syncing.
 
-#### SC-CHAOS-004: cert-manager Pod Kill
+#### SC-CHAOS-004: cert-manager Pod Kill <Badge type="info" text="planned" />
 
 **Objective:** Certificate renewals are delayed but existing TLS Secrets remain valid. Operator continues to serve traffic with existing certificates. When cert-manager returns, pending renewals complete.
 
 #### SC-CHAOS-005: Operator Pod Kill (Self-Healing)
 
-**Objective:** The operator Deployment restarts the killed operator pod. Reconciliation resumes. No user-visible state regression — the Keystone CR status remains consistent.
+Forge implements this as **two** distinct tests, and the operator runs in its own `keystone-system` namespace (CC-0105), targeted cross-namespace from the `openstack`-namespaced PodChaos:
+
+* `operator-pod-crash/` — `mode: one` kills a single operator pod; verifies the Deployment restarts it and reconciliation resumes (CC-0048).
+* `operator-pod-kill/` — `mode: all` kills every operator pod to force **leader re-election**, then a follow-up step patches `spec.replicas` (1→2) to prove the new leader can reconcile spec changes after failover (CC-0066).
+
+No user-visible state regression — the Keystone CR status remains consistent across both.
 
 ### Category 2: Network Fault Injection
 
@@ -376,7 +380,7 @@ spec:
 2. Condition updates continue to be processed (the operator is not deadlocked)
 3. After the latency injection ends, the operator recovers to `Ready=True`
 
-#### SC-CHAOS-008: Memcached Network Partition
+#### SC-CHAOS-008: Memcached Network Partition <Badge type="info" text="planned" />
 
 **Objective:** Keystone API remains functional without cache. Performance degrades but availability is maintained. `Ready` condition stays `True`.
 
@@ -408,31 +412,18 @@ spec:
 1. During the kill: `(availableReplicas >= \`1\`)` remains true (PDB protects minimum availability)
 2. After recovery: `Ready=True` and replica count matches spec
 
-#### SC-CHAOS-010: CronJob Failure Reporting
+#### SC-CHAOS-010: CronJob Rotation Failure (resilience, not degradation)
 
-**Objective:** When a Fernet key rotation CronJob fails (e.g., because MariaDB is unavailable during rotation), the operator detects the failure and updates the `FernetKeysReady` condition within a reasonable time window.
+**Objective:** A transient failure of the Fernet rotation Job must **not** degrade Keystone. Because the existing fernet keys remain valid and projected in-place, killing the rotation Job leaves `FernetKeysReady=True` and `Ready=True` — the operator does not flip the condition False on a single failed rotation.
 
-This addresses the issue comment: *"make sure you verify the condition reporting happens within a reasonable time window, not just that it eventually appears."*
-
-**Approach:**
-1. Deploy Keystone with Fernet rotation enabled
-2. Inject a MariaDB network partition
-3. Trigger the Fernet rotation CronJob manually (`kubectl create job --from=cronjob/...`)
-4. Assert `FernetKeysReady` condition changes within a bounded timeout (e.g., 60s, not the default 5m)
-5. Remove the partition
-6. Trigger rotation again
-7. Assert `FernetKeysReady=True` within 60s
+> The implemented test (`tests/e2e-chaos/cronjob-rotation-failure/`) asserts the **opposite** of an earlier draft: it injects a `PodChaos` `pod-failure` on the rotation Job and verifies status **stays** `True` (assert timeout 5m), rather than expecting a bounded-60s flip to `False`.
 
 ```yaml
-# Step: Trigger CronJob during MariaDB outage and assert timely condition update
-- name: Verify timely failure condition
-  timeouts:
-    assert: 60s    # Bounded timeout — condition must appear quickly
+# Inject a pod-failure on the rotation Job, then assert status is maintained
+- name: Verify rotation failure does not degrade Keystone
   try:
-    - script:
-        content: |
-          kubectl create job -n $NAMESPACE fernet-rotation-test \
-            --from=cronjob/keystone-chaos-cron-fernet-rotation
+    - apply:
+        file: 01-podchaos-fail-rotation.yaml   # action: pod-failure on the rotate Job
     - assert:
         resource:
           apiVersion: keystone.openstack.c5c3.io/v1alpha1
@@ -441,12 +432,16 @@ This addresses the issue comment: *"make sure you verify the condition reporting
             name: keystone-chaos-cron
           status:
             (conditions[?type == 'FernetKeysReady']):
-              - status: "False"
+              - status: "True"
+            (conditions[?type == 'Ready']):
+              - status: "True"
 ```
+
+The CronJob triggered is `keystone-chaos-cron-fernet-rotate`.
 
 ### Category 4: Multi-Dependency Failures
 
-#### SC-CHAOS-011: Simultaneous MariaDB + Memcached Failure
+#### SC-CHAOS-011: Simultaneous MariaDB + Memcached Failure <Badge type="info" text="planned" />
 
 **Objective:** When both database and cache fail simultaneously, the operator reports all affected conditions accurately and recovers both when services return. Tests that the operator does not mask one failure behind another.
 
@@ -473,19 +468,21 @@ This addresses the issue comment: *"make sure you verify the condition reporting
               - status: "False"
 ```
 
-### Category 5: Infrastructure Component Resilience
+### Category 5: Infrastructure Component Resilience <Badge type="info" text="planned" />
 
-These scenarios test the infrastructure stack itself, not just the operators.
+These scenarios test the infrastructure stack itself, not just the operators. Neither is implemented in forge yet.
 
-#### SC-CHAOS-012: FluxCD Controller Restart
+#### SC-CHAOS-012: FluxCD Controller Restart <Badge type="info" text="planned" />
 
 **Objective:** FluxCD HelmRelease reconciliation resumes after the Flux controllers are killed. Existing HelmReleases remain deployed. New changes are reconciled when Flux recovers.
 
-#### SC-CHAOS-013: ESO Controller Restart
+#### SC-CHAOS-013: ESO Controller Restart <Badge type="info" text="planned" />
 
 **Objective:** ExternalSecrets continue to serve cached Secrets during ESO controller outage. When ESO recovers, Secret sync resumes. Operators are unaffected because they read Kubernetes Secrets, not ESO directly.
 
 ## Scenario Matrix
+
+Implemented today: SC-CHAOS-001/002/003 (pod kills), 005 (both operator variants), 006/007 (network partition/latency), 009 (API pod kill + PDB), 010 (rotation-failure resilience). Planned: SC-CHAOS-004, 008, 011, 012, 013.
 
 | ID | Scenario | Chaos Type | Target | Expected Operator Behavior | Timeout |
 | --- | --- | --- | --- | --- | --- |
@@ -538,7 +535,11 @@ Chainsaw's automatic cleanup removes chaos CRs at test end. Additionally, each t
 
 ### Parallelism
 
-Chaos tests run with `parallel: 2` (vs. `parallel: 4` for standard E2E) because chaos experiments affect shared infrastructure components. Tests that target the same infrastructure (e.g., two tests both killing MariaDB) must not run concurrently.
+Chaos tests run **serially** (`parallel: 1`) because chaos experiments affect shared infrastructure components and concurrent faults would interfere with each other. CI splits the suite across two runners by fault class (Pod vs Network) rather than running tests concurrently on one cluster.
+
+### Shared catch helper
+
+Catch blocks call the shared `tests/e2e-chaos/diagnostics.sh` (with `baseline` / `chaos` modes) rather than duplicating inline diagnostic scripts per test.
 
 ## Implementation Phases
 
@@ -570,7 +571,9 @@ Chaos tests run with `parallel: 2` (vs. `parallel: 4` for standard E2E) because 
 * Implement SC-CHAOS-013 (ESO controller restart)
 * Extend to additional operators (Glance, Nova, Neutron, Cinder, Placement) as they are implemented
 
-## Integration Test Complement: Toxiproxy
+## Integration Test Complement: Toxiproxy <Badge type="info" text="planned" />
+
+> Proposed, not yet implemented in forge.
 
 For TCP-level slow degradation testing (the scenario where MariaDB responds but with extreme latency), Toxiproxy can be added as a Go dependency for envtest-level integration tests:
 

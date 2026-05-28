@@ -1,8 +1,14 @@
 # C5C3 Operator
 
-The c5c3-operator is the central orchestration operator in CobaltCore. It reads a single `ControlPlane` CR and from it creates, configures, and monitors all infrastructure and OpenStack service CRs. This page documents the ControlPlane CRD, the orchestration reconciler, infrastructure lifecycle, service CR projection, K-ORC integration, and rollout strategy.
+The c5c3-operator is the planned central orchestration operator in CobaltCore. It will read a single `ControlPlane` CR and from it create, configure, and monitor all infrastructure and OpenStack service CRs. This page documents the ControlPlane CRD, the orchestration reconciler, infrastructure lifecycle, service CR projection, K-ORC integration, and rollout strategy.
 
 For the high-level architecture, see [Control Plane — C5C3 Operator](../03-components/01-control-plane/01-c5c3-operator.md). For CRD definitions, see [CRDs](../04-architecture/01-crds.md).
+
+::: warning Status: planned — not yet implemented
+The c5c3-operator currently exists as a **stub**. `operators/c5c3/` contains only a `main.go` that starts a controller-runtime manager via the shared [`bootstrap`](./02-shared-library.md#bootstrap) package (leader-election ID `c5c3.openstack.c5c3.io`); its `SetupFunc` registers **no controllers** yet (`// +kubebuilder:scaffold:builder`). There is no `api/`, no `ControlPlane`/`SecretAggregate`/`CredentialRotation` Go types, and no orchestration reconciler in forge.
+
+Everything below describes the **intended design**, consistent with the Keystone-first strategy: Keystone is the concrete reference implementation today; the c5c3-operator and the remaining service operators follow it. Present-tense descriptions of c5c3-operator behavior are aspirational.
+:::
 
 ## Design Principle: Configuration Control Plane
 
@@ -218,7 +224,7 @@ type ServiceStatus struct {
 
 ## Orchestration Reconciler
 
-The c5c3-operator reconciler reads the ControlPlane CR and executes a phased deployment:
+The c5c3-operator reconciler will read the ControlPlane CR and execute a phased deployment:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -290,7 +296,7 @@ The c5c3-operator reconciler reads the ControlPlane CR and executes a phased dep
 
 ## Infrastructure Lifecycle and Dynamic Endpoint Discovery
 
-The c5c3-operator creates infrastructure clusters at runtime. Endpoints are **not** known at CR creation time — they are discovered dynamically from infrastructure CR status fields.
+The c5c3-operator will create infrastructure clusters at runtime. Endpoints are **not** known at CR creation time — they are to be discovered dynamically from infrastructure CR status fields.
 
 ### Endpoint Resolution
 
@@ -357,7 +363,7 @@ In managed mode, each service operator uses the shared `messaging/` library (see
 
 ## ControlPlane-to-Service CR Projection
 
-The c5c3-operator translates the ControlPlane CR into per-service CRs. This section shows a concrete example.
+The c5c3-operator will translate the ControlPlane CR into per-service CRs. This section shows a concrete example of the intended projection.
 
 ### Input: ControlPlane CR
 
@@ -556,7 +562,7 @@ spec:
 
 ## K-ORC Integration
 
-After Keystone is Ready, the c5c3-operator creates K-ORC CRs for service catalog management:
+After Keystone is Ready, the c5c3-operator will create K-ORC CRs for service catalog management:
 
 1. **Import bootstrap resources** (`managementPolicy: unmanaged`): Domain, Service Project, Roles — created by the Keystone Bootstrap Job
 2. **Create Services and Endpoints** (`managementPolicy: managed`): One Service + Endpoint pair per OpenStack service
@@ -567,7 +573,7 @@ For the full K-ORC flow, see [Control Plane — K-ORC](../03-components/01-contr
 
 ## SecretAggregate CRD
 
-The `SecretAggregate` CRD merges multiple Kubernetes Secrets into a single aggregated Secret. This is useful when a service needs credentials from multiple sources in a single mount.
+The `SecretAggregate` CRD (planned) will merge multiple Kubernetes Secrets into a single aggregated Secret. This is useful when a service needs credentials from multiple sources in a single mount.
 
 ```go
 // SecretAggregate aggregates multiple K8s Secrets into one.
@@ -617,7 +623,9 @@ spec:
 
 ## CredentialRotation CRD
 
-The `CredentialRotation` CRD automates Application Credential rotation for OpenStack services. It works in coordination with K-ORC and the OpenBao/ESO pipeline.
+The `CredentialRotation` CRD (planned) will automate **Application Credential** rotation for OpenStack services, in coordination with K-ORC and the OpenBao/ESO pipeline.
+
+> **Not to be confused with the already-built keystone-operator key rotation.** Keystone today rotates **cryptographic keys** — Fernet token keys and credential *encryption* keys (`reconcile_fernet.go`, `reconcile_credential.go`, `rotation_staging.go`, `rotation_validation.go`; see [Keystone Dependencies](./05-keystone-dependencies.md#fernet-key-lifecycle)). That is a distinct mechanism living in the keystone-operator. The c5c3-level `CredentialRotation` CRD described here rotates Keystone *Application Credentials* and does not yet exist in forge.
 
 ```go
 // CredentialRotation defines an automatic rotation schedule.
@@ -666,7 +674,7 @@ For the full credential lifecycle, see [Credential Lifecycle](../05-deployment/0
 
 ## Rollout Strategy
 
-The c5c3-operator implements phased updates inspired by ConfigHub's ChangeSets concept. When the ControlPlane CR changes, the operator tracks progress through well-defined phases:
+The c5c3-operator will implement phased updates inspired by ConfigHub's ChangeSets concept. When the ControlPlane CR changes, the operator is designed to track progress through well-defined phases:
 
 ### Update Phases
 
@@ -721,6 +729,8 @@ On failure in any phase, the c5c3-operator reverts to the previous known-good st
 The `updatePhase` transitions to `RollingBack` and then to `Complete` once the rollback succeeds.
 
 ## Controller Setup
+
+> **Planned wiring.** The current stub registers no controllers — `operators/c5c3/main.go`'s `SetupFunc` is empty (`// +kubebuilder:scaffold:builder — register controllers here`). The `ControlPlaneReconciler`, its `Owns(...)` set, and the RBAC markers below are the target wiring once the CRD and reconciler are implemented.
 
 ```go
 func (r *ControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {

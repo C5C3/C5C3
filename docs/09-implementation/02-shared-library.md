@@ -50,9 +50,23 @@ Provides a shared entrypoint for all operator `main.go` files, encapsulating con
 
 | Function | Description |
 | --- | --- |
-| `Run(cfg ManagerConfig) error` | Initialize and start a controller-runtime manager with the given configuration. Handles scheme setup, leader election, cache options, and graceful shutdown. |
+| `Run(cfg ManagerConfig) error` | Initialize and start a controller-runtime manager with the given configuration. Parses flags (`--metrics-bind-address`, `--health-probe-bind-address`, `--leader-elect`, `--namespace`, `--enable-webhooks`, sync period), sets up zap logging, health/readiness probes, leader election, and graceful shutdown. |
 
-Each operator's `main.go` calls `bootstrap.Run()` with a `ManagerConfig` that specifies the scheme, leader election ID, and a setup function that registers controllers and webhooks.
+`ManagerConfig` carries:
+
+```go
+type ManagerConfig struct {
+    Scheme           *runtime.Scheme
+    LeaderElectionID string
+    // Namespace restricts the manager cache to a single namespace
+    // when set (namespace-scoped mode, CC-0043); cluster-scoped otherwise.
+    Namespace string
+    // SetupFunc registers controllers and (when enableWebhooks is true) webhooks.
+    SetupFunc func(mgr ctrl.Manager, enableWebhooks bool) error
+}
+```
+
+Each operator's `main.go` calls `bootstrap.Run()` with a `ManagerConfig`. The `SetupFunc` receives the manager and an `enableWebhooks` bool (driven by the `--enable-webhooks` flag) so webhook registration can be skipped in environments where it is not wanted.
 
 ### conditions/
 
@@ -75,10 +89,14 @@ Encapsulates interaction with the [MariaDB Operator's](../03-components/01-contr
 | `EnsureDatabaseUser(ctx, client, scheme, owner, user, grant) (bool, error)` | Create or verify a MariaDB `User` CR with `Grant` CR for privileges. |
 | `RunDBSyncJob(ctx, client, scheme, owner, job) (bool, error)` | Run a `db_sync` Kubernetes Job using the service image. Returns true when completed. |
 | `IsDatabaseReady(db) bool` | Check if a MariaDB `Database` CR reports ready status. |
+| `IsUserReady(user) bool` | Check if a MariaDB `User` CR reports ready status. |
+| `IsGrantReady(grant) bool` | Check if a MariaDB `Grant` CR reports ready status. |
 
-### messaging/
+### messaging/ <Badge type="info" text="planned" />
 
-Encapsulates interaction with the [RabbitMQ Messaging Topology Operator's](../03-components/01-control-plane/06-infrastructure-operators.md#rabbitmq-messaging-topology-operator) CRDs. Analogous to the `database/` package — each service operator uses this package to create per-service vhosts, users, and permissions as Kubernetes CRs. In brownfield mode (explicit hosts), no Topology CRs are created.
+> **Status: planned — not yet implemented.** No `messaging/` package exists in forge today (Keystone, the only built operator, needs no message bus). The shared `types.MessagingSpec` is already defined, and this package will be added with the first messaging-dependent operator (Nova/Neutron/Cinder). The design below is the intended shape.
+
+Encapsulates interaction with the [RabbitMQ Messaging Topology Operator's](../03-components/01-control-plane/06-infrastructure-operators.md#rabbitmq-messaging-topology-operator) CRDs. Analogous to the `database/` package — each service operator will use this package to create per-service vhosts, users, and permissions as Kubernetes CRs. In brownfield mode (explicit hosts), no Topology CRs are created.
 
 | Function | Description |
 | --- | --- |
@@ -157,9 +175,10 @@ Implements the config generation pipeline documented in [Config Generation](../0
 | --- | --- |
 | `RenderINI(sections map[string]map[string]string) string` | Render a map of sections/keys into INI format |
 | `MergeDefaults(userConfig, defaults map[string]map[string]string) map[string]map[string]string` | Merge user-provided config with operator defaults (user values take precedence) |
-| `CreateImmutableConfigMap(ctx, client, owner, name, data) (*corev1.ConfigMap, error)` | Create an immutable ConfigMap with a content-hash suffix in its name |
+| `CreateImmutableConfigMap(ctx, client, scheme, owner, baseName, namespace string, data map[string]string) (string, error)` | Create an immutable ConfigMap whose name carries a content-hash suffix. Returns the generated ConfigMap **name**. |
+| `PruneImmutableConfigMaps(ctx, client, owner, baseName, namespace, currentName string, retain int) error` | Garbage-collect superseded immutable ConfigMaps for a base name, keeping `currentName` plus the most recent `retain`. |
 | `InjectSecrets(config map[string]map[string]string, secrets map[string]string) map[string]map[string]string` | Assemble connection strings from resolved secret values (e.g., `mysql+pymysql://USERNAME:PASSWORD@HOST:PORT/DB`) |
-| `InjectOsloPolicyConfig(config map[string]map[string]string, policyFilePath string)` | Inject `[oslo_policy] policy_file = <path>` into the INI config when policy overrides are present |
+| `InjectOsloPolicyConfig(config map[string]map[string]string, policyFilePath string) map[string]map[string]string` | Return a copy of the INI config with `[oslo_policy] policy_file = <path>` set, when policy overrides are present |
 
 The config package directly implements the pipeline from [Config Generation](../05-deployment/03-service-configuration/01-config-generation.md): CRD spec → resolve secrets → apply defaults → render INI → immutable ConfigMap.
 Override mechanisms described in [Customization](../05-deployment/03-service-configuration/03-customization.md) (configOverrides, conf.d pattern) are supported via `MergeDefaults` with user-provided overrides taking precedence. When `policyOverrides` are configured, `InjectOsloPolicyConfig` adds the `[oslo_policy]` section pointing to the rendered `policy.yaml` file (see `policy/` package).
@@ -195,10 +214,12 @@ Provides helpers for ESO-based secret workflows. Operators never interact with O
 
 | Function | Description |
 | --- | --- |
-| `WaitForExternalSecret(ctx, client, namespace, name) (bool, error)` | Check if an ExternalSecret has synced and the target K8s Secret exists. Returns true when ready. |
-| `IsSecretReady(ctx, client, namespace, name) (bool, error)` | Verify that a K8s Secret exists and contains expected keys. |
-| `EnsurePushSecret(ctx, client, owner, spec) error` | Create or update a PushSecret CR to write operator-generated secrets back to OpenBao. |
-| `GetSecretValue(ctx, client, namespace, name, key) (string, error)` | Read a specific key from a K8s Secret. |
+| `WaitForExternalSecret(ctx, client, key client.ObjectKey) (bool, error)` | Check if an ExternalSecret has synced and the target K8s Secret exists. Returns true when ready. |
+| `IsSecretReady(ctx, client, key client.ObjectKey, expectedKeys ...string) (bool, error)` | Verify that a K8s Secret exists and contains the expected keys. |
+| `IsClusterSecretStoreReady(ctx, client, name string) (bool, error)` | Verify that the named ESO `ClusterSecretStore` reports a Ready condition before reading from it. |
+| `EnsurePushSecret(ctx, client, scheme *runtime.Scheme, owner client.Object, ps *esov1alpha1.PushSecret) error` | Create or update a PushSecret CR to write operator-generated secrets back to OpenBao. |
+| `GetSecretValue(ctx, client, key client.ObjectKey, dataKey string) (string, error)` | Read a specific key from a K8s Secret. |
+| `IsMissingSecretOrKey(err error) bool` | Classify an error as "Secret or key not yet present" so callers can requeue rather than fail. |
 
 **PushSecret pattern:** Some secrets are generated by operators at runtime (e.g., Fernet keys). These are written to a Kubernetes Secret and then pushed to OpenBao via a PushSecret CR for backup and cross-cluster distribution. See [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md) for the full ESO/PushSecret flow.
 
@@ -208,13 +229,14 @@ Provides a generic plugin and middleware configuration framework usable by all O
 
 | Function | Description |
 | --- | --- |
-| `RenderPastePipeline(pipelineSpec PipelineSpec) string` | Generate `api-paste.ini` from a declarative pipeline specification. Operators define a base pipeline and add middleware filters (e.g., audit, CORS, rate limiting) from the CRD. |
-| `RenderPluginConfig(plugins []PluginSpec) map[string]map[string]string` | Generate INI config sections for service plugins (e.g., `[keycloak]` for keystone-keycloak-backend, `[filter:audit]` for openstack-audit-middleware). |
+| `RenderPastePipeline(spec PipelineSpec) (map[string]map[string]string, error)` | Build the `api-paste.ini` section map from a declarative pipeline specification. Operators define a base pipeline and add middleware filters (e.g., audit, CORS, rate limiting) from the CRD. |
+| `RenderPastePipelineINI(spec PipelineSpec) (string, error)` | Convenience wrapper that renders the pipeline section map directly to INI text. |
+| `RenderPluginConfig(plugins []types.PluginSpec) (map[string]map[string]string, error)` | Generate INI config sections for service plugins (e.g., `[keycloak]` for keystone-keycloak-backend, `[filter:audit]` for openstack-audit-middleware). |
 
-**Shared types:**
+`PipelineSpec` is defined in the `plugins` package; `PluginSpec`, `MiddlewareSpec`, and the `PipelinePosition` enum (`PipelinePositionBefore` / `PipelinePositionAfter`) live in the shared `types` package:
 
 ```go
-// PluginSpec defines a service plugin/driver configuration.
+// PluginSpec defines a service plugin/driver configuration (package types).
 type PluginSpec struct {
     // Name of the plugin (e.g., "keystone-keycloak-backend")
     Name string `json:"name"`
@@ -254,8 +276,9 @@ Integrates with cert-manager for TLS certificate provisioning.
 
 | Function | Description |
 | --- | --- |
-| `EnsureCertificate(ctx, client, owner, spec) error` | Create or update a cert-manager `Certificate` CR. |
-| `GetTLSSecret(ctx, client, namespace, name) (*corev1.Secret, error)` | Retrieve the TLS Secret created by cert-manager. |
+| `EnsureCertificate(ctx, client, scheme *runtime.Scheme, owner client.Object, cert *certmanagerv1.Certificate) (bool, error)` | Create or update a cert-manager `Certificate` CR. Returns true when the certificate is ready. |
+| `IsCertificateReady(ctx, client, key client.ObjectKey) (bool, error)` | Check whether a cert-manager `Certificate` reports a Ready condition. |
+| `GetTLSSecret(ctx, client, key client.ObjectKey) (certPEM []byte, keyPEM []byte, err error)` | Retrieve the `tls.crt` / `tls.key` material from the Secret created by cert-manager. |
 
 ### types/
 
@@ -284,6 +307,29 @@ type DatabaseSpec struct {
     Database string `json:"database"`
     // SecretRef references the K8s Secret with credentials.
     SecretRef SecretRefSpec `json:"secretRef"`
+    // TLS optionally enables TLS/mTLS for the database connection (CC-0106).
+    // A nil TLS means plaintext TCP — opt-in and non-mutating.
+    // +optional
+    TLS *DatabaseTLSSpec `json:"tls,omitempty"`
+}
+
+// DatabaseTLSSpec configures opt-in TLS (and mutual TLS) for a database
+// connection (CC-0106). Referenced as an optional pointer from DatabaseSpec.
+type DatabaseTLSSpec struct {
+    // Enabled turns on TLS. When true the operator provisions the client
+    // certificate, appends the ssl_* DSN parameters, and mounts the
+    // certificate material into workloads that open a connection.
+    Enabled bool `json:"enabled"`
+    // Mode selects verification strength: prefer/require (encrypt only),
+    // verify-ca (verify server chain), verify-full (verify chain + hostname).
+    // +kubebuilder:validation:Enum=prefer;require;verify-ca;verify-full
+    // +optional
+    Mode string `json:"mode,omitempty"`
+    // CABundleSecretRef references the Secret holding the server CA bundle.
+    CABundleSecretRef SecretRefSpec `json:"caBundleSecretRef"`
+    // ClientCertSecretRef references the Secret holding the client keypair
+    // presented to the database for mutual TLS.
+    ClientCertSecretRef SecretRefSpec `json:"clientCertSecretRef"`
 }
 
 // MessagingSpec supports managed (ClusterRef) and brownfield (explicit) modes.
@@ -429,7 +475,7 @@ import (
     "github.com/c5c3/forge/internal/common/database"
     "github.com/c5c3/forge/internal/common/deployment"
     "github.com/c5c3/forge/internal/common/job"
-    "github.com/c5c3/forge/internal/common/messaging"  // used by Nova, Neutron, Cinder
+    // "github.com/c5c3/forge/internal/common/messaging"  // planned — Nova, Neutron, Cinder
     "github.com/c5c3/forge/internal/common/secrets"
     "github.com/c5c3/forge/internal/common/plugins"
     "github.com/c5c3/forge/internal/common/policy"
@@ -443,7 +489,7 @@ func (r *KeystoneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
     // Check ESO-provided secrets
     ready, err := secrets.WaitForExternalSecret(ctx, r.Client,
-        keystone.Namespace, keystone.Spec.Database.SecretRef.Name)
+        client.ObjectKey{Namespace: keystone.Namespace, Name: keystone.Spec.Database.SecretRef.Name})
     if !ready {
         conditions.SetCondition(&keystone.Status.Conditions, metav1.Condition{
             Type:   "SecretsReady",
@@ -454,7 +500,7 @@ func (r *KeystoneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
     }
 
     // Ensure database
-    dbReady, err := database.EnsureDatabase(ctx, r.Client, keystone,
+    dbReady, err := database.EnsureDatabase(ctx, r.Client, r.Scheme, keystone,
         keystone.Spec.Database)
     if !dbReady {
         return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -462,14 +508,16 @@ func (r *KeystoneReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
     // Render config with plugin support
     iniConfig := config.MergeDefaults(buildKeystoneConfig(keystone), keystoneDefaults)
-    pluginConfig := plugins.RenderPluginConfig(keystone.Spec.Plugins)
+    pluginConfig, _ := plugins.RenderPluginConfig(keystone.Spec.Plugins)
     // ... merge pluginConfig into iniConfig ...
 
-    configMap, err := config.CreateImmutableConfigMap(ctx, r.Client, keystone,
-        "keystone-config", map[string]string{"keystone.conf": config.RenderINI(iniConfig)})
+    // Returns the generated content-hashed ConfigMap name.
+    configMapName, err := config.CreateImmutableConfigMap(ctx, r.Client, r.Scheme, keystone,
+        "keystone-config", keystone.Namespace,
+        map[string]string{"keystone.conf": config.RenderINI(iniConfig)})
 
-    // Create deployment
-    _, err = deployment.EnsureDeployment(ctx, r.Client, keystone, deploymentSpec)
+    // Create deployment (referencing configMapName)
+    _, err = deployment.EnsureDeployment(ctx, r.Client, r.Scheme, keystone, deploymentSpec)
 
     return ctrl.Result{}, nil
 }

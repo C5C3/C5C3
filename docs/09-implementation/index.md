@@ -1,7 +1,7 @@
 # Implementation
 
 CobaltCore's architecture is documented across the preceding chapters — from the [modular operator architecture](../03-components/01-control-plane/) and [CRD definitions](../04-architecture/01-crds.md) to the [config generation pipeline](../05-deployment/03-service-configuration/01-config-generation.md) and [secret management](../05-deployment/02-secret-management.md).
-This chapter bridges the gap between architecture and code by documenting the concrete implementation of operators using Operator SDK and controller-runtime.
+This chapter bridges the gap between architecture and code by documenting the concrete implementation of operators using Kubebuilder v4 conventions and controller-runtime.
 
 The implementation follows a **Keystone-first** strategy: the Keystone Operator is built first as a complete reference implementation, establishing patterns and shared libraries that all subsequent operators will reuse.
 
@@ -11,7 +11,7 @@ The implementation follows a **Keystone-first** strategy: the Keystone Operator 
 | --- | --- |
 | **One Operator per Service** | Each OpenStack service has a dedicated operator with its own reconciliation loop, CRD, and release lifecycle |
 | **Shared Library (Monorepo)** | Common patterns (database, config, secrets, conditions) live in `internal/common/` and are shared via Go Workspace |
-| **Operator SDK + controller-runtime** | Standard tooling — Kubebuilder markers, controller-gen for CRD/RBAC generation, envtest for integration tests |
+| **Kubebuilder v4 + controller-runtime** | Standard tooling — Kubebuilder markers, controller-gen for CRD/RBAC generation, envtest for integration tests. Operators are hand-crafted against controller-runtime rather than scaffolded with `operator-sdk init` (CC-0001) |
 | **Go over Templates** | Configuration files are rendered from Go structs, not template languages — enabling type safety and testability |
 | **Secrets via ESO** | Operators read Kubernetes Secrets (created by ESO from OpenBao) — they never interact with OpenBao directly |
 
@@ -64,13 +64,15 @@ The implementation follows a **Keystone-first** strategy: the Keystone Operator 
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+> **Current status:** Phases 1 and 2 are implemented — the Keystone Operator is a complete reference implementation. Phase 3a has begun: the c5c3-operator currently exists as a manager **stub** (`operators/c5c3/main.go` starts a controller-runtime manager via the shared [`bootstrap`](./02-shared-library.md#bootstrap) package but registers no controllers yet); the ControlPlane CRD and orchestration reconciler are not yet built. Phase 3b operators (Glance, Placement, Nova, Neutron, Cinder) are planned.
+
 ## Technology Stack
 
 | Component | Version | Purpose |
 | --- | --- | --- |
-| **Go** | 1.25+ | Operator implementation language |
-| **Operator SDK** | 1.38+ | Project scaffolding and code generation |
-| **controller-runtime** | 0.23+ | Reconciler framework, manager, caching |
+| **Go** | 1.26.3 | Operator implementation language |
+| **Operator SDK** | 1.38+ | Code-generation tooling (markers); not used for project scaffolding |
+| **controller-runtime** | 0.24+ | Reconciler framework, manager, caching |
 | **Kubebuilder** | 4.x | Code generation markers for CRDs, RBAC, webhooks |
 | **Chainsaw** | 0.2+ | Declarative E2E testing for Kubernetes operators |
 | **Helm** | 3.x | Operator packaging and deployment |
@@ -82,7 +84,7 @@ Keystone is the ideal starting point for implementation:
 
 * **Simplest dependency graph** — Keystone requires only MariaDB and Memcached. No RabbitMQ, no Valkey, no Ceph. This minimizes the infrastructure needed for development and testing.
 * **Foundation for all other services** — Every OpenStack service authenticates against Keystone. Building it first unblocks all subsequent operators.
-* **Non-trivial reconciliation patterns** — Fernet key rotation (generation, CronJob, rolling restart, OpenBao backup via PushSecret) exercises the full reconciliation lifecycle without excessive complexity.
+* **Non-trivial reconciliation patterns** — Fernet key rotation (generation, CronJob writing a staging Secret, operator-side validation and apply, OpenBao backup via PushSecret) exercises the full reconciliation lifecycle without excessive complexity. Keys are projected into pods and rotate in place — no rolling restart is triggered on rotation (CC-0074).
 * **Config generation reference** — The [config generation pipeline](../05-deployment/03-service-configuration/01-config-generation.md) can be validated end-to-end with `keystone.conf` before tackling more complex services like Nova (multiple config files, cell architecture).
 * **Plugin/middleware pattern** — Keystone's `api-paste.ini` pipeline and domain-specific configs (e.g., Keycloak backend) establish the generic plugin framework that all services will use.
 
@@ -95,7 +97,8 @@ Keystone is the ideal starting point for implementation:
 - [Keystone Dependencies](./05-keystone-dependencies.md) — Secret flow, MariaDB, Memcached, Fernet rotation
 - [Testing](./06-testing.md) — Unit, integration (envtest), E2E (Chainsaw)
 - [CI/CD & Packaging](./07-ci-cd-and-packaging.md) — GitHub Actions, Helm charts, FluxCD
-- [C5C3 Operator](./08-c5c3-operator.md) — ControlPlane CRD, orchestration reconciler, rollout strategy
+- [C5C3 Operator](./08-c5c3-operator.md) — ControlPlane CRD, orchestration reconciler, rollout strategy (planned)
 - [OpenBao Deployment](./09-openbao-deployment.md) — Deployment, initialization, secret engines, policies
+- [Chaos E2E Testing](./10-chaos-e2e-testing.md) — Chaos Mesh fault injection, resilience scenarios
 
 For the configuration lifecycle concepts that inform this implementation, see [Service Configuration](../05-deployment/03-service-configuration/index.md).

@@ -12,6 +12,9 @@ The Keystone CRD is defined in `operators/keystone/api/v1alpha1/keystone_types.g
 package v1alpha1
 
 import (
+    appsv1 "k8s.io/api/apps/v1"
+    corev1 "k8s.io/api/core/v1"
+    networkingv1 "k8s.io/api/networking/v1"
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
     commonv1 "github.com/c5c3/forge/internal/common/types"
 )
@@ -20,6 +23,7 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="Endpoint",type="string",JSONPath=".status.endpoint"
+// +kubebuilder:printcolumn:name="Release",type="string",JSONPath=".status.installedRelease"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // Keystone is the Schema for the keystones API.
@@ -51,11 +55,14 @@ type KeystoneSpec struct {
 
     // Database defines the MariaDB connection parameters.
     // Supports managed (clusterRef) and brownfield (host/port) modes.
+    // TLS/mTLS is opt-in via database.tls (CC-0106).
     // +kubebuilder:validation:XValidation:rule="has(self.clusterRef) != has(self.host)",message="exactly one of clusterRef or host must be set"
+    // +kubebuilder:validation:XValidation:rule="!has(self.tls) || !self.tls.enabled || (self.tls.caBundleSecretRef.name != '' && self.tls.clientCertSecretRef.name != '')",message="when database.tls.enabled is true, both caBundleSecretRef.name and clientCertSecretRef.name must be set"
     Database commonv1.DatabaseSpec `json:"database"`
 
     // Cache defines the Memcached cache configuration.
     // Supports managed (clusterRef) and brownfield (servers) modes.
+    // +kubebuilder:validation:XValidation:rule="has(self.clusterRef) != (has(self.servers) && size(self.servers) > 0)",message="exactly one of clusterRef or servers must be set"
     Cache commonv1.CacheSpec `json:"cache"`
 
     // Fernet configures Fernet key rotation.
@@ -63,6 +70,13 @@ type KeystoneSpec struct {
 
     // CredentialKeys configures credential key rotation.
     CredentialKeys CredentialKeysSpec `json:"credentialKeys,omitempty"`
+
+    // TrustFlush configures periodic purging of expired trust delegations
+    // (CC-0057, CC-0096). The defaulting webhook materializes a populated
+    // TrustFlushSpec when unset, so keystone-manage trust_flush runs hourly
+    // by default. Set suspend: true to pause without removing the CronJob.
+    // +optional
+    TrustFlush *TrustFlushSpec `json:"trustFlush,omitempty"`
 
     // Federation configures Keystone federation (optional).
     // +optional
@@ -99,12 +113,56 @@ type KeystoneSpec struct {
     // +optional
     NetworkPolicy *NetworkPolicySpec `json:"networkPolicy,omitempty"`
 
+    // Gateway configures external exposure of the Keystone API via a Gateway API
+    // HTTPRoute (CC-0065). The Gateway/GatewayClass themselves are infrastructure
+    // managed outside this operator; the operator only manages the HTTPRoute.
+    // +optional
+    Gateway *GatewaySpec `json:"gateway,omitempty"`
+
     // Resources defines the CPU and memory requests and limits for the Keystone API
     // container. When unset, the defaulting webhook injects sensible defaults
     // (256Mi/512Mi memory, 100m/500m CPU) to ensure Burstable QoS class and
     // enable HPA utilization calculations (CC-0042).
     // +optional
     Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
+    // UWSGI tunes the uWSGI server running the Keystone API (CC-0084).
+    // When unset, the defaulting webhook materializes sensible defaults.
+    // +optional
+    UWSGI *UWSGISpec `json:"uwsgi,omitempty"`
+
+    // Logging configures oslo.log output for the Keystone API container (CC-0098).
+    // When unset, the defaulting webhook materializes a baseline LoggingSpec.
+    // +optional
+    Logging *LoggingSpec `json:"logging,omitempty"`
+
+    // TerminationGracePeriodSeconds bounds the graceful-shutdown window for
+    // Keystone API pods (CC-0084). When nil, Kubernetes' 30s default applies.
+    // +optional
+    // +kubebuilder:validation:Minimum=10
+    TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
+
+    // PreStopSleepSeconds inserts a preStop sleep so in-flight requests drain
+    // before SIGTERM reaches uWSGI (CC-0084).
+    // +optional
+    // +kubebuilder:validation:Minimum=0
+    PreStopSleepSeconds *int64 `json:"preStopSleepSeconds,omitempty"`
+
+    // Strategy overrides the Deployment rollout strategy (CC-0084).
+    // When nil, the reconciler applies a RollingUpdate default.
+    // +optional
+    Strategy *appsv1.DeploymentStrategy `json:"strategy,omitempty"`
+
+    // TopologySpreadConstraints controls pod spreading (CC-0075). When nil, the
+    // operator injects two default constraints; an explicit (even empty) slice
+    // is honored verbatim.
+    // +optional
+    TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
+
+    // PriorityClassName sets the pod PriorityClass. The validating webhook
+    // verifies the named PriorityClass exists. When unset, the cluster default applies.
+    // +optional
+    PriorityClassName *string `json:"priorityClassName,omitempty"`
 
     // ExtraConfig provides free-form INI sections for configuration
     // not covered by explicit CRD fields.
@@ -134,6 +192,101 @@ type CredentialKeysSpec struct {
     // +kubebuilder:validation:Minimum=3
     // +kubebuilder:default=3
     MaxActiveKeys int32 `json:"maxActiveKeys,omitempty"`
+}
+
+// TrustFlushSpec configures periodic purging of expired trust delegations (CC-0057).
+type TrustFlushSpec struct {
+    // Schedule is a cron expression controlling when keystone-manage trust_flush runs.
+    // +kubebuilder:default="0 * * * *"
+    Schedule string `json:"schedule,omitempty"`
+
+    // Suspend pauses the CronJob without deleting it.
+    // +kubebuilder:default=false
+    Suspend bool `json:"suspend,omitempty"`
+
+    // Args provides additional CLI flags passed to keystone-manage trust_flush.
+    // +optional
+    Args []string `json:"args,omitempty"`
+}
+
+// UWSGISpec tunes the uWSGI server running the Keystone API (CC-0084).
+type UWSGISpec struct {
+    // Processes is the number of uWSGI worker processes.
+    // +kubebuilder:validation:Minimum=1
+    // +kubebuilder:default=2
+    Processes int32 `json:"processes,omitempty"`
+
+    // Threads is the number of threads per uWSGI worker process.
+    // +kubebuilder:validation:Minimum=1
+    // +kubebuilder:default=1
+    Threads int32 `json:"threads,omitempty"`
+
+    // HTTPKeepAlive enables the --http-keepalive flag.
+    // +kubebuilder:default=true
+    HTTPKeepAlive bool `json:"httpKeepAlive,omitempty"`
+
+    // Harakiri caps per-request worker lifetime (seconds). When nil, the flag is
+    // omitted. The webhook requires harakiri < terminationGrace - preStopSleep.
+    // +optional
+    // +kubebuilder:validation:Minimum=1
+    Harakiri *int32 `json:"harakiri,omitempty"`
+
+    // HTTPKeepAliveTimeout bounds the idle keep-alive timeout (seconds).
+    // +optional
+    // +kubebuilder:validation:Minimum=1
+    HTTPKeepAliveTimeout *int32 `json:"httpKeepAliveTimeout,omitempty"`
+}
+
+// GatewaySpec configures the Gateway API HTTPRoute the operator manages (CC-0065).
+type GatewaySpec struct {
+    // ParentRef identifies the Gateway that the HTTPRoute attaches to.
+    ParentRef GatewayParentRefSpec `json:"parentRef"`
+
+    // Hostname is the externally reachable host matched by the HTTPRoute and
+    // used to derive status.endpoint as https://{hostname}/v3.
+    // +kubebuilder:validation:MinLength=1
+    Hostname string `json:"hostname"`
+
+    // Path is the URL path prefix matched by the HTTPRoute. Defaults to "/".
+    // +optional
+    Path string `json:"path,omitempty"`
+
+    // Annotations are passed through to the HTTPRoute metadata verbatim.
+    // +optional
+    Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// GatewayParentRefSpec references a pre-existing Gateway (CC-0065).
+type GatewayParentRefSpec struct {
+    // +kubebuilder:validation:MinLength=1
+    Name string `json:"name"`
+    // Namespace defaults to the Keystone CR's namespace when empty.
+    // +optional
+    Namespace string `json:"namespace,omitempty"`
+    // SectionName targets a specific Gateway listener (e.g. "https").
+    // +optional
+    SectionName string `json:"sectionName,omitempty"`
+}
+
+// LoggingSpec configures oslo.log output for the Keystone API container (CC-0098).
+type LoggingSpec struct {
+    // Format selects "text" (oslo.log line format) or "json" (one object per record).
+    // +kubebuilder:validation:Enum=text;json
+    // +kubebuilder:default=text
+    Format string `json:"format,omitempty"`
+
+    // Level is the root logger level.
+    // +kubebuilder:validation:Enum=DEBUG;INFO;WARNING;ERROR;CRITICAL
+    // +kubebuilder:default=INFO
+    Level string `json:"level,omitempty"`
+
+    // Debug toggles oslo.log [DEFAULT] debug=true (gates extra-verbose code paths).
+    // +kubebuilder:default=false
+    Debug bool `json:"debug,omitempty"`
+
+    // PerLoggerLevels overrides named-logger levels (validated by the webhook).
+    // +optional
+    PerLoggerLevels map[string]string `json:"perLoggerLevels,omitempty"`
 }
 
 // AutoscalingSpec defines the parameters for horizontal pod autoscaling (CC-0038).
@@ -216,6 +369,16 @@ type BootstrapSpec struct {
     PublicEndpoint string `json:"publicEndpoint,omitempty"`
 }
 
+// UpgradePhase represents the current phase of a database upgrade (CC-0056).
+type UpgradePhase string
+
+const (
+    UpgradePhaseExpanding     UpgradePhase = "Expanding"
+    UpgradePhaseMigrating     UpgradePhase = "Migrating"
+    UpgradePhaseRollingUpdate UpgradePhase = "RollingUpdate"
+    UpgradePhaseContracting   UpgradePhase = "Contracting"
+)
+
 // KeystoneStatus defines the observed state of Keystone.
 type KeystoneStatus struct {
     // Conditions represent the latest available observations of the Keystone state.
@@ -223,6 +386,15 @@ type KeystoneStatus struct {
 
     // Endpoint is the Keystone API endpoint URL.
     Endpoint string `json:"endpoint,omitempty"`
+
+    // InstalledRelease is the OpenStack release version currently deployed (CC-0056).
+    InstalledRelease string `json:"installedRelease,omitempty"`
+
+    // TargetRelease is the upgrade target release during an active upgrade (CC-0056).
+    TargetRelease string `json:"targetRelease,omitempty"`
+
+    // UpgradePhase is the current phase of a database upgrade (CC-0056).
+    UpgradePhase UpgradePhase `json:"upgradePhase,omitempty"`
 }
 
 func init() {
@@ -348,13 +520,20 @@ Each condition type reflects a discrete reconciliation phase. The `Ready` condit
 | --- | --- |
 | **Ready** | Aggregate — True when all sub-conditions are True |
 | **SecretsReady** | ESO-provided Kubernetes Secrets exist and contain expected keys |
-| **DatabaseReady** | MariaDB Database and User CRs are ready, db_sync Job completed |
+| **DatabaseTLSReady** | DB client certificate provisioned (or not required) (CC-0106) |
 | **FernetKeysReady** | Fernet key Secret exists, rotation CronJob is configured |
 | **CredentialKeysReady** | Credential key Secret exists, rotation CronJob is configured |
+| **DatabaseReady** | MariaDB Database and User CRs are ready, db_sync Job completed |
+| **PolicyValidReady** | `oslopolicy-validator` accepted the rendered policy.yaml (CC-0058) |
 | **DeploymentReady** | Keystone Deployment has all replicas available |
+| **KeystoneAPIReady** | Active HTTP health check against the API endpoint succeeded (CC-0067) |
 | **HPAReady** | HorizontalPodAutoscaler is configured (or skipped when autoscaling is nil) |
 | **NetworkPolicyReady** | NetworkPolicy is configured (or skipped when networkPolicy is nil) |
+| **HTTPRouteReady** | Gateway API HTTPRoute reconciled (or skipped when gateway is nil) (CC-0065) |
 | **BootstrapReady** | Bootstrap Job completed successfully |
+| **TrustFlushReady** | Trust-flush CronJob reconciled (CC-0057) |
+
+> A separate informational condition **LoggingHealthy** is set by `reconcileConfig` (stderr-disabled detection) but is **not** part of the aggregate set above — it does not gate `Ready`.
 
 **Condition progression during initial deployment:**
 
@@ -365,18 +544,19 @@ Each condition type reflects a discrete reconciliation phase. The `Ready` condit
 │                                                                             │
 │  t=0   SecretsReady=False          (waiting for ESO sync)                   │
 │  t=15s SecretsReady=True           (ESO secrets available)                  │
-│         FernetKeysReady=False      (generating Fernet keys)                 │
-│  t=20s FernetKeysReady=True        (keys generated, CronJob created)        │
-│         CredentialKeysReady=False  (generating credential keys)             │
-│  t=25s CredentialKeysReady=True    (keys generated, CronJob created)        │
+│         DatabaseTLSReady=True      (client cert issued or not required)     │
+│         (Fernet | Credential | NetworkPolicy reconcile in parallel)        │
+│  t=25s FernetKeysReady=True        CredentialKeysReady=True                 │
+│         NetworkPolicyReady=True    (policy applied)                         │
 │         DatabaseReady=False        (creating MariaDB CRs)                   │
 │  t=55s DatabaseReady=True          (db_sync completed)                      │
-│         NetworkPolicyReady=True    (policy applied)                         │
+│         PolicyValidReady=True      (oslopolicy-validator passed)            │
 │         DeploymentReady=False      (pods starting)                          │
 │  t=85s DeploymentReady=True        (all replicas ready)                     │
+│         HTTPRouteReady=True        KeystoneAPIReady=True                    │
 │         HPAReady=True              (HPA configured or skipped)              │
 │         BootstrapReady=False       (running bootstrap job)                  │
-│  t=95s BootstrapReady=True         (bootstrap completed)                    │
+│  t=95s BootstrapReady=True   TrustFlushReady=True                          │
 │         Ready=True                 (all conditions met)                     │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -404,93 +584,87 @@ This produces `config/crd/bases/keystone.openstack.c5c3.io_keystones.yaml` conta
 
 ## Validation and Defaulting Webhooks
 
-Webhooks provide runtime validation beyond what OpenAPI schemas can express, plus defaulting for optional fields.
-
-**Defaulting webhook (`keystone_webhook.go`):**
+Webhooks provide runtime validation beyond what OpenAPI schemas can express, plus defaulting for optional fields. Forge uses the controller-runtime **generic typed webhook** pattern: a standalone `KeystoneWebhook` struct (not methods on the CR type) implementing `admission.Defaulter[*Keystone]` and `admission.Validator[*Keystone]`, wired via `builder.WebhookManagedBy`. The struct carries a `client.Reader` for cluster-scoped lookups (e.g. verifying a referenced `PriorityClass` exists, CC-0075).
 
 ```go
-func (r *Keystone) Default() {
-    if r.Spec.Replicas == 0 {
-        r.Spec.Replicas = 3
-    }
-    if r.Spec.Fernet.MaxActiveKeys == 0 {
-        r.Spec.Fernet.MaxActiveKeys = 3
-    }
-    if r.Spec.Cache.Backend == "" {
-        r.Spec.Cache.Backend = "dogpile.cache.pymemcache"
-    }
-    if r.Spec.Bootstrap.AdminUser == "" {
-        r.Spec.Bootstrap.AdminUser = "admin"
-    }
-    if r.Spec.Bootstrap.Region == "" {
-        r.Spec.Bootstrap.Region = "RegionOne"
-    }
+// KeystoneWebhook implements defaulting and validation for the Keystone CRD.
+// +kubebuilder:object:generate=false
+type KeystoneWebhook struct {
+    Client client.Reader
+}
+
+var (
+    _ admission.Defaulter[*Keystone] = &KeystoneWebhook{}
+    _ admission.Validator[*Keystone] = &KeystoneWebhook{}
+)
+
+func (w *KeystoneWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
+    return builder.WebhookManagedBy[*Keystone](mgr, &Keystone{}).
+        WithDefaulter(w).
+        WithValidator(w).
+        Complete()
 }
 ```
 
-**Validation webhook:**
+**Defaulting webhook** — abridged; the real `Default` also materializes `CredentialKeys.MaxActiveKeys`, a populated `TrustFlush` (hourly schedule), `UWSGI` sub-fields, a baseline `Logging`, the `Resources` requests/limits (CC-0042), and `Database.TLS.Mode` (`require`, CC-0106):
 
 ```go
-func (r *Keystone) ValidateCreate() (admission.Warnings, error) {
-    return r.validate()
+func (w *KeystoneWebhook) Default(_ context.Context, obj *Keystone) error {
+    if obj.Spec.Replicas == 0 {
+        obj.Spec.Replicas = 3
+    }
+    if obj.Spec.Fernet.MaxActiveKeys == 0 {
+        obj.Spec.Fernet.MaxActiveKeys = 3
+    }
+    if obj.Spec.Cache.Backend == "" {
+        obj.Spec.Cache.Backend = "dogpile.cache.pymemcache"
+    }
+    if obj.Spec.TrustFlush == nil {
+        obj.Spec.TrustFlush = &TrustFlushSpec{Schedule: DefaultTrustFlushSchedule}
+    }
+    // ... UWSGI, Logging, Resources, Database.TLS.Mode, Bootstrap defaults ...
+    return nil
+}
+```
+
+**Validation webhook** — abridged; the real `validate` is extensive, covering replicas, credential/fernet cron schedules, cache & database mutual-exclusivity, database TLS, trust-flush cron, uWSGI bounds + cross-field harakiri/keep-alive rules, logging enums + per-logger levels, termination-grace/preStop arithmetic, rollout strategy, autoscaling bounds, networkPolicy ingress, gateway + publicEndpoint host matching, resource requests≤limits, `priorityClassName` existence (via the injected client), and topology-spread selectors:
+
+```go
+func (w *KeystoneWebhook) ValidateCreate(ctx context.Context, obj *Keystone) (admission.Warnings, error) {
+    return nil, w.validate(ctx, obj)
 }
 
-func (r *Keystone) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-    return r.validate()
+func (w *KeystoneWebhook) ValidateUpdate(ctx context.Context, _, newObj *Keystone) (admission.Warnings, error) {
+    return nil, w.validate(ctx, newObj)
 }
 
-func (r *Keystone) validate() (admission.Warnings, error) {
+func (w *KeystoneWebhook) ValidateDelete(_ context.Context, _ *Keystone) (admission.Warnings, error) {
+    return nil, nil
+}
+
+func (w *KeystoneWebhook) validate(ctx context.Context, k *Keystone) error {
     var allErrs field.ErrorList
 
-    if r.Spec.Replicas < 1 {
+    if k.Spec.Replicas < 1 {
         allErrs = append(allErrs, field.Invalid(
-            field.NewPath("spec", "replicas"),
-            r.Spec.Replicas,
-            "must be at least 1"))
+            field.NewPath("spec", "replicas"), k.Spec.Replicas, "must be at least 1"))
     }
 
-    // Validate cron expression
-    if _, err := cron.ParseStandard(r.Spec.Fernet.RotationSchedule); err != nil {
+    // Validate cron expressions (fernet + credential rotation, trust flush)
+    if _, err := cron.ParseStandard(k.Spec.Fernet.RotationSchedule); err != nil {
         allErrs = append(allErrs, field.Invalid(
             field.NewPath("spec", "fernet", "rotationSchedule"),
-            r.Spec.Fernet.RotationSchedule,
-            fmt.Sprintf("invalid cron expression: %v", err)))
+            k.Spec.Fernet.RotationSchedule, fmt.Sprintf("invalid cron expression: %v", err)))
     }
 
-    // Validate plugin config — ensure no duplicate section names
-    sections := map[string]bool{}
-    for i, p := range r.Spec.Plugins {
-        if sections[p.ConfigSection] {
-            allErrs = append(allErrs, field.Duplicate(
-                field.NewPath("spec", "plugins").Index(i).Child("configSection"),
-                p.ConfigSection))
-        }
-        sections[p.ConfigSection] = true
-    }
-
-    // Validate policyOverrides — at least one source, no empty rule names
-    if r.Spec.PolicyOverrides != nil {
-        po := r.Spec.PolicyOverrides
-        if po.Rules == nil && po.ConfigMapRef == nil {
-            allErrs = append(allErrs, field.Required(
-                field.NewPath("spec", "policyOverrides"),
-                "at least one of rules or configMapRef must be set"))
-        }
-        for ruleName := range po.Rules {
-            if ruleName == "" {
-                allErrs = append(allErrs, field.Invalid(
-                    field.NewPath("spec", "policyOverrides", "rules"),
-                    ruleName, "rule name must not be empty"))
-            }
-        }
-    }
+    // ... plugin section uniqueness, policyOverrides, uWSGI/logging,
+    //     graceful-shutdown arithmetic, priorityClassName existence lookup ...
 
     if len(allErrs) > 0 {
-        return nil, apierrors.NewInvalid(
-            schema.GroupKind{Group: GroupVersion.Group, Kind: "Keystone"},
-            r.Name, allErrs)
+        return apierrors.NewInvalid(
+            schema.GroupKind{Group: GroupVersion.Group, Kind: "Keystone"}, k.Name, allErrs)
     }
-    return nil, nil
+    return nil
 }
 ```
 
