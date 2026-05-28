@@ -167,6 +167,14 @@ CobaltCore uses several logically separated network zones:
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+## Control-Plane API Exposure and Pod Network Policy
+
+Service operators manage the network surface of their own API workloads as part of reconciliation. The Keystone Operator is the reference implementation (see [Keystone Reconciler](../09-implementation/04-keystone-reconciler.md)); other service operators follow the same pattern.
+
+- **Gateway API HTTPRoute (CC-0065).** When a service CR sets `spec.gateway`, the operator reconciles a `gateway.networking.k8s.io/HTTPRoute` that attaches the service's ClusterIP Service to a pre-existing `Gateway` (referenced by `parentRef`), matching on `hostname` and `path`. The Gateway/GatewayClass themselves are infrastructure managed outside the operator. TLS is terminated at the Gateway, so the API pods speak plain HTTP internally and `status.endpoint` is derived as `https://{hostname}/v3`. The operator detects whether the Gateway API CRD is installed at startup (via the RESTMapper) and only watches/reconciles HTTPRoutes when it is — clusters without Gateway API still run, and `spec.gateway` is rejected through the `HTTPRouteReady` condition rather than crashing the controller.
+- **NetworkPolicy (CC-0039).** When `spec.networkPolicy` is set, the operator emits a `NetworkPolicy` that allows ingress on the API port (TCP 5000 for Keystone) only from declared sources and auto-derives egress to DNS, the database (from `database.clusterRef`), and the cache (from `cache.clusterRef`). The operator pod itself can additionally be isolated via an opt-in chart-level NetworkPolicy (CC-0090).
+- **Database TLS / mutual TLS (CC-0106).** Connections from API/job pods to MariaDB (via MaxScale) can be encrypted and mutually authenticated. When `spec.database.tls.enabled` is true, the operator issues a client certificate from a shared OpenStack DB CA (cert-manager `ClusterIssuer`), mounts it at `/etc/keystone/db-tls/`, and appends pymysql `ssl_*` parameters (`prefer`/`require`/`verify-ca`/`verify-full`) to the connection URL. This is a per-service network-security control orthogonal to the OVN tenant data plane described above; see [Secret Management](../05-deployment/02-secret-management.md) for the certificate trust domain.
+
 ## OVS Bridge Layout per Hypervisor Node
 
 Each hypervisor node has multiple OVS bridges that handle different network functions. The OVS Agent monitors the state of the bridges and reports via OVSNode CRD (see [CRDs](./01-crds.md#ovsnode-crd-ovsc5c3iov1alpha1)).

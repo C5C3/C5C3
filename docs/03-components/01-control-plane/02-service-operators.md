@@ -73,6 +73,20 @@ status:
   endpoint: https://keystone.openstack.svc.cluster.local:5000
 ```
 
+Beyond the minimal spec above, the Keystone CR exposes optional fields that drive operator-managed capabilities (each gated by its own status condition):
+
+| Spec field | Capability | Feature |
+| --- | --- | --- |
+| `database.tls` | mTLS to MariaDB/MaxScale via a cert-manager client cert | CC-0106 |
+| `gateway` | Gateway API `HTTPRoute` for external API exposure | CC-0065 |
+| `networkPolicy` | Ingress/egress isolation for API pods | CC-0039 |
+| `autoscaling` | HorizontalPodAutoscaler | CC-0038 |
+| `credentialKeys` | Credential-key generation + staged rotation (`credential_migrate`) | CC-0036 / CC-0081 |
+| `trustFlush` | Hourly `keystone-manage trust_flush` CronJob | CC-0057 |
+| `uwsgi`, `logging`, `strategy`, `terminationGracePeriodSeconds`, `topologySpreadConstraints`, `priorityClassName` | Workload tuning + graceful shutdown | CC-0084 / CC-0098 / CC-0075 |
+
+The operator also runs an **active API health check** (`KeystoneAPIReady`, CC-0067), validates `policyOverrides` with `oslopolicy-validator` before rollout (`PolicyValidReady`, CC-0058), keeps the DB password out of the ConfigMap via a derived `OS_DATABASE__CONNECTION` Secret (CC-0080), and tracks installed/target release for upgrades (`status.installedRelease`, CC-0056). See [Keystone Reconciler](../../09-implementation/04-keystone-reconciler.md) for the full sub-reconciler set.
+
 > **Note:** The `image.tag` field accepts upstream version tags (e.g., `28.0.0`), patch revision tags (e.g., `28.0.0-p1`), branch tags (e.g., `stable-2025.2`), and commit SHA tags (e.g., `a1b2c3d`). For the full tag schema and versioning details, see [Container Images — Tag Schema](../../08-container-images/02-versioning.md#tag-schema).
 >
 > **Note:** Service users, application credentials, Keystone services, and endpoints are

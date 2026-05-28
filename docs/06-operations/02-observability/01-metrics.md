@@ -47,14 +47,16 @@ Each cluster operates its own Prometheus instance that collects local metrics. T
 
 ### OpenStack Service Operators
 
-Each Service Operator exports Prometheus metrics via a `/metrics` endpoint. Metrics include reconcile duration, error counters, queue depth, and OpenStack API latency.
+Each Service Operator exports Prometheus metrics via a `/metrics` endpoint. Alongside the standard controller-runtime metrics (reconcile duration, error counters, work-queue depth), the Keystone Operator instruments **each sub-reconciler** individually (CC-0089): every sub-reconciler call is wrapped by `instrumentSubReconciler`, emitting per-step duration and error metrics labelled by `sub_reconciler` (e.g. `Secrets`, `DatabaseTLS`, `Config`, `Database`, `Deployment`, `HealthCheck`, `TrustFlush`). This makes it possible to attribute reconcile latency or failures to a specific phase rather than the loop as a whole.
+
+The chart renders the ServiceMonitor when `monitoring.serviceMonitor.enabled=true` (CC-0089); the operator runs in its own `keystone-system` namespace (CC-0105):
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: keystone-operator
-  namespace: openstack
+  namespace: keystone-system
   labels:
     app.kubernetes.io/component: operator
 spec:
@@ -66,6 +68,8 @@ spec:
       interval: 30s
       path: /metrics
 ```
+
+> A dedicated `e2e-prometheus` suite deploys the kube-prometheus-stack and asserts the operator's ServiceMonitor and metrics are scraped (CC-0100); see [Testing](../../09-implementation/06-testing.md).
 
 ### Infrastructure Exporters
 
