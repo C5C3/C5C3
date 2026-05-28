@@ -26,11 +26,13 @@ OpenBao runs as an HA cluster in the Management Cluster (namespace `openbao-syst
 │                        └──────────────────┘                                 │
 │                                                                             │
 │  Raft Consensus: 3 Replicas, integrated storage                             │
-│  Listener: HTTPS (TLS) on Port 8200                                         │
+│  Listener: HTTPS + mutual TLS on Port 8200 (CC-0107)                        │
 │  Service: openbao.openbao-system.svc.cluster.local                          │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+> **mTLS admission gate (CC-0107).** The OpenBao listener does not merely terminate server TLS — it sets `tls_require_and_verify_client_cert = true`, so every client (ESO, the Raft `retry_join` peers, and the in-pod `bao` CLI) must present a certificate signed by a dedicated OpenBao CA (`openbao-ca-issuer`). ESO therefore authenticates with a client certificate (`eso-openbao-client-tls`) **on top of** Kubernetes auth: a leaked Kubernetes ServiceAccount token alone cannot reach the OpenBao API. See [OpenBao Deployment — Deployment via FluxCD](../09-implementation/09-openbao-deployment.md#deployment-via-fluxcd).
 
 ## Secret Engines
 
@@ -264,14 +266,22 @@ The bootstrap sequence with OpenBao as central secret store:
 | **Phase 7** | PushSecrets write generated credentials back to OpenBao                                                | PushSecret → OpenBao |
 | **Phase 8** | ESO distributes all secrets to target clusters, services start                                         | ESO → K8s Secrets    |
 
+## Credentials Never Live in ConfigMaps
+
+A cross-cutting rule for all service operators (CC-0080): resolved credentials are **never** rendered into the immutable config ConfigMap. The Keystone Operator materializes the full database connection URL (including the password) into a derived `<name>-db-connection` Secret and injects it into every workload via the `OS_DATABASE__CONNECTION` environment variable. The `keystone.conf` ConfigMap carries no password. This keeps the at-rest credential exposure confined to objects treated as Secrets.
+
 ## Credential Rotation
 
-OpenBao KV v2 supports versioned secrets. In combination with the `CredentialRotation` CRD of the c5c3-operator:
+Two distinct rotation mechanisms exist; do not conflate them:
+
+**1. Keystone cryptographic-key rotation (built, keystone-operator).** The operator rotates Fernet token keys and credential *encryption* keys using a **split-compute-write** boundary (CC-0081): the rotation CronJob — holding only narrow get+patch RBAC — writes new key material to a dedicated *staging* Secret; the operator then validates it (correct length, no duplicates, count in range) and applies it to the production Secret with its own privileged ServiceAccount. This keeps token-forgery primitives out of the CronJob's reach. Keys are projected into pods and rotate in place (no rolling restart, CC-0074), and credential-key rotation additionally runs `keystone-manage credential_migrate` to re-encrypt stored credentials. Backups are pushed per-CR to OpenBao at `openstack/keystone/{name}/{fernet,credential}-keys` (CC-0093), and an OpenBao finalizer purges them on deletion (CC-0079). A separate trust-flush CronJob purges expired trust delegations (CC-0057).
+
+**2. Application Credential rotation (planned, c5c3-operator).** OpenBao KV v2 supports versioned secrets. In combination with the planned `CredentialRotation` CRD of the c5c3-operator:
 
 * **Versioned Secrets**: OpenBao KV v2 stores all secret versions with metadata
 * **ESO Refresh**: ExternalSecrets have a configurable `refreshInterval` (default: 1h)
 * **Rotation Flow**: Write new secret to OpenBao → ESO updates K8s Secret → Pods receive new secret via Secret watch or rolling update
-* **CredentialRotation CRD**: The c5c3-operator automatically rotates Application Credentials based on schedule and grace period
+* **CredentialRotation CRD**: will rotate Keystone *Application Credentials* based on schedule and grace period
 
 For the CRD definitions of `SecretAggregate` and `CredentialRotation`, see [CRDs](../04-architecture/01-crds.md#secretaggregate-crd-c5c3iov1alpha1).
 
