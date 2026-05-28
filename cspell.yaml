@@ -125,7 +125,9 @@ words:
   - gunicorn
   - hana
   - harakiri
+  - healthcheck
   - helmrelease
+  - httproute
   - hypervisorclusters
   - idempotently
   - Integr
@@ -184,6 +186,7 @@ words:
   - pedigree
   - Placem
   - Postcopy
+  - prereqs
   - printcolumn
   - Provid
   - Prysm
@@ -218,6 +221,8 @@ words:
   - toxiproxy
   - traceparent
   - tracestate
+  - trustflush
+  - unbuilt
   - unwritable
   - uwsgi
   - valkey
