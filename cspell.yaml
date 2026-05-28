@@ -54,6 +54,7 @@ words:
   - batchv
   - bindep
   - binpacking
+  - Blacksmith
   - blockpool
   - brownfield
   - buildx
@@ -63,6 +64,7 @@ words:
   - cdxgen
   - cephfs
   - cephx
+  - certmanagerv
   - chardev
   - CISA
   - cloudoperators
@@ -85,6 +87,7 @@ words:
   - ctmpl
   - cyclonedx
   - datapath
+  - dbtls
   - deepcopy
   - Descheduling
   - distroless
@@ -95,6 +98,7 @@ words:
   - encap
   - Endpts
   - envtest
+  - esov
   - externalsecrets
   - fanout
   - fernet
@@ -111,19 +115,23 @@ words:
   - GHCR
   - gitops
   - godoc
+  - gofumpt
   - golangci
   - gomega
   - Gophercloud
   - gopsutil
+  - govulncheck
   - Grype
   - gunicorn
   - hana
+  - harakiri
   - helmrelease
   - hypervisorclusters
   - idempotently
   - Integr
   - ironcore
   - journalctl
+  - keypair
   - Keyspace
   - keystoneauth
   - keystonemiddleware
@@ -157,6 +165,7 @@ words:
   - multitenant
   - mysqld
   - netdev
+  - netem
   - nonroot
   - northd
   - novaclient
@@ -168,6 +177,7 @@ words:
   - openbao
   - openstackclusters
   - openvswitch
+  - oslopolicy
   - planwerk
   - OVSDB
   - ovsd
@@ -193,6 +203,7 @@ words:
   - SBOMs
   - secretaggregate
   - serviceaccount
+  - shellcheck
   - Sigstore
   - SLSA
   - SPDX
@@ -200,11 +211,14 @@ words:
   - storageclusters
   - subresource
   - Syft
+  - tempest
   - testutil
+  - TOTP
   - Toxiproxy
   - toxiproxy
   - traceparent
   - tracestate
+  - unwritable
   - uwsgi
   - valkey
   - vaultpath
