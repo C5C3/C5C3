@@ -9,6 +9,13 @@
 DISABLE_LINTERS:
   - MARKDOWN_MARKDOWN_TABLE_FORMATTER
 
+# zizmor runs offline because its online-only audits (e.g. ref-confusion) query
+# the GitHub API, which returns 401 inside the MegaLinter container. It is also
+# advisory: it still reports its workflow findings but does not block the run,
+# like markdownlint here. Workflow hardening is tracked separately.
+ACTION_ZIZMOR_ARGUMENTS: --offline
+ACTION_ZIZMOR_DISABLE_ERRORS: true
+
 # JSON Prettier configuration
 JSON_PRETTIER_FILTER_REGEX_EXCLUDE: '\.planwerk/'
 
