@@ -321,6 +321,67 @@ URLs use `http` (TLS is terminated upstream by the Gateway) and carry the `/v3` 
 Subsequent Keystone resources (service users, application credentials, additional endpoints) are then managed by K-ORC.
 This two-phase approach resolves the circular dependency: Keystone must exist before K-ORC can talk to it, but K-ORC needs the bootstrap resources to operate.
 
+## Admin Credential Rotation
+
+The admin password (`spec.bootstrap.adminPasswordSecretRef`) is the credential `keystone-manage bootstrap` assigns to the `admin` user. Unlike the Fernet token keys and credential *encryption* keys — which the operator already rotates on a schedule — the admin password is today a write-once bootstrap credential with no rotation path. This section describes how rotation can be implemented end-to-end across the operator and the Keystone service. **It is a design for planned work and is not yet built in forge.**
+
+### Why a naive secret update is not enough
+
+`keystone-manage bootstrap` is idempotent: re-running it with a new `--bootstrap-password` updates the `admin` user's password in the Keystone database. ESO already re-syncs the password from OpenBao (`kv-v2/bootstrap/keystone-admin`) into the admin Secret on its `refreshInterval`, and the operator already watches that Secret and re-reconciles when it changes (the same `secretToKeystoneMapper` watch used for the DB Secret).
+
+The gap is in the **apply step**. The bootstrap Job injects the password by reference (`valueFrom.secretKeyRef`), so the Job's PodSpec is byte-for-byte identical before and after a password change. `RunJob` (CC-0005) keys its "should I re-run a completed Job?" decision on a SHA-256 hash of the PodSpec; because that hash does not change, the completed bootstrap Job is treated as still-current and is never re-run. The rotated password reaches the Secret but is never written into Keystone.
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Admin Credential Rotation (planned)                                         │
+│                                                                              │
+│  OpenBao  kv-v2/bootstrap/keystone-admin   (source of truth)                 │
+│     │  Model A: external rotation   │   Model B: operator PushSecret         │
+│     ▼                                                                        │
+│  ESO  ──sync──▶  Secret  keystone-admin-credentials  (key: password)         │
+│     │                                                                        │
+│     │  Secret watch enqueues reconcile (secretToKeystoneMapper)              │
+│     ▼                                                                        │
+│  reconcileBootstrap()                                                        │
+│     │  stamps admin-password-hash onto the bootstrap pod template            │
+│     ▼                                                                        │
+│  RunJob: PodSpec hash changed ──▶ delete stale Job ──▶ re-run (CC-0005)      │
+│     ▼                                                                        │
+│  keystone-manage bootstrap --bootstrap-password <new>                        │
+│     ▼                                                                        │
+│  admin user password updated in the Keystone database                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Apply side (keystone-operator)
+
+Make the bootstrap Job's identity depend on the password *content*, reusing the hash pattern already used to roll the API Deployment on key rotation (`fernetKeysHash`/`credentialKeysHash`):
+
+1. `reconcileBootstrap()` computes a SHA-256 digest of the `password` value in the admin Secret.
+2. The digest is stamped onto the bootstrap pod template (e.g. a `keystone.c5c3.io/admin-password-hash` annotation), so it becomes part of the PodSpec hash.
+3. When ESO updates the Secret, the Secret watch enqueues a reconcile; the new digest changes the PodSpec hash; `RunJob` deletes the stale completed Job and recreates it.
+4. The new bootstrap Job runs `keystone-manage bootstrap --bootstrap-password <new>` and updates the live admin password. `BootstrapReady` flips to `False`/`BootstrapInProgress` during the cutover and back to `True` once complete.
+
+This is the minimal change and the core of "rotation in the operator and service": it needs no new CRD fields and reuses the existing Secret watch, the `RunJob` re-run path, and the idempotency of `keystone-manage bootstrap`.
+
+### Generate side — where the new password comes from
+
+Two models, both compatible with the apply side above:
+
+**Model A — external / OpenBao-driven (default).** The new password is produced outside the operator — OpenBao's own rotation, a CI/CD job, or a manual write — and stored at `kv-v2/bootstrap/keystone-admin`. ESO propagates it and the apply side re-bootstraps. No new operator machinery beyond the apply-side fix; OpenBao stays the single source of truth.
+
+**Model B — operator-scheduled, split-compute-write (opt-in).** Mirror the Fernet/credential-key boundary (CC-0081): an opt-in `<name>-admin-rotate` CronJob generates a candidate password and writes it to a narrow-RBAC *staging* Secret; the operator validates it (length, complexity) and commits it to OpenBao via a PushSecret. ESO then syncs it down and the apply side re-bootstraps. Keeping the privileged write (OpenBao plus the production Secret) in the operator — not the CronJob — matches the existing rotation security model. A spec field such as `spec.bootstrap.passwordRotation.{enabled,schedule}` gates it, defaulting to disabled.
+
+### Design considerations
+
+- **Single-valued credential, hard cutover.** A Keystone user has exactly one password; there is no native dual-validity grace window as there is for application credentials. There is therefore an unavoidable short skew between the moment Keystone's stored password changes and the moment every consumer has re-read the new value from ESO.
+- **Low blast radius.** Running OpenStack services authenticate with their own service users / application credentials, not the admin password. The admin password's only consumers are the bootstrap Job and administrative tooling (operators, K-ORC admin flows, CI). Those consumers must read the password from ESO/OpenBao at use time and retry on auth failure rather than caching it indefinitely.
+- **OpenBao is authoritative.** The rotated password must be written to OpenBao first and flow down through ESO. The operator must not write it only into the ESO-owned admin Secret (`creationPolicy: Owner`), because ESO would overwrite it on the next refresh.
+- **Existing tokens survive.** Changing the admin password does not revoke already-issued Fernet tokens; they remain valid until expiry. If immediate invalidation is required, pair rotation with explicit token revocation.
+- **Recoverability.** As with key rotation, the password in OpenBao is the recovery point: re-running bootstrap re-converges Keystone to whatever OpenBao currently holds.
+
+For where the admin password sits in the broader credential flow, see [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md) and the rotation overview in [Secret Management](../05-deployment/02-secret-management.md#credential-rotation).
+
 ## Keystone Container Image Contract
 
 The Keystone Operator expects the following from the Keystone service image (`ghcr.io/c5c3/keystone:<tag>`):
