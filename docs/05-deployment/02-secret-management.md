@@ -272,7 +272,7 @@ A cross-cutting rule for all service operators (CC-0080): resolved credentials a
 
 ## Credential Rotation
 
-Two distinct rotation mechanisms exist; do not conflate them:
+Three distinct rotation mechanisms exist; do not conflate them:
 
 **1. Keystone cryptographic-key rotation (built, keystone-operator).** The operator rotates Fernet token keys and credential *encryption* keys using a **split-compute-write** boundary (CC-0081): the rotation CronJob — holding only narrow get+patch RBAC — writes new key material to a dedicated *staging* Secret; the operator then validates it (correct length, no duplicates, count in range) and applies it to the production Secret with its own privileged ServiceAccount. This keeps token-forgery primitives out of the CronJob's reach. Keys are projected into pods and rotate in place (no rolling restart, CC-0074), and credential-key rotation additionally runs `keystone-manage credential_migrate` to re-encrypt stored credentials. Backups are pushed per-CR to OpenBao at `openstack/keystone/{name}/{fernet,credential}-keys` (CC-0093), and an OpenBao finalizer purges them on deletion (CC-0079). A separate trust-flush CronJob purges expired trust delegations (CC-0057).
 
@@ -282,6 +282,8 @@ Two distinct rotation mechanisms exist; do not conflate them:
 * **ESO Refresh**: ExternalSecrets have a configurable `refreshInterval` (default: 1h)
 * **Rotation Flow**: Write new secret to OpenBao → ESO updates K8s Secret → Pods receive new secret via Secret watch or rolling update
 * **CredentialRotation CRD**: will rotate Keystone *Application Credentials* based on schedule and grace period
+
+**3. Admin credential rotation (planned, keystone-operator).** The Keystone `admin` password — written once during bootstrap — has no rotation path today. The planned design re-runs the idempotent `keystone-manage bootstrap` Job whenever ESO syncs a new password from `kv-v2/bootstrap/keystone-admin`: the bootstrap pod template carries a hash of the password so a rotation changes the Job's PodSpec hash and `RunJob` (CC-0005) re-runs it, applying the new password to Keystone. The new password is produced either externally in OpenBao (default) or by an opt-in operator-scheduled CronJob using the same split-compute-write boundary as key rotation (CC-0081). The admin password is single-valued (a hard cutover, no grace window) but low blast radius — running services use their own application credentials, not the admin password. See [Admin Credential Rotation](../09-implementation/05-keystone-dependencies.md#admin-credential-rotation) for the full mechanism.
 
 For the CRD definitions of `SecretAggregate` and `CredentialRotation`, see [CRDs](../04-architecture/01-crds.md#secretaggregate-crd-c5c3iov1alpha1).
 

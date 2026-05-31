@@ -85,6 +85,7 @@ words:
   - crossplane
   - crudini
   - ctmpl
+  - cutover
   - cyclonedx
   - datapath
   - dbtls
