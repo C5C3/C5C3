@@ -46,7 +46,7 @@ This chapter describes the **target** credential model for the control plane. Th
 (see [C5C3 Operator](../../09-implementation/08-c5c3-operator.md)); the
 [Implementation Roadmap](#implementation-roadmap) at the end of this page breaks the
 model into the incremental steps that forge will build. K-ORC capabilities and the
-Keystone policy behaviour below were verified against upstream source.
+Keystone policy behavior below were verified against upstream source.
 :::
 
 CobaltCore manages OpenStack credentials around two settled choices:
