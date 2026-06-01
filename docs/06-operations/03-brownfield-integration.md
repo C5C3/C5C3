@@ -83,6 +83,14 @@ The Credential Bridge connects K-ORC to an existing brownfield Keystone to creat
 * Centralizing credential management in OpenBao for an existing deployment
 * Preparing for a future full migration (Scenario B)
 
+> **Why Application Credentials here, when greenfield uses per-pod real users.** The greenfield
+> CobaltCore control plane provisions a [dedicated per-pod real Keystone user](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#per-pod-service-users)
+> for each workload pod (issue [#30](https://github.com/C5C3/C5C3/issues/30)), because it *owns*
+> those pods and can tie credential lifetime to pod lifetime. In the brownfield Credential Bridge,
+> CobaltCore does **not** deploy or own the external workloads — it only mints credentials for an
+> existing deployment's services — so the per-pod model does not apply, and rotatable Application
+> Credentials bound to the imported users remain the right tool.
+
 ### Step 1: K-ORC clouds.yaml for Brownfield Keystone
 
 First, store the brownfield admin credentials in OpenBao and distribute them to K-ORC via ESO. This follows the same pattern as the [greenfield bootstrap](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#bootstrap-problem-and-solution-architecture), but points at the external Keystone.
@@ -133,7 +141,7 @@ spec:
         property: clouds.yaml
 ```
 
-> **Note:** The initial `clouds.yaml` uses password authentication. After Step 3, you can transition K-ORC itself to Application Credential auth — the same chicken-and-egg pattern used in the [greenfield bootstrap](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#k-orc-credential-flow).
+> **Note:** The initial `clouds.yaml` uses password authentication. After Step 3, you can transition K-ORC itself to Application Credential auth — the same chicken-and-egg pattern used in the [greenfield bootstrap](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#k-orc-admin-credential-flow).
 
 ### Step 2: Import Existing Keystone Resources (unmanaged)
 
@@ -301,7 +309,7 @@ All imported resources should show `status.conditions` with `type: Available, st
 
 ### Step 3: Create Application Credentials
 
-With the brownfield resources imported, K-ORC can create **managed** Application Credentials that reference the **unmanaged** (imported) users. This is the same pattern used in the [greenfield credential lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#application-credential-distribution-to-service-operators), but referencing `brownfield-*` user CRs.
+With the brownfield resources imported, K-ORC can create **managed** Application Credentials that reference the **unmanaged** (imported) users. This is the credential-bridge pattern, specific to brownfield — the greenfield control plane instead provisions [per-pod real users](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#per-pod-service-users) for the workloads it owns. Here the App Creds reference the `brownfield-*` user CRs.
 
 ```yaml
 # Nova Application Credential
@@ -505,7 +513,7 @@ The resulting Kubernetes Secrets can then be consumed by the brownfield services
 
 ### Step 5: Credential Rotation
 
-Application Credentials created via K-ORC can be automatically rotated using the `CredentialRotation` CRD. This works identically to the [greenfield rotation](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#credential-rotation):
+Application Credentials created via K-ORC for the brownfield bridge can be automatically rotated using the `CredentialRotation` CRD. (In greenfield, that CRD rotates only the admin App Cred, and workload credentials rotate by [pod recreation](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#credential-rotation); the brownfield bridge is the one place per-service App Cred rotation still applies, because the external services are not CobaltCore-owned pods.)
 
 ```yaml
 apiVersion: c5c3.io/v1alpha1

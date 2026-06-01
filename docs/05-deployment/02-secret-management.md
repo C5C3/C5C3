@@ -4,7 +4,7 @@
 
 **ALL secrets are centrally managed via OpenBao.** OpenBao is the single source of truth for all credentials in CobaltCore — bootstrap passwords, service credentials, database credentials, Ceph keys, kubeconfigs, TLS certificates, and messaging credentials.
 
-Integration is done via the **External Secrets Operator (ESO)**, which runs in each cluster and reads secrets from OpenBao. Existing operators continue to read Kubernetes Secrets — no code changes to operators needed. PushSecret CRDs write operator-generated secrets (Ceph Keys, Application Credentials) back to OpenBao.
+Integration is done via the **External Secrets Operator (ESO)**, which runs in each cluster and reads secrets from OpenBao. Existing operators continue to read Kubernetes Secrets — no code changes to operators needed. PushSecret CRDs write operator-generated secrets (Ceph Keys, the K-ORC admin Application Credential, and per-pod service-user passwords) back to OpenBao.
 
 ## OpenBao Architecture
 
@@ -39,7 +39,7 @@ OpenBao runs as an HA cluster in the Management Cluster (namespace `openbao-syst
 | Engine   | Mount Path              | Purpose                           | Example Paths                                                                                  |
 | -------- | ----------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------- |
 | KV v2    | `kv-v2/bootstrap/`      | Bootstrap credentials             | `kv-v2/bootstrap/keystone-admin`, `kv-v2/bootstrap/service-passwords`                          |
-| KV v2    | `kv-v2/openstack/`      | OpenStack service secrets         | `kv-v2/openstack/nova/db`, `kv-v2/openstack/neutron/config`                                    |
+| KV v2    | `kv-v2/openstack/`      | OpenStack service secrets         | `kv-v2/openstack/admin/app-credential`, `kv-v2/openstack/nova/pods/nova-api-0/user`, `kv-v2/openstack/nova/db` |
 | KV v2    | `kv-v2/infrastructure/` | Infrastructure credentials        | `kv-v2/infrastructure/mariadb`, `kv-v2/infrastructure/rabbitmq`, `kv-v2/infrastructure/valkey` |
 | KV v2    | `kv-v2/ceph/`           | Ceph auth keys                    | `kv-v2/ceph/client-nova`, `kv-v2/ceph/client-cinder`, `kv-v2/ceph/client-glance`               |
 | PKI      | `pki/`                  | TLS certificates                  | `pki/issue/openstack-internal`, `pki/issue/api-external`                                       |
@@ -60,11 +60,19 @@ OpenBao runs as an HA cluster in the Management Cluster (namespace `openbao-syst
 | Role                   | Allowed Paths                                                                                          | Capabilities         |
 | ---------------------- | ------------------------------------------------------------------------------------------------------ | -------------------- |
 | `eso-control-plane`    | `kv-v2/data/bootstrap/*`, `kv-v2/data/openstack/*`, `kv-v2/data/infrastructure/*`, `kv-v2/data/ceph/*` | read                 |
-| `eso-hypervisor`       | `kv-v2/data/ceph/client-nova`, `kv-v2/data/openstack/nova/compute-*`                                   | read                 |
+| `eso-hypervisor`       | `kv-v2/data/ceph/client-nova`, `kv-v2/data/openstack/nova/compute-*`, `kv-v2/data/openstack/nova/pods/*/user` | read                 |
 | `eso-storage`          | `kv-v2/data/ceph/*`                                                                                    | read, create, update |
 | `eso-management`       | `kv-v2/data/bootstrap/*`, `kv-v2/data/infrastructure/*`                                                | read                 |
 | `push-ceph-keys`       | `kv-v2/data/ceph/*`                                                                                    | create, update       |
-| `push-app-credentials` | `kv-v2/data/openstack/*/app-credential`                                                                | create, update       |
+| `push-admin-app-cred`  | `kv-v2/data/openstack/admin/app-credential`                                                            | create, update       |
+| `push-pod-users`       | `kv-v2/data/openstack/*/pods/*/user`                                                                   | create, update       |
+
+> **The "never in a pod" invariant is enforced at the ExternalSecret/namespace level, not by these
+> coarse per-cluster read policies.** The admin password (`kv-v2/bootstrap/keystone-admin`) and the
+> admin App Cred (`kv-v2/openstack/admin/app-credential`) are materialized **only** into the
+> Keystone bootstrap Job, the c5c3-operator, and `orc-system` (K-ORC) — never via an ExternalSecret
+> targeting a workload namespace, and never mounted into a workload pod. Per-pod user passwords
+> (`…/pods/<pod>/user`) are each materialized into exactly one pod.
 | `ci-cd-provisioner`    | `kv-v2/data/*`                                                                                         | create, update, read |
 | `db-exporter`          | `database/mariadb/creds/*-ro`                                                                          | read                 |
 | `pki-issuer`           | `pki/issue/*`                                                                                          | create, update       |
@@ -131,9 +139,9 @@ Each role creates a MariaDB user with `SELECT`-only grants on the respective dat
 
 | Secret Type                      | OpenBao Path                               | Engine | Consumer(s)                            | Cluster       |
 | -------------------------------- | ------------------------------------------ | ------ | -------------------------------------- | ------------- |
-| Keystone Admin Password          | `kv-v2/bootstrap/keystone-admin`           | KV v2  | Keystone Bootstrap Job                 | Control Plane |
-| Service User Passwords           | `kv-v2/bootstrap/service-passwords`        | KV v2  | c5c3-operator                          | Control Plane |
-| K-ORC Service User Password      | `kv-v2/openstack/k-orc/credentials`        | KV v2  | c5c3-operator (creates Keystone User)  | Control Plane |
+| Keystone Admin Password (root of trust) | `kv-v2/bootstrap/keystone-admin`     | KV v2  | Keystone Bootstrap Job; c5c3-operator (mints/rotates admin App Cred) — **never a workload pod** | Control Plane |
+| Admin Application Credential     | `kv-v2/openstack/admin/app-credential`     | KV v2  | K-ORC Controller (`orc-system`) — **never a workload pod** | Control Plane |
+| Per-Pod Service User Password    | `kv-v2/openstack/<service>/pods/<pod>/user` | KV v2 | exactly one workload pod (`OS_KEYSTONE_AUTHTOKEN__*`) | Control Plane / Hypervisor |
 | MariaDB Root Credentials         | `kv-v2/infrastructure/mariadb`             | KV v2  | MariaDB Operator                       | Control Plane |
 | RabbitMQ Credentials             | `kv-v2/infrastructure/rabbitmq`            | KV v2  | RabbitMQ Operator                      | Control Plane |
 | Valkey Auth                      | `kv-v2/infrastructure/valkey`              | KV v2  | Valkey Operator                        | Control Plane |
@@ -141,13 +149,6 @@ Each role creates a MariaDB user with `SELECT`-only grants on the respective dat
 | Neutron DB Credentials           | `kv-v2/openstack/neutron/db`               | KV v2  | Neutron API                            | Control Plane |
 | Glance DB Credentials            | `kv-v2/openstack/glance/db`                | KV v2  | Glance API                             | Control Plane |
 | Cinder DB Credentials            | `kv-v2/openstack/cinder/db`                | KV v2  | Cinder API                             | Control Plane |
-| Nova Application Credential      | `kv-v2/openstack/nova/app-credential`      | KV v2  | nova-operator (via c5c3-operator)      | Control Plane |
-| Neutron Application Credential   | `kv-v2/openstack/neutron/app-credential`   | KV v2  | neutron-operator (via c5c3-operator)   | Control Plane |
-| Glance Application Credential    | `kv-v2/openstack/glance/app-credential`    | KV v2  | glance-operator (via c5c3-operator)    | Control Plane |
-| Cinder Application Credential    | `kv-v2/openstack/cinder/app-credential`    | KV v2  | cinder-operator (via c5c3-operator)    | Control Plane |
-| Placement Application Credential | `kv-v2/openstack/placement/app-credential` | KV v2  | placement-operator (via c5c3-operator) | Control Plane |
-| K-ORC Application Credential     | `kv-v2/openstack/k-orc/app-credential`     | KV v2  | K-ORC Controller                       | Control Plane |
-| Cortex Application Credential    | `kv-v2/openstack/cortex/app-credential`    | KV v2  | Cortex                                 | Control Plane |
 | Ceph Client Key (Nova)           | `kv-v2/ceph/client-nova`                   | KV v2  | Nova Compute, Hypervisor Node Agent    | Hypervisor    |
 | Ceph Client Key (Cinder)         | `kv-v2/ceph/client-cinder`                 | KV v2  | Cinder Volume                          | Control Plane |
 | Ceph Client Key (Glance)         | `kv-v2/ceph/client-glance`                 | KV v2  | Glance API                             | Control Plane |
@@ -262,8 +263,8 @@ The bootstrap sequence with OpenBao as central secret store:
 | **Phase 3** | ESO creates K8s Secrets from OpenBao in all clusters                                                   | ESO → OpenBao        |
 | **Phase 4** | Infrastructure Operators start (MariaDB, RabbitMQ, Valkey)                                             | K8s Secrets          |
 | **Phase 5** | Keystone Bootstrap with Admin credentials from OpenBao                                                 | K8s Secrets          |
-| **Phase 6** | c5c3-operator creates Keystone Services, Endpoints, Service Users, Application Credentials (via K-ORC) | Keystone API         |
-| **Phase 7** | PushSecrets write generated credentials back to OpenBao                                                | PushSecret → OpenBao |
+| **Phase 6** | c5c3-operator mints the admin App Cred, then creates Keystone Services, Endpoints, and per-pod Service Users (via K-ORC) | Keystone API |
+| **Phase 7** | PushSecrets write the admin App Cred and per-pod user passwords back to OpenBao                        | PushSecret → OpenBao |
 | **Phase 8** | ESO distributes all secrets to target clusters, services start                                         | ESO → K8s Secrets    |
 
 ## Credentials Never Live in ConfigMaps
@@ -276,12 +277,19 @@ Three distinct rotation mechanisms exist; do not conflate them:
 
 **1. Keystone cryptographic-key rotation (built, keystone-operator).** The operator rotates Fernet token keys and credential *encryption* keys using a **split-compute-write** boundary (CC-0081): the rotation CronJob — holding only narrow get+patch RBAC — writes new key material to a dedicated *staging* Secret; the operator then validates it (correct length, no duplicates, count in range) and applies it to the production Secret with its own privileged ServiceAccount. This keeps token-forgery primitives out of the CronJob's reach. Keys are projected into pods and rotate in place (no rolling restart, CC-0074), and credential-key rotation additionally runs `keystone-manage credential_migrate` to re-encrypt stored credentials. Backups are pushed per-CR to OpenBao at `openstack/keystone/{name}/{fernet,credential}-keys` (CC-0093), and an OpenBao finalizer purges them on deletion (CC-0079). A separate trust-flush CronJob purges expired trust delegations (CC-0057).
 
-**2. Application Credential rotation (planned, c5c3-operator).** OpenBao KV v2 supports versioned secrets. In combination with the planned `CredentialRotation` CRD of the c5c3-operator:
+**2. Workload service-user rotation = pod recreation (planned, c5c3-operator).** Per-pod service
+users are **not** rotated in place; a fresh credential is produced by recreating the pod-identity
+(issue [#30](https://github.com/C5C3/C5C3/issues/30), D4). Any deploy / rollout / reschedule /
+crash-restart (ephemeral) or intentional recreation (per-replica), and `maxAge`-driven rolling
+recreation for long-lived pods, deletes the old Keystone user (finalizer revokes its tokens) and
+provisions a new one with a freshly generated password. There is **no** per-service Application
+Credential rotation. See [Credential Lifecycle — Credential Rotation](./01-gitops-fluxcd/01-credential-lifecycle.md#credential-rotation).
 
-* **Versioned Secrets**: OpenBao KV v2 stores all secret versions with metadata
-* **ESO Refresh**: ExternalSecrets have a configurable `refreshInterval` (default: 1h)
-* **Rotation Flow**: Write new secret to OpenBao → ESO updates K8s Secret → Pods receive new secret via Secret watch or rolling update
-* **CredentialRotation CRD**: will rotate Keystone *Application Credentials* based on schedule and grace period
+**2b. Admin Application Credential rotation (planned, c5c3-operator).** The single admin App Cred —
+K-ORC's only credential — is rotated by **restricted + password-driven re-mint**: the operator
+mints a fresh restricted App Cred from the admin password (OpenBao), writes it (PushSecret →
+OpenBao → ESO → `k-orc-clouds-yaml`), and deletes the old one after a short grace window. This is
+the only target of the `CredentialRotation` CRD.
 
 **3. Admin credential rotation (planned, keystone-operator).** The Keystone `admin` password — written once during bootstrap — has no rotation path today. The planned design re-runs the idempotent `keystone-manage bootstrap` Job whenever ESO syncs a new password from `kv-v2/bootstrap/keystone-admin`: the bootstrap pod template carries a hash of the password so a rotation changes the Job's PodSpec hash and `RunJob` (CC-0005) re-runs it, applying the new password to Keystone. The new password is produced either externally in OpenBao (default) or by an opt-in operator-scheduled CronJob using the same split-compute-write boundary as key rotation (CC-0081). The admin password is single-valued (a hard cutover, no grace window) but low blast radius — running services use their own application credentials, not the admin password. See [Admin Credential Rotation](../09-implementation/05-keystone-dependencies.md#admin-credential-rotation) for the full mechanism.
 

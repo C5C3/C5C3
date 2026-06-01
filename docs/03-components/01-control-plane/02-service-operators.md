@@ -8,7 +8,7 @@ Each core OpenStack service is managed by a dedicated operator running in the Co
 **Runs in:** Control Plane Cluster (Deployment)
 **Namespace:** `openstack`
 
-The **keystone-operator** manages the Keystone Identity Service. Creation of service users and application credentials is done via K-ORC. For the reconciler architecture, sub-reconciler pattern, and dependency flow, see [Keystone Reconciler](../../09-implementation/04-keystone-reconciler.md) and [Keystone Dependencies](../../09-implementation/05-keystone-dependencies.md).
+The **keystone-operator** manages the Keystone Identity Service. Creation of per-pod service users (real Keystone users with passwords) and the single admin Application Credential is done via K-ORC. For the reconciler architecture, sub-reconciler pattern, and dependency flow, see [Keystone Reconciler](../../09-implementation/04-keystone-reconciler.md) and [Keystone Dependencies](../../09-implementation/05-keystone-dependencies.md).
 
 **Provided CRDs:**
 
@@ -132,9 +132,12 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    # Application Credential from K-ORC via OpenBao + ESO
-    appCredentialRef:
-      secretName: glance-keystone-credentials  # Created by ExternalSecret
+    # Per-pod real Keystone user via K-ORC (issue #30): the c5c3-operator provisions one
+    # dedicated user per pod and injects it via OS_KEYSTONE_AUTHTOKEN__* — no app credential.
+    serviceUser:
+      project: service
+      roles: [service, admin]
+      mode: PerReplica
 
   storage:
     backend: rbd
@@ -204,9 +207,12 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    # Application Credential from K-ORC via OpenBao + ESO
-    appCredentialRef:
-      secretName: placement-keystone-credentials  # Created by ExternalSecret
+    # Per-pod real Keystone user via K-ORC (issue #30): the c5c3-operator provisions one
+    # dedicated user per pod and injects it via OS_KEYSTONE_AUTHTOKEN__* — no app credential.
+    serviceUser:
+      project: service
+      roles: [service, admin]
+      mode: PerReplica
 
   dependsOn:
     - kind: Keystone
@@ -282,9 +288,12 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    # Application Credential from K-ORC via OpenBao + ESO
-    appCredentialRef:
-      secretName: nova-keystone-credentials  # Created by ExternalSecret
+    # Per-pod real Keystone user via K-ORC (issue #30): the c5c3-operator provisions one
+    # dedicated user per pod and injects it via OS_KEYSTONE_AUTHTOKEN__* — no app credential.
+    serviceUser:
+      project: service
+      roles: [service, admin]
+      mode: PerReplica
 
   # Service-to-Service Authentication
   serviceAuth:
@@ -383,9 +392,12 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    # Application Credential from K-ORC via OpenBao + ESO
-    appCredentialRef:
-      secretName: neutron-keystone-credentials  # Created by ExternalSecret
+    # Per-pod real Keystone user via K-ORC (issue #30): the c5c3-operator provisions one
+    # dedicated user per pod and injects it via OS_KEYSTONE_AUTHTOKEN__* — no app credential.
+    serviceUser:
+      project: service
+      roles: [service, admin]
+      mode: PerReplica
 
   # OVN Backend Configuration
   ovn:
@@ -475,9 +487,12 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    # Application Credential from K-ORC via OpenBao + ESO
-    appCredentialRef:
-      secretName: cinder-keystone-credentials  # Created by ExternalSecret
+    # Per-pod real Keystone user via K-ORC (issue #30): the c5c3-operator provisions one
+    # dedicated user per pod and injects it via OS_KEYSTONE_AUTHTOKEN__* — no app credential.
+    serviceUser:
+      project: service
+      roles: [service, admin]
+      mode: PerReplica
 
   # Ceph RBD Backend
   backends:

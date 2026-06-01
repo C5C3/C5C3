@@ -42,8 +42,10 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    appCredentialRef:
-      name: cortex-app-credential-secret
+    serviceUser:                    # per-pod real Keystone user (issue #30)
+      project: service
+      roles: [reader]               # Cortex is read-only
+      mode: PerReplica
 
   # Enabled Pipelines
   pipelines:
@@ -151,8 +153,10 @@ spec:
 
   keystone:
     authUrl: https://keystone.openstack.svc.cluster.local:5000/v3
-    appCredentialRef:
-      name: tempest-app-credential-secret
+    serviceUser:                    # per-pod real Keystone user (issue #30)
+      project: service
+      roles: [admin]                # Tempest needs admin to provision test resources
+      mode: Ephemeral               # CronJob: each run gets a fresh user, deleted after
 
   # Test run configuration
   tests:

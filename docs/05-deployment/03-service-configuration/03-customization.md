@@ -25,7 +25,7 @@ The v1alpha1 CRDs cover the following configuration aspects per service:
 | --- | --- | --- | --- | --- | --- | --- |
 | **Database** | clusterRef/host | Main + API + Cell0 | clusterRef/host | clusterRef/host | clusterRef/host | clusterRef/host |
 | **Messaging** | — | clusterRef/hosts | clusterRef/hosts | — | clusterRef/hosts | — |
-| **Keystone Auth** | (self) | appCredentialRef | appCredentialRef | appCredentialRef | appCredentialRef | appCredentialRef |
+| **Keystone Auth** | (self) | serviceUser | serviceUser | serviceUser | serviceUser | serviceUser |
 | **Cache** | Backend, host, port | Backend, host, port | Backend, host, port | Backend, host, port | Backend, host, port | Backend, host, port |
 | **Storage Backend** | — | RBD pool, user, secretRef | — | RBD pool, user, secretRef | RBD + multi-backend | — |
 | **ML2/Network** | — | — | Type/mechanism drivers, OVN | — | — | — |

@@ -112,8 +112,10 @@ spec:
   keystoneAuth:
     authUrl: http://keystone-api.openstack.svc:5000
     region: RegionOne
-    applicationCredentialRef:
-      name: nova-app-credential
+    serviceUser:                    # per-pod real Keystone user (issue #30)
+      project: service              # stable service project (D5)
+      roles: [service, admin]
+      mode: PerReplica
   cache:
     clusterRef:
       name: memcached              # Managed: references Memcached CR
@@ -147,15 +149,20 @@ max_retries = -1
 connection_recycle_time = 600
 
 [keystone_authtoken]
-auth_type = v3applicationcredential
+auth_type = password
 auth_url = http://keystone-api.openstack.svc:5000
-application_credential_id = <from-secret>
-application_credential_secret = <from-secret>
+user_domain_name = Default
+project_name = service
+project_domain_name = Default
+# username/password are NOT in the ConfigMap (CC-0080); injected per pod via
+# OS_KEYSTONE_AUTHTOKEN__USERNAME / OS_KEYSTONE_AUTHTOKEN__PASSWORD from the
+# pod's ESO-synced svc-<service>-<pod>-keystone Secret.
 
 [service_user]
-auth_type = v3applicationcredential
+auth_type = password
 auth_url = http://keystone-api.openstack.svc:5000
 send_service_user_token = true
+# same per-pod username/password injected via env (OS_SERVICE_USER__*)
 
 [cache]
 enabled = true
@@ -262,8 +269,10 @@ spec:
       name: neutron-rabbitmq-credentials
   keystoneAuth:
     authUrl: http://keystone-api.openstack.svc:5000
-    applicationCredentialRef:
-      name: neutron-app-credential
+    serviceUser:                    # per-pod real Keystone user (issue #30)
+      project: service
+      roles: [service, admin]
+      mode: PerReplica
   ml2:
     typeDrivers:
       - geneve
@@ -289,10 +298,12 @@ transport_url = rabbit://neutron:****@rabbitmq.rabbitmq-system.svc:5672/neutron
 connection = mysql+pymysql://neutron:****@maxscale.mariadb-system.svc:3306/neutron
 
 [keystone_authtoken]
-auth_type = v3applicationcredential
+auth_type = password
 auth_url = http://keystone-api.openstack.svc:5000
-application_credential_id = <from-secret>
-application_credential_secret = <from-secret>
+user_domain_name = Default
+project_name = service
+project_domain_name = Default
+# username/password injected per pod via OS_KEYSTONE_AUTHTOKEN__* (CC-0080)
 ```
 
 **Generated ml2_conf.ini:**
@@ -366,15 +377,15 @@ Credentials flow from OpenBao through ESO into K8s Secrets, which operators read
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  OpenBao                                                                    │
-│  ├── kv-v2/openstack/nova/db          → {"username": "nova", "password": …} │
-│  ├── kv-v2/infrastructure/rabbitmq    → {"username": "nova", "password": …} │
-│  └── kv-v2/openstack/nova/app-credential → {"id": …, "secret": …}           │
+│  ├── kv-v2/openstack/nova/db              → {"username": "nova","password"} │
+│  ├── kv-v2/infrastructure/rabbitmq        → {"username": "nova","password"} │
+│  └── kv-v2/openstack/nova/pods/<pod>/user → {"username": "svc-…","password"}│
 │         │                                                                   │
 │         ▼                                                                   │
 │  ESO (ExternalSecret CRs)                                                   │
 │  ├── nova-db-credentials              → K8s Secret                          │
 │  ├── nova-rabbitmq-credentials        → K8s Secret                          │
-│  └── nova-app-credential              → K8s Secret                          │
+│  └── svc-nova-<pod>-keystone          → K8s Secret (one pod; env-injected)  │
 │         │                                                                   │
 │         ▼                                                                   │
 │  nova-operator (reconciliation)                                             │

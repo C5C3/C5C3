@@ -221,6 +221,9 @@ type ServiceStatus struct {
 | **KeystoneReady** | Keystone CR is Ready |
 | **ServicesReady** | All enabled service CRs are Ready |
 | **KORCReady** | K-ORC bootstrap imports and managed resources are available |
+| **AdminCredentialReady** | The restricted admin Application Credential is minted and synced to `orc-system` |
+| **CatalogReady** | All Keystone Service + Endpoint CRs are reconciled |
+| **ServiceUsersReady** | All per-pod service users (per replica slot) are provisioned |
 
 ## Orchestration Reconciler
 
@@ -262,6 +265,9 @@ The c5c3-operator reconciler will read the ControlPlane CR and execute a phased 
 │  ┌─────────────────────────────┐                                            │
 │  │ Phase 3: K-ORC Setup        │                                            │
 │  │                             │                                            │
+│  │ Mint admin App Cred         │  (restricted, from admin password —        │
+│  │ → k-orc-clouds-yaml         │   K-ORC's only credential)                 │
+│  │                             │                                            │
 │  │ Import bootstrap resources: │                                            │
 │  │ ├── Domain (unmanaged)      │                                            │
 │  │ ├── Project (unmanaged)     │                                            │
@@ -269,8 +275,8 @@ The c5c3-operator reconciler will read the ControlPlane CR and execute a phased 
 │  │                             │                                            │
 │  │ Create managed resources:   │                                            │
 │  │ ├── Services + Endpoints    │                                            │
-│  │ ├── Service Users           │                                            │
-│  │ └── Application Credentials │                                            │
+│  │ └── Per-pod Users + grants  │  (one real user per replica slot;          │
+│  │                             │   NO per-service Application Credentials)  │
 │  └──────────┬──────────────────┘                                            │
 │             │ KORCReady=True                                                │
 │             ▼                                                               │
@@ -562,14 +568,138 @@ spec:
 
 ## K-ORC Integration
 
-After Keystone is Ready, the c5c3-operator will create K-ORC CRs for service catalog management:
+After Keystone is Ready, the c5c3-operator drives K-ORC to manage the Keystone identity
+lifecycle. The model (issue [#30](https://github.com/C5C3/C5C3/issues/30)) has K-ORC authenticate
+with a **single restricted, project-scoped admin Application Credential** — the design's *only*
+App Cred — and provision **one real Keystone service user + password per workload pod**. There are
+**no per-service Application Credentials for workloads**.
 
-1. **Import bootstrap resources** (`managementPolicy: unmanaged`): Domain, Service Project, Roles — created by the Keystone Bootstrap Job
-2. **Create Services and Endpoints** (`managementPolicy: managed`): One Service + Endpoint pair per OpenStack service
-3. **Create Service Users** (`managementPolicy: managed`): One User per service
-4. **Create Application Credentials** (`managementPolicy: managed`): One ApplicationCredential per service, pushed to OpenBao via PushSecret
+1. **Mint the admin Application Credential** from the admin password, push it to OpenBao, and let
+   ESO materialize `k-orc-clouds-yaml` in `orc-system` (K-ORC's `clouds.yaml`). This is the only
+   App Cred created. See [admin credential flow](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#k-orc-admin-credential-flow).
+2. **Import bootstrap resources** (`managementPolicy: unmanaged`): Domain, Service Project, Roles —
+   created by the Keystone Bootstrap Job.
+3. **Create Services and Endpoints** (`managementPolicy: managed`): one Service + Endpoint pair per
+   OpenStack service (reachable at project scope — verified, no system-scoped admin needed).
+4. **Create per-pod Users + role grants** (`managementPolicy: managed`): for each credentialed
+   service, one `User` CR per replica slot (`svc-<service>-<ordinal>`) with an operator-generated
+   password supplied via `User.passwordRef`, plus `Role`/grant CRs into the stable service project.
 
-For the full K-ORC flow, see [Control Plane — K-ORC](../03-components/01-control-plane/05-korc.md). For the credential lifecycle, see [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md).
+The per-pod provisioning, garbage collection, and rotation logic is the
+[Per-pod service user reconciler](#per-pod-service-user-reconciler) below. For the full credential
+lifecycle, see [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md);
+for K-ORC details, [Control Plane — K-ORC](../03-components/01-control-plane/05-korc.md).
+
+## Per-pod service user reconciler
+
+This sub-reconciler implements the per-pod credential model. CobaltCore goes **straight to
+per-pod** (no interim shared-service-user phase); see the
+[Implementation Roadmap](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#implementation-roadmap).
+
+### ControlPlane spec additions
+
+Each service spec carries an optional `serviceUser`, and `KORCSpec` carries the admin credential
+configuration. Passwords never appear in the spec — they are generated by the operator.
+
+```go
+// ServiceUserSpec declares the per-pod Keystone service user for a service's pods.
+type ServiceUserSpec struct {
+    // Project is the stable service project all per-pod users of this service join (D5).
+    // +kubebuilder:default="service"
+    Project string `json:"project,omitempty"`
+
+    // Roles are granted to every per-pod user in the service project.
+    // +kubebuilder:default={"service"}
+    Roles []string `json:"roles,omitempty"`
+
+    // Mode selects the credential granularity.
+    // PerReplica (default): one stable user per replica slot, pre-provisioned from the
+    //   replica count; rotation on intentional recreation.
+    // Ephemeral: one user per pod instance via pod-watch; rotation on every restart.
+    // None: this service's pods need no OpenStack credential.
+    // +kubebuilder:validation:Enum=PerReplica;Ephemeral;None
+    // +kubebuilder:default=PerReplica
+    Mode string `json:"mode,omitempty"`
+
+    // MaxAge triggers rolling recreation of long-lived pods to refresh the credential.
+    // Zero disables age-based rotation. (D4: rotation = recreation, never in place.)
+    // +optional
+    MaxAge *metav1.Duration `json:"maxAge,omitempty"`
+}
+
+// AdminCredentialSpec configures K-ORC's single admin Application Credential.
+type AdminCredentialSpec struct {
+    // PasswordSecretRef is the admin password (root of trust) used only to bootstrap/rotate
+    // the admin App Cred. Never rendered into a workload pod.
+    PasswordSecretRef commonv1.SecretRefSpec `json:"passwordSecretRef"`
+
+    // ApplicationCredential configures the minted admin App Cred.
+    ApplicationCredential AdminAppCredSpec `json:"applicationCredential"`
+}
+
+type AdminAppCredSpec struct {
+    // Restricted (default true) prevents the App Cred from minting further app creds or trusts.
+    // +kubebuilder:default=true
+    Restricted bool `json:"restricted,omitempty"`
+    // AccessRules optionally narrows the App Cred to the identity/catalog endpoints.
+    // +optional
+    AccessRules []AccessRule `json:"accessRules,omitempty"`
+    // Rotation configures password-driven re-mint (the only supported mode).
+    // +optional
+    Rotation *AdminAppCredRotation `json:"rotation,omitempty"`
+}
+
+type AdminAppCredRotation struct {
+    // +kubebuilder:validation:Enum=PasswordDriven
+    // +kubebuilder:default=PasswordDriven
+    Mode         string `json:"mode,omitempty"`
+    IntervalDays int32  `json:"intervalDays,omitempty"`
+}
+```
+
+### Reconciliation logic
+
+```text
+reconcileServiceUsers(ctx, cp):
+  for each enabled service s with s.serviceUser.mode != None:
+      desired = enumerateReplicaSlots(s)          # ordinals from replica count, or nodes (DaemonSet)
+      for slot in desired:
+          user = "svc-<s>-<slot>"
+          ensurePassword(user)                    # generate once → password Secret + OpenBao path
+          ensureKORCUser(user, passwordRef)       # K-ORC User CR (auth: admin App Cred)
+          ensureKORCGrants(user, project, roles)  # K-ORC Role/grant CRs into the service project
+          ensureESOExternalSecret(user, pod)      # one pod's Secret; env-injected (CC-0080)
+      # garbage-collect slots no longer desired (scale-down):
+      for user in existingUsers(s) not in desired:
+          deleteKORCUser(user)                    # finalizer → Keystone user deleted → tokens revoked
+  setCondition(ServiceUsersReady, allSlotsReady)
+```
+
+* **PerReplica** derives `desired` from the service's configured replica count (StatefulSet
+  ordinals) or the node set (per-node DaemonSet, `svc-<service>-<node>`). Users are
+  **pre-provisioned**, so credentials exist before pods start.
+* **Ephemeral** instead runs a **pod-watch**: a `User` CR is created per pod (owner-referenced to
+  the pod) and deleted when the pod terminates. A start-time guard requeues the pod's credential
+  until the `User`/Secret is Ready.
+* **`maxAge`** marks a slot's `User` CR for recreation once its credential exceeds `maxAge`,
+  triggering a rolling pod recreation rather than an in-place password change.
+
+### Garbage collection (finalizer + sweeper)
+
+* **Finalizer (primary):** each per-pod `User`/grant CR carries a finalizer; K-ORC's own finalizer
+  deletes the Keystone user before the CR is removed, revoking tokens and grants immediately.
+* **Sweeper (backstop):** a periodic reconcile lists Keystone users carrying the `svc-<service>-…`
+  naming prefix / c5c3-managed tag and deletes any with no live pod-identity or owner — covering
+  force-deleted pods or lost nodes where a finalizer was skipped. Orphan deletions are logged.
+
+### RBAC additions
+
+```go
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch          // Ephemeral pod-watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets;pushsecrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=openstack.k-orc.cloud,resources=users;roles;applicationcredentials;services;endpoints;projects;domains,verbs=get;list;watch;create;update;patch;delete
+```
 
 ## SecretAggregate CRD
 
@@ -613,31 +743,45 @@ spec:
     - secretRef:
         name: nova-rabbitmq-credentials
     - secretRef:
-        name: nova-app-credential
+        name: ceph-client-nova
       keys:
-        - application_credential_id
-        - application_credential_secret
+        - key
   target:
     name: nova-aggregated-credentials
 ```
 
+> `SecretAggregate` merges **infrastructure** secrets (DB, RabbitMQ, Ceph). The per-pod Keystone
+> credential is **not** aggregated here — it is mounted into exactly one pod and injected via env
+> (`OS_KEYSTONE_AUTHTOKEN__{USERNAME,PASSWORD}`), see the
+> [per-pod service user reconciler](#per-pod-service-user-reconciler).
+
 ## CredentialRotation CRD
 
-The `CredentialRotation` CRD (planned) will automate **Application Credential** rotation for OpenStack services, in coordination with K-ORC and the OpenBao/ESO pipeline.
+The `CredentialRotation` CRD (planned) automates rotation of the **single admin Application
+Credential** — K-ORC's only credential. It is **not** used for workload service users: those
+rotate by **pod recreation** (D4), not by an in-place credential swap, so they need no
+`CredentialRotation` object (see [Credential Lifecycle — Credential Rotation](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#credential-rotation)).
 
-> **Not to be confused with the already-built keystone-operator key rotation.** Keystone today rotates **cryptographic keys** — Fernet token keys and credential *encryption* keys (`reconcile_fernet.go`, `reconcile_credential.go`, `rotation_staging.go`, `rotation_validation.go`; see [Keystone Dependencies](./05-keystone-dependencies.md#fernet-key-lifecycle)). That is a distinct mechanism living in the keystone-operator. The c5c3-level `CredentialRotation` CRD described here rotates Keystone *Application Credentials* and does not yet exist in forge.
+> **Not to be confused with the already-built keystone-operator key rotation.** Keystone today
+> rotates **cryptographic keys** — Fernet token keys and credential *encryption* keys
+> (`reconcile_fernet.go`, `reconcile_credential.go`, `rotation_staging.go`,
+> `rotation_validation.go`; see [Keystone Dependencies](./05-keystone-dependencies.md#fernet-key-lifecycle)).
+> That is a distinct mechanism in the keystone-operator. The admin **password** itself rotates via
+> the [admin credential rotation](./05-keystone-dependencies.md#admin-credential-rotation) design
+> (re-run of the idempotent bootstrap Job). This `CredentialRotation` CRD rotates only the admin
+> *Application Credential* derived from that password, and does not yet exist in forge.
 
 ```go
-// CredentialRotation defines an automatic rotation schedule.
+// CredentialRotation rotates the admin Application Credential (the only supported target).
 type CredentialRotationSpec struct {
-    // TargetServiceUser references the K-ORC User CR.
-    TargetServiceUser string `json:"targetServiceUser"`
-    // RotationType is the credential type to rotate.
-    // +kubebuilder:validation:Enum=applicationCredential
-    RotationType string `json:"rotationType"`
+    // Target is the credential to rotate. The only supported value is adminApplicationCredential;
+    // workload service users rotate by pod recreation and are not targets here.
+    // +kubebuilder:validation:Enum=adminApplicationCredential
+    // +kubebuilder:default=adminApplicationCredential
+    Target string `json:"target"`
     // Schedule defines the rotation timing.
     Schedule RotationSchedule `json:"schedule"`
-    // GracePeriodDays is the overlap period where both old and new credentials are valid.
+    // GracePeriodDays is the overlap where both the old and new admin App Cred are valid.
     // +kubebuilder:default=1
     GracePeriodDays int32 `json:"gracePeriodDays,omitempty"`
 }
@@ -645,29 +789,26 @@ type CredentialRotationSpec struct {
 type RotationSchedule struct {
     // IntervalDays is the rotation interval in days.
     IntervalDays int32 `json:"intervalDays"`
-    // PreRotationDays is how many days before expiry to create the new credential.
+    // PreRotationDays is how many days before expiry to mint the successor.
     PreRotationDays int32 `json:"preRotationDays"`
 }
 ```
 
-**Rotation flow:**
+**Rotation flow (restricted + password-driven re-mint, D2):**
 
 ```text
-Day 0: New Application Credential created
-       │
-       ├── K-ORC creates new AppCred in Keystone
-       ├── New credential written to K8s Secret
-       ├── PushSecret syncs to OpenBao
-       └── ESO distributes to all consumers
+Day 0:  Restricted admin App Cred active (minted from the admin password)
        │
 Day 83: Pre-rotation (intervalDays=90, preRotationDays=7)
        │
-       ├── New Application Credential created (same flow)
-       └── Old credential still valid
+       ├── operator re-mints a fresh RESTRICTED admin App Cred from the admin password
+       ├── new credential written to K8s Secret → PushSecret → OpenBao
+       ├── ESO updates k-orc-clouds-yaml (orc-system); K-ORC picks up the new clouds.yaml
+       └── old App Cred still valid (grace window)
        │
-Day 90: Grace period starts (gracePeriodDays=1)
+Day 84: Grace period ends (gracePeriodDays=1)
        │
-       └── Old Application Credential deleted from Keystone
+       └── old admin App Cred deleted from Keystone
 ```
 
 For the full credential lifecycle, see [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md). For brownfield rotation, see [Brownfield Integration](../06-operations/03-brownfield-integration.md#step-5-credential-rotation).

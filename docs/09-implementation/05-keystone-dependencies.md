@@ -318,7 +318,7 @@ URLs use `http` (TLS is terminated upstream by the Gateway) and carry the `/v3` 
 | Endpoints | `public`, `internal`, `admin` | Keystone API endpoints |
 
 **Chicken-and-egg with K-ORC:** The bootstrap Job creates foundational resources (domain, roles, service catalog) that [K-ORC](../03-components/01-control-plane/05-korc.md) later imports as unmanaged resources.
-Subsequent Keystone resources (service users, application credentials, additional endpoints) are then managed by K-ORC.
+Subsequent Keystone resources (the single admin Application Credential, per-pod service users, services, additional endpoints) are then managed by K-ORC.
 This two-phase approach resolves the circular dependency: Keystone must exist before K-ORC can talk to it, but K-ORC needs the bootstrap resources to operate.
 
 ## Admin Credential Rotation
@@ -375,7 +375,7 @@ Two models, both compatible with the apply side above:
 ### Design considerations
 
 - **Single-valued credential, hard cutover.** A Keystone user has exactly one password; there is no native dual-validity grace window as there is for application credentials. There is therefore an unavoidable short skew between the moment Keystone's stored password changes and the moment every consumer has re-read the new value from ESO.
-- **Low blast radius.** Running OpenStack services authenticate with their own service users / application credentials, not the admin password. The admin password's only consumers are the bootstrap Job and administrative tooling (operators, K-ORC admin flows, CI). Those consumers must read the password from ESO/OpenBao at use time and retry on auth failure rather than caching it indefinitely.
+- **Low blast radius.** Running OpenStack services authenticate with their own per-pod service users (real user + password, issue [#30](https://github.com/C5C3/C5C3/issues/30)), not the admin password. The admin password's only consumers are the bootstrap Job and administrative tooling (operators, the K-ORC admin App Cred bootstrap/rotation, CI). Those consumers must read the password from ESO/OpenBao at use time and retry on auth failure rather than caching it indefinitely.
 - **OpenBao is authoritative.** The rotated password must be written to OpenBao first and flow down through ESO. The operator must not write it only into the ESO-owned admin Secret (`creationPolicy: Owner`), because ESO would overwrite it on the next refresh.
 - **Existing tokens survive.** Changing the admin password does not revoke already-issued Fernet tokens; they remain valid until expiry. If immediate invalidation is required, pair rotation with explicit token revocation.
 - **Recoverability.** As with key rotation, the password in OpenBao is the recovery point: re-running bootstrap re-converges Keystone to whatever OpenBao currently holds.

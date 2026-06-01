@@ -9,43 +9,43 @@ The **c5c3-operator** is the central orchestration operator. It manages dependen
 **Responsibilities:**
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                c5c3-operator Responsibilities                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. Infrastructure Orchestration                                │
-│     ├── Creates MariaDB CR → MariaDB Operator                   │
-│     ├── Creates RabbitMQ CR → RabbitMQ Operator                 │
-│     ├── Creates Valkey CR → Valkey Operator                     │
-│     └── Creates Memcached CR → Memcached Operator               │
-│                                                                 │
-│  2. Dependency Management                                       │
-│     ├── Dependency graph between services                       │
-│     ├── Set conditions on Service CRs                           │
-│     └── Readiness aggregation                                   │
-│                                                                 │
-│  3. Credential & Service Catalog Orchestration                  │
-│     ├── Import bootstrap resources into K-ORC (unmanaged):      │
-│     │   Domain, Service Project, Roles (created by Keystone     │
-│     │   Bootstrap Job — must be imported before K-ORC can act)  │
-│     ├── Create K-ORC CRs for Keystone Services (managed)        │
-│     ├── Create K-ORC CRs for Endpoints (managed)                │
-│     ├── Create K-ORC CRs for Service Users (managed)            │
-│     ├── Create K-ORC CRs for Application Credentials (managed)  │
-│     ├── Manage SecretAggregate CRs                              │
-│     └── Coordinate CredentialRotation                           │
-│                                                                 │
-│  4. Service CR Creation                                         │
-│     ├── Creates Keystone CR → keystone-operator                 │
-│     ├── Creates Glance CR → glance-operator                     │
-│     ├── Creates Placement CR → placement-operator               │
-│     ├── Creates Nova CR → nova-operator                         │
-│     ├── Creates Neutron CR → neutron-operator                   │
-│     ├── Creates Cinder CR → cinder-operator                     │
-│     ├── Creates Cortex CR → cortex-operator (optional)          │
-│     └── Creates Tempest CR → tempest-operator (optional)        │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│                c5c3-operator Responsibilities                     │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  1. Infrastructure Orchestration                                  │
+│     ├── Creates MariaDB CR → MariaDB Operator                     │
+│     ├── Creates RabbitMQ CR → RabbitMQ Operator                   │
+│     ├── Creates Valkey CR → Valkey Operator                       │
+│     └── Creates Memcached CR → Memcached Operator                 │
+│                                                                   │
+│  2. Dependency Management                                         │
+│     ├── Dependency graph between services                         │
+│     ├── Set conditions on Service CRs                             │
+│     └── Readiness aggregation                                     │
+│                                                                   │
+│  3. Credential & Service Catalog Orchestration                    │
+│     ├── Import bootstrap resources into K-ORC (unmanaged):        │
+│     │   Domain, Service Project, Roles (created by Keystone       │
+│     │   Bootstrap Job — must be imported before K-ORC can act)    │
+│     ├── Mint the admin Application Credential (the only App Cred) │
+│     ├── Create K-ORC CRs for Keystone Services (managed)          │
+│     ├── Create K-ORC CRs for Endpoints (managed)                  │
+│     ├── Create per-pod K-ORC User + grant CRs (managed)           │
+│     ├── Manage SecretAggregate CRs                                │
+│     └── Coordinate CredentialRotation (admin App Cred only)       │
+│                                                                   │
+│  4. Service CR Creation                                           │
+│     ├── Creates Keystone CR → keystone-operator                   │
+│     ├── Creates Glance CR → glance-operator                       │
+│     ├── Creates Placement CR → placement-operator                 │
+│     ├── Creates Nova CR → nova-operator                           │
+│     ├── Creates Neutron CR → neutron-operator                     │
+│     ├── Creates Cinder CR → cinder-operator                       │
+│     ├── Creates Cortex CR → cortex-operator (optional)            │
+│     └── Creates Tempest CR → tempest-operator (optional)          │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 For the Go type definitions, orchestration reconciler, and rollout strategy, see [C5C3 Operator Implementation](../../09-implementation/08-c5c3-operator.md).
@@ -56,7 +56,7 @@ For the Go type definitions, orchestration reconciler, and rollout strategy, see
 | -------------------- | ------------------ | ---------------------------------------- |
 | `ControlPlane`       | `c5c3.io/v1alpha1` | Top-level CRD for entire Control Plane   |
 | `SecretAggregate`    | `c5c3.io/v1alpha1` | Aggregates secrets from multiple sources |
-| `CredentialRotation` | `c5c3.io/v1alpha1` | Automatic credential rotation            |
+| `CredentialRotation` | `c5c3.io/v1alpha1` | Rotates the admin Application Credential |
 
 **ControlPlane CRD Example:**
 
@@ -175,10 +175,10 @@ spec:
 │                    │    Endpoints │  Cinder, Placement                      │
 │                    │    (managed) │                                         │
 │                    │              │                                         │
-│                    │ 3. Create    │  Service Users +                        │
-│                    │    Users,    │  Application Credentials                │
-│                    │    AppCreds  │  for all OpenStack services             │
-│                    │    (managed) │                                         │
+│                    │ 3. Create    │  One real Keystone user per pod         │
+│                    │    per-pod   │  (svc-<service>-<ordinal>) + role grants│
+│                    │    Users     │  into the stable service project (D5);  │
+│                    │    (managed) │  NO per-service Application Credentials │
 │                    └──────┬───────┘                                         │
 │                           │                                                 │
 │                ┌──────────┴──────────┐                                      │
