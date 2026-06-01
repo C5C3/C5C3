@@ -66,7 +66,7 @@ The External Secrets Operator runs in **all four clusters** and synchronizes sec
 
 * **ClusterSecretStore**: Connection to OpenBao in the Management Cluster (configured per cluster, Kubernetes Auth)
 * **ExternalSecret**: Reads secrets from OpenBao and creates local Kubernetes Secrets
-* **PushSecret**: Writes operator-generated secrets (Ceph keys, Application Credentials) back to OpenBao
+* **PushSecret**: Writes operator-generated secrets (Ceph keys, the admin Application Credential, per-pod service-user passwords) back to OpenBao
 
 Existing operators and agents continue to read standard Kubernetes Secrets — no code changes required.
 

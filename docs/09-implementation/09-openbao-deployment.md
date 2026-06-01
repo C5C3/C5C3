@@ -354,10 +354,20 @@ path "kv-v2/data/ceph/*" {
   capabilities = ["create", "update", "read"]
 }
 
-# push-app-credentials.hcl
-# Allows PushSecret CRs to write Application Credentials back to OpenBao
+# push-admin-app-cred.hcl
+# Allows the PushSecret CR to write the single admin Application Credential back to OpenBao.
+# This is the only Application Credential in the design (issue #30); there are no
+# per-service app-credential paths.
 
-path "kv-v2/data/openstack/*/app-credential" {
+path "kv-v2/data/openstack/admin/app-credential" {
+  capabilities = ["create", "update", "read"]
+}
+
+# push-pod-users.hcl
+# Allows PushSecret CRs to write per-pod service-user passwords back to OpenBao.
+# The <service>/<pod> segments are operator-generated; never readable by a workload pod's role.
+
+path "kv-v2/data/openstack/+/pods/+/user" {
   capabilities = ["create", "update", "read"]
 }
 ```
@@ -419,7 +429,7 @@ path "pki/sign/*" {
 ```bash
 # Apply all policies
 for policy in eso-control-plane eso-hypervisor eso-storage eso-management \
-              push-ceph-keys push-app-credentials push-keystone-keys \
+              push-ceph-keys push-admin-app-cred push-pod-users push-keystone-keys \
               ci-cd-provisioner pki-issuer; do
   bao policy write $policy /path/to/policies/$policy.hcl
 done

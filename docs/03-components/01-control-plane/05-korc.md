@@ -47,10 +47,19 @@ K-ORC (Kubernetes OpenStack Resource Controller) enables **declarative managemen
 
 **Credential Management for K-ORC:**
 
-K-ORC requires a `clouds.yaml` secret for authentication against OpenStack APIs.
-The c5c3-operator creates K-ORC ApplicationCredential CRs. K-ORC creates the
-Application Credentials in Keystone and writes the result to a Kubernetes Secret.
-A PushSecret writes this secret to OpenBao, from where it's provided via ESO in the target namespace:
+K-ORC requires a `clouds.yaml` secret for authentication against OpenStack APIs. In CobaltCore
+(issue [#30](https://github.com/C5C3/C5C3/issues/30)) this is a **single restricted, project-scoped
+admin Application Credential** — the *only* App Cred in the design. The c5c3-operator mints it from
+the admin password (used only to bootstrap/rotate), K-ORC writes the result to a Kubernetes Secret,
+a PushSecret writes it to OpenBao, and ESO provides it back as `k-orc-clouds-yaml` in `orc-system`:
+
+> **Why a project-scoped admin App Cred is enough.** Every operation K-ORC performs (`user`,
+> `grant`, `project`, `role`, `domain`, `service`, `endpoint`) includes `project` in its policy
+> `scope_types` and checks `role:admin`, so it succeeds at project scope even under
+> `enforce_scope=True`. K-ORC exposes no `limit`/`registered_limit` kind, so the one classic
+> `system_scope:all`-only operation is out of reach by construction — no system-scoped admin is
+> needed. K-ORC authenticates **per resource** via `cloudCredentialsRef`, so the same admin App
+> Cred secret is referenced by every CR it reconciles.
 
 ```yaml
 # PushSecret: K-ORC Application Credential → OpenBao
@@ -71,7 +80,7 @@ spec:
     - match:
         secretKey: clouds.yaml
         remoteRef:
-          remoteKey: kv-v2/data/openstack/k-orc/app-credential
+          remoteKey: kv-v2/data/openstack/admin/app-credential
           property: clouds.yaml
 
 ---
@@ -94,7 +103,7 @@ spec:
   data:
     - secretKey: clouds.yaml
       remoteRef:
-        key: kv-v2/data/openstack/k-orc/app-credential
+        key: kv-v2/data/openstack/admin/app-credential
         property: clouds.yaml
 ```
 
@@ -143,14 +152,18 @@ spec:
     tags: ["customer-a", "production"]
 ```
 
-> **Note:** The `cloudCredentialsRef.secretName` references a secret provided via the
-> path K-ORC → PushSecret → OpenBao → ESO. Credentials are
-> automatically rotated via the `CredentialRotation` CRD.
+> **Note:** The `cloudCredentialsRef.secretName` references the admin App Cred provided via the
+> path K-ORC → PushSecret → OpenBao → ESO. That admin App Cred is rotated (restricted +
+> password-driven re-mint) via the `CredentialRotation` CRD; **workload** service users are not
+> rotated this way — they rotate by pod recreation. See
+> [Credential Lifecycle](../../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#credential-rotation).
 
 **Use Cases in CobaltCore:**
 
 * Declarative management of Keystone services, endpoints, and users
-* Automated provisioning of service accounts and application credentials
+* Provisioning of **per-pod real Keystone service users** (password supplied as input by the
+  c5c3-operator via `User.passwordRef`) — one dedicated user per workload pod
+* Bootstrapping K-ORC's single admin Application Credential (the only App Cred in the design)
 * Declarative management of Keystone domains, projects, and roles
 * GitOps integration for Identity-as-Code
 * Multi-tenant setup with reproducible configurations
@@ -217,7 +230,8 @@ creates K-ORC CRs with `managementPolicy: unmanaged` to import existing bootstra
 * **projects**: Service project, admin project (created by Keystone Bootstrap Job)
 
 Only after these imports are visible in K-ORC can the c5c3-operator create new resources
-(Services, Endpoints, Service Users, Application Credentials) with `managementPolicy: managed`.
+(Services, Endpoints, and per-pod Service Users) with `managementPolicy: managed`. The single
+admin Application Credential is minted earlier — it is what K-ORC authenticates with.
 
 **Troubleshooting:**
 
