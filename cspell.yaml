@@ -135,6 +135,7 @@ words:
   - ironcore
   - journalctl
   - keypair
+  - keypairs
   - Keyspace
   - keystoneauth
   - keystonemiddleware
@@ -200,6 +201,7 @@ words:
   - rados
   - radosgw
   - renovatebot
+  - rescoped
   - RHOSO
   - SARIF
   - SASL
@@ -223,6 +225,7 @@ words:
   - traceparent
   - tracestate
   - trustflush
+  - trustor
   - unbuilt
   - unwritable
   - uwsgi
