@@ -123,7 +123,7 @@ tests/e2e-chaos/
 ├── mariadb-pod-kill/
 │   ├── chainsaw-test.yaml
 │   ├── 00-keystone-cr.yaml
-│   └── 01-podchaos-kill-mariadb.yaml
+│   └── 01-podchaos.yaml
 ├── mariadb-network-latency/
 ├── mariadb-network-partition/
 ├── memcached-pod-kill/
@@ -175,7 +175,7 @@ These scenarios validate operator recovery when infrastructure pods crash and re
 **Objective:** Operator detects MariaDB outage, sets `DatabaseReady=False`, and recovers when MariaDB returns.
 
 ```yaml
-# tests/e2e-chaos/keystone/mariadb-pod-kill/01-podchaos-kill-mariadb.yaml
+# tests/e2e-chaos/mariadb-pod-kill/01-podchaos.yaml
 apiVersion: chaos-mesh.org/v1alpha1
 kind: PodChaos
 metadata:
@@ -193,7 +193,7 @@ spec:
 ```
 
 ```yaml
-# tests/e2e-chaos/keystone/mariadb-pod-kill/chainsaw-test.yaml
+# tests/e2e-chaos/mariadb-pod-kill/chainsaw-test.yaml
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
@@ -223,7 +223,7 @@ spec:
     - name: Inject chaos - kill MariaDB
       try:
         - apply:
-            file: 01-podchaos-kill-mariadb.yaml
+            file: 01-podchaos.yaml
 
     # ── Step 2: Assert operator detects failure ──
     - name: Verify degraded state detected
@@ -292,18 +292,18 @@ spec:
 
 **Objective:** ESO ExternalSecrets temporarily fail to sync. Operator tolerates this because it reads Kubernetes Secrets (not OpenBao directly). Already-synced Secrets remain available. When OpenBao returns, ExternalSecrets resume syncing.
 
-#### SC-CHAOS-004: cert-manager Pod Kill <Badge type="info" text="planned" />
+#### SC-CHAOS-004: Operator Pod Crash & Pod Kill (Self-Healing)
 
-**Objective:** Certificate renewals are delayed but existing TLS Secrets remain valid. Operator continues to serve traffic with existing certificates. When cert-manager returns, pending renewals complete.
+Forge implements operator self-healing as **two** distinct tests, and the operator runs in its own `keystone-system` namespace (CC-0105), targeted cross-namespace from the `openstack`-namespaced PodChaos:
 
-#### SC-CHAOS-005: Operator Pod Kill (Self-Healing)
-
-Forge implements this as **two** distinct tests, and the operator runs in its own `keystone-system` namespace (CC-0105), targeted cross-namespace from the `openstack`-namespaced PodChaos:
-
-* `operator-pod-crash/` — `mode: one` kills a single operator pod; verifies the Deployment restarts it and reconciliation resumes (CC-0048).
-* `operator-pod-kill/` — `mode: all` kills every operator pod to force **leader re-election**, then a follow-up step patches `spec.replicas` (1→2) to prove the new leader can reconcile spec changes after failover (CC-0066).
+* `operator-pod-crash/` (**SC-CHAOS-004**) — `mode: one` kills a single operator pod; verifies the Deployment restarts it and reconciliation resumes (CC-0048).
+* `operator-pod-kill/` (no SC-CHAOS ID; tracked by REQ-005/006/007, CC-0066) — `mode: all` kills every operator pod to force **leader re-election**, then a follow-up step patches `spec.replicas` (1→2) to prove the new leader can reconcile spec changes after failover.
 
 No user-visible state regression — the Keystone CR status remains consistent across both.
+
+#### cert-manager Pod Kill <Badge type="info" text="planned" />
+
+**Objective:** Certificate renewals are delayed but existing TLS Secrets remain valid. Operator continues to serve traffic with existing certificates. When cert-manager returns, pending renewals complete. *(Not yet implemented — no SC-CHAOS ID assigned until built.)*
 
 ### Category 2: Network Fault Injection
 
@@ -314,7 +314,7 @@ These scenarios validate operator behavior under network degradation — the har
 **Objective:** Operator detects that MariaDB is unreachable (TCP connection refused) and sets `DatabaseReady=False`. Recovers when partition is lifted.
 
 ```yaml
-# tests/e2e-chaos/keystone/mariadb-network-partition/01-networkchaos-partition.yaml
+# tests/e2e-chaos/mariadb-network-partition/01-networkchaos.yaml
 apiVersion: chaos-mesh.org/v1alpha1
 kind: NetworkChaos
 metadata:
@@ -346,7 +346,7 @@ spec:
 This addresses the specific concern from the issue comments: *"our operator handled hard disconnects fine but hung indefinitely on slow connections."*
 
 ```yaml
-# tests/e2e-chaos/keystone/mariadb-network-latency/01-networkchaos-latency.yaml
+# tests/e2e-chaos/mariadb-network-latency/01-networkchaos.yaml
 apiVersion: chaos-mesh.org/v1alpha1
 kind: NetworkChaos
 metadata:
@@ -380,13 +380,13 @@ spec:
 2. Condition updates continue to be processed (the operator is not deadlocked)
 3. After the latency injection ends, the operator recovers to `Ready=True`
 
-#### SC-CHAOS-008: Memcached Network Partition <Badge type="info" text="planned" />
+#### Memcached Network Partition <Badge type="info" text="planned" />
 
-**Objective:** Keystone API remains functional without cache. Performance degrades but availability is maintained. `Ready` condition stays `True`.
+**Objective:** Keystone API remains functional without cache. Performance degrades but availability is maintained. `Ready` condition stays `True`. *(Not yet implemented — no SC-CHAOS ID assigned until built.)*
 
 ### Category 3: Service Availability Under Chaos
 
-#### SC-CHAOS-009: API Pod Kill with PDB
+#### SC-CHAOS-008: API Pod Kill with PDB
 
 **Objective:** Killing one Keystone API pod while a `PodDisruptionBudget` is in place. The PDB ensures minimum availability. The Deployment controller recreates the killed pod. The operator status reflects the temporary unavailability and recovery.
 
@@ -412,7 +412,7 @@ spec:
 1. During the kill: `(availableReplicas >= \`1\`)` remains true (PDB protects minimum availability)
 2. After recovery: `Ready=True` and replica count matches spec
 
-#### SC-CHAOS-010: CronJob Rotation Failure (resilience, not degradation)
+#### SC-CHAOS-005: CronJob Rotation Failure (resilience, not degradation)
 
 **Objective:** A transient failure of the Fernet rotation Job must **not** degrade Keystone. Because the existing fernet keys remain valid and projected in-place, killing the rotation Job leaves `FernetKeysReady=True` and `Ready=True` — the operator does not flip the condition False on a single failed rotation.
 
@@ -441,7 +441,7 @@ The CronJob triggered is `keystone-chaos-cron-fernet-rotate`.
 
 ### Category 4: Multi-Dependency Failures
 
-#### SC-CHAOS-011: Simultaneous MariaDB + Memcached Failure <Badge type="info" text="planned" />
+#### Simultaneous MariaDB + Memcached Failure <Badge type="info" text="planned" />
 
 **Objective:** When both database and cache fail simultaneously, the operator reports all affected conditions accurately and recovers both when services return. Tests that the operator does not mask one failure behind another.
 
@@ -472,33 +472,34 @@ The CronJob triggered is `keystone-chaos-cron-fernet-rotate`.
 
 These scenarios test the infrastructure stack itself, not just the operators. Neither is implemented in forge yet.
 
-#### SC-CHAOS-012: FluxCD Controller Restart <Badge type="info" text="planned" />
+#### FluxCD Controller Restart <Badge type="info" text="planned" />
 
 **Objective:** FluxCD HelmRelease reconciliation resumes after the Flux controllers are killed. Existing HelmReleases remain deployed. New changes are reconciled when Flux recovers.
 
-#### SC-CHAOS-013: ESO Controller Restart <Badge type="info" text="planned" />
+#### ESO Controller Restart <Badge type="info" text="planned" />
 
 **Objective:** ExternalSecrets continue to serve cached Secrets during ESO controller outage. When ESO recovers, Secret sync resumes. Operators are unaffected because they read Kubernetes Secrets, not ESO directly.
 
 ## Scenario Matrix
 
-Implemented today: SC-CHAOS-001/002/003 (pod kills), 005 (both operator variants), 006/007 (network partition/latency), 009 (API pod kill + PDB), 010 (rotation-failure resilience). Planned: SC-CHAOS-004, 008, 011, 012, 013.
+The `SC-CHAOS-NNN` IDs below are the authoritative ones carried in the forge test headers. Implemented today: SC-CHAOS-001 through 008, plus the un-numbered operator-pod-kill (leader re-election) test. Planned (no forge ID assigned until built): cert-manager pod kill, Memcached network partition, multi-dependency failure, FluxCD/ESO controller restarts.
 
 | ID | Scenario | Chaos Type | Target | Expected Operator Behavior | Timeout |
 | --- | --- | --- | --- | --- | --- |
-| SC-CHAOS-001 | MariaDB pod kill | `PodChaos` | mariadb | `DatabaseReady=False` → recovery → `Ready=True` | 5m |
-| SC-CHAOS-002 | Memcached pod kill | `PodChaos` | memcached | `Ready` stays `True` (cache non-critical) | 3m |
-| SC-CHAOS-003 | OpenBao pod kill | `PodChaos` | openbao | Existing Secrets retained, ESO paused, recovery | 5m |
-| SC-CHAOS-004 | cert-manager pod kill | `PodChaos` | cert-manager | Existing TLS valid, renewals delayed, recovery | 5m |
-| SC-CHAOS-005 | Operator pod kill | `PodChaos` | keystone-operator | Deployment restarts operator, reconciliation resumes | 3m |
+| SC-CHAOS-001 | MariaDB pod kill | `PodChaos` (pod-kill) | mariadb | `DatabaseReady=False` → recovery → `Ready=True` | 5m |
+| SC-CHAOS-002 | Memcached pod kill | `PodChaos` (pod-kill) | memcached | `Ready` stays `True` (cache non-critical) | 5m |
+| SC-CHAOS-003 | OpenBao pod kill | `PodChaos` (pod-kill) | openbao | Existing Secrets retained, ESO paused, recovery | 5m |
+| SC-CHAOS-004 | Operator pod crash | `PodChaos` (pod-kill, mode `one`) | keystone-operator | Deployment restarts the pod, reconciliation resumes | 5m |
+| SC-CHAOS-005 | CronJob rotation failure | `PodChaos` (pod-failure on rotate Job) | fernet-rotate Job | `FernetKeysReady=True` / `Ready=True` maintained (resilience) | 5m |
 | SC-CHAOS-006 | MariaDB network partition | `NetworkChaos` (partition) | mariadb | `DatabaseReady=False` → recovery → `Ready=True` | 5m |
 | SC-CHAOS-007 | MariaDB network latency | `NetworkChaos` (delay 10s) | mariadb | No hang, graceful degradation, recovery | 5m |
-| SC-CHAOS-008 | Memcached network partition | `NetworkChaos` (partition) | memcached | `Ready` stays `True`, performance degrades | 3m |
-| SC-CHAOS-009 | API pod kill with PDB | `PodChaos` | keystone-api | PDB protects min availability, recovery | 3m |
-| SC-CHAOS-010 | CronJob failure reporting | `NetworkChaos` + manual Job | mariadb | Condition update within 60s, not just "eventually" | 2m |
-| SC-CHAOS-011 | Multi-dependency failure | `PodChaos` (2x) | mariadb + memcached | All conditions accurate, full recovery | 5m |
-| SC-CHAOS-012 | FluxCD controller restart | `PodChaos` | flux-system | HelmReleases retained, reconciliation resumes | 5m |
-| SC-CHAOS-013 | ESO controller restart | `PodChaos` | external-secrets | Cached Secrets retained, sync resumes | 5m |
+| SC-CHAOS-008 | API pod kill with PDB | `PodChaos` (pod-kill) | keystone-api | PDB protects min availability, recovery | 5m |
+| _(no ID)_ | Operator pod kill (leader re-election) | `PodChaos` (pod-kill, mode `all`) + replicas patch | keystone-operator | New leader reconciles a spec change after failover (CC-0066) | 5m |
+| _planned_ | cert-manager pod kill | `PodChaos` | cert-manager | Existing TLS valid, renewals delayed, recovery | — |
+| _planned_ | Memcached network partition | `NetworkChaos` (partition) | memcached | `Ready` stays `True`, performance degrades | — |
+| _planned_ | Multi-dependency failure | `PodChaos` (2x) | mariadb + memcached | All conditions accurate, full recovery | — |
+| _planned_ | FluxCD controller restart | `PodChaos` | flux-system | HelmReleases retained, reconciliation resumes | — |
+| _planned_ | ESO controller restart | `PodChaos` | external-secrets | Cached Secrets retained, sync resumes | — |
 
 ## Test Conventions
 
@@ -510,9 +511,8 @@ Implemented today: SC-CHAOS-001/002/003 (pod kills), 005 (both operator variants
 
 ### Timeouts
 
-* Default assert timeout: 5m (chaos recovery is slower than happy-path)
-* Bounded condition checks (SC-CHAOS-010): 60s — verifies timely reporting
-* Chaos `duration` field: always set, never unbounded
+* Default assert timeout: 5m (chaos recovery is slower than happy-path) — every chaos suite uses this
+* Chaos `duration` field: always set, never unbounded (e.g. the rotation-failure fault uses `duration: "60s"` as a safety net — this is the fault duration, not a condition-reporting bound)
 
 ### Catch Blocks
 
@@ -549,26 +549,25 @@ Catch blocks call the shared `tests/e2e-chaos/diagnostics.sh` (with `baseline` /
 * Add `e2e-chaos` Makefile target
 * Add `e2e-chaos` GitHub Actions job (gated behind label)
 * Implement `chaos-mesh-health` infrastructure test
-* Implement SC-CHAOS-001 (MariaDB pod kill) and SC-CHAOS-005 (operator pod kill) as reference tests
+* Implement SC-CHAOS-001 (MariaDB pod kill) and SC-CHAOS-004 (operator pod crash + the un-numbered operator pod kill / leader re-election) as reference tests
 
 ### Phase 2: Network Faults
 
 * Implement SC-CHAOS-006 (MariaDB network partition)
 * Implement SC-CHAOS-007 (MariaDB network latency / slow degradation)
-* Implement SC-CHAOS-008 (Memcached network partition)
 * Validate operator timeout/retry behavior — fix any hanging reconcilers
 
 ### Phase 3: Full Coverage
 
-* Implement SC-CHAOS-002 through SC-CHAOS-004 (Memcached, OpenBao, cert-manager pod kills)
-* Implement SC-CHAOS-009 (API pod kill with PDB)
-* Implement SC-CHAOS-010 (CronJob failure reporting with bounded timeout)
-* Implement SC-CHAOS-011 (multi-dependency failure)
+* Implement SC-CHAOS-002 and SC-CHAOS-003 (Memcached, OpenBao pod kills)
+* Implement SC-CHAOS-008 (API pod kill with PDB)
+* Implement SC-CHAOS-005 (CronJob rotation-failure resilience)
 
-### Phase 4: Infrastructure Resilience
+### Phase 4: Planned (not yet implemented)
 
-* Implement SC-CHAOS-012 (FluxCD controller restart)
-* Implement SC-CHAOS-013 (ESO controller restart)
+* cert-manager pod kill and Memcached network partition
+* Multi-dependency failure (simultaneous MariaDB + Memcached)
+* FluxCD and ESO controller restarts
 * Extend to additional operators (Glance, Nova, Neutron, Cinder, Placement) as they are implemented
 
 ## Integration Test Complement: Toxiproxy <Badge type="info" text="planned" />

@@ -13,7 +13,7 @@ CobaltCore operators are tested across several levels: unit tests for pure busin
 │                         ╱             ╲    Tempest API conformance +         │
 │                        ╱  E2E + Chaos  ╲   Chaos Mesh (ch. 10).              │
 │                       ╱   + Tempest     ╲  Chainsaw (YAML), kind cluster,    │
-│                      ╱  ~40+ scenarios   ╲ slow, highest confidence          │
+│                      ╱  ~50 scenarios    ╲ slow, highest confidence          │
 │                     ╱─────────────────────╲                                 │
 │                    ╱                       ╲                                │
 │                   ╱   Integration Tests     ╲   envtest (API server +       │
@@ -83,7 +83,7 @@ func TestRenderINI(t *testing.T) {
 
 **Race detection:** `make test-race` runs the full suite with the Go race detector (`-race`); CI passes `RACE_FLAGS="-count=1"` to disable test caching, because race conditions are non-deterministic and cached results would mask them. Operator code is heavily concurrent (reconcilers, watches, informer caches), so this catches data races unit tests otherwise miss.
 
-**Shell unit tests:** Helper scripts under `hack/`, `deploy/`, and the docs tooling are unit-tested with bash assertions in `tests/unit/` (run via `make test-shell`, using `tests/lib/assertions.sh`). `make shellcheck` lints them and `make chainsaw-lint` lints all Chainsaw YAML.
+**Shell unit tests:** Helper scripts under `hack/`, `deploy/`, the docs tooling, and the `renovate` config are unit-tested with bash assertions in `tests/unit/{hack,deploy,docs,renovate}/` (run via `make test-shell`, using `tests/lib/assertions.sh`). `make shellcheck` lints `hack/*.sh` plus the operator rotation scripts under `operators/*/internal/controller/scripts/`, and `make chainsaw-lint` lints all Chainsaw YAML.
 
 ## Test Support Library (`internal/common/testutil`)
 
@@ -91,17 +91,17 @@ Rather than hand-rolling envtest scaffolding per package, operators reuse a shar
 
 | Subpackage | Purpose |
 | --- | --- |
-| `assertions/` | Gomega-style helpers — `AssertCondition`, `EventuallyCondition`, `AssertResourceExists`, … |
-| `builders/` | Fluent builders for test CRs and Kubernetes resources (e.g. a Secret builder) |
-| `envtest/` | Shared envtest bootstrap (`setup.go`) used by every integration test |
-| `fake_crds/` | Minimal CRD manifests for third-party resources (cert-manager, external-secrets, mariadb, memcached, rabbitmq) registered in envtest |
+| `assertions/` | `testing.TB`-based helpers — `AssertCondition`, `AssertConditionWithReason`, `AssertConditionMissing`, `AssertResourceExists`, `AssertResourceNotExists`, `EventuallyCondition` |
+| `builders/` | Fluent builders for test Kubernetes resources (currently a `SecretBuilder`) |
+| `envtest/` | Shared envtest bootstrap (`SetupEnvTest`, `SkipIfEnvTestUnavailable`, `SharedScheme`) used by every integration test |
+| `fake_crds/` | Minimal CRD manifests for third-party resources (cert-manager, external-secrets, gateway-api, mariadb-operator, memcached-operator, rabbitmq-operator) registered in envtest |
 | `simulators/` | Simulate external controllers that do not run in envtest — `SimulateMariaDBReady`, `SimulateExternalSecretSync`, `SimulateJobComplete`, `SimulateCertificateReady`, … |
 
 Integration tests should use these helpers instead of re-implementing setup, secret creation, or status simulation.
 
 ## Integration Tests (envtest)
 
-Integration tests are guarded by a `//go:build integration` build tag and run via `make test-integration` (or `make test-integration-common` for `internal/common` alone). Both download Kubernetes API-server/etcd binaries for the pinned `ENVTEST_K8S_VERSION=1.35` via `setup-envtest`.
+Integration tests are guarded by a `//go:build integration` build tag and run via `make test-integration` (or `make test-integration OPERATOR=<svc>` per operator, and `make test-integration-common` for `internal/common` alone — CI runs these as a `common`/`keystone`/`c5c3` matrix). Both download Kubernetes API-server/etcd binaries for the pinned `ENVTEST_K8S_VERSION=1.35` via `setup-envtest`.
 
 Integration tests use controller-runtime's `envtest` package, which runs a real Kubernetes API server and etcd process locally — without kubelet, scheduler, or controller manager. This allows testing reconciler logic against a real API server.
 
@@ -220,7 +220,7 @@ func TestKeystoneReconciler_CreatesDeployment(t *testing.T) {
 │                                                                             │
 │  tests/e2e/                                                                 │
 │  ├── chainsaw-config.yaml           # Global Chainsaw configuration         │
-│  ├── keystone/                      # ~40 keystone scenario dirs            │
+│  ├── keystone/                      # 44 keystone scenario dirs             │
 │  │   ├── basic-deployment/                                                  │
 │  │   │   ├── chainsaw-test.yaml     # Test definition                       │
 │  │   │   ├── 00-prerequisites.yaml  # ESO-simulated Secrets                 │
@@ -228,12 +228,15 @@ func TestKeystoneReconciler_CreatesDeployment(t *testing.T) {
 │  │   │   └── 02-assertions.yaml     # Expected state assertions             │
 │  │   ├── database-tls/  httproute/  healthcheck/  trust-flush/             │
 │  │   ├── policy-validation/  logging/  uwsgi/  graceful-shutdown/          │
+│  │   ├── admin-password-rotation/  admin-password-scheduled-rotation/      │
+│  │   ├── concurrent-cr-conflicts/  semantic-invariants/  config-pruning/   │
+│  │   ├── namespace-scoped-rbac/  pod-security-restricted/  image-upgrade/  │
 │  │   ├── release-upgrade/  schema-drift-detection/  prometheus-stack/      │
-│  │   └── ... (~40 total)                                                    │
+│  │   └── ... (44 total)                                                     │
 │  ├── keystone-operator/             # operator-level (e.g. network-policy)  │
 │  ├── infrastructure/                # chaos-mesh-health, flux-web-health,   │
-│  │                                  #   infra-stack-health                  │
-│  └── c5c3/                                                                  │
+│  │                                  #   infra-stack-health (4 suites)       │
+│  └── c5c3/                          # placeholder (.gitkeep); no E2E yet    │
 │                                                                             │
 │  tests/e2e-chaos/   Chaos Mesh suite (ch. 10)                               │
 │  tests/tempest/     Tempest config per release (keystone-2025-2, -2026-1)  │
@@ -315,7 +318,7 @@ status:
 
 ### Test Scenarios
 
-The Keystone suite has grown to ~40 scenario directories (47 Chainsaw suites in total across `keystone/`, `keystone-operator/`, `infrastructure/`, and `c5c3/`). The table below is illustrative, not exhaustive:
+The Keystone suite has grown to 44 scenario directories (≈49 Chainsaw E2E suites in total: keystone 44, infrastructure 4, keystone-operator 1; `tests/e2e/c5c3/` is an empty placeholder with no suites yet, and the chaos suite is counted separately under ch. 10). The table below is illustrative, not exhaustive:
 
 | Scenario | Description | Validates |
 | --- | --- | --- |
@@ -324,6 +327,8 @@ The Keystone suite has grown to ~40 scenario directories (47 Chainsaw suites in 
 | **Database TLS** | Apply CR with `database.tls`, verify client cert | DatabaseTLSReady, cert-manager Certificate |
 | **ConfigMap No Secrets** | Inspect rendered ConfigMap | DB password not present in config (CC-0080) |
 | **Credential / Fernet Rotation** | Trigger rotation via staging Secret | CronJob, validate+apply, in-place rotation |
+| **Admin Password Rotation** (incl. scheduled) | Stage a new admin password / run the rotation CronJob | PasswordRotationReady, re-bootstrap apply side (CC-0108/CC-0109) |
+| **Concurrent CR Conflicts / Semantic Invariants** | Stress conflicting updates; assert invariants | Reconciler robustness, status consistency |
 | **Policy Validation** | Apply invalid policyOverrides | oslopolicy-validator gates Deployment |
 | **HTTPRoute / Gateway** | Apply CR with `spec.gateway` | HTTPRouteReady, endpoint derivation |
 | **HealthCheck** | Verify active API probe | KeystoneAPIReady condition |
@@ -339,6 +344,10 @@ The Keystone suite has grown to ~40 scenario directories (47 Chainsaw suites in 
 ## Tempest (OpenStack API Conformance)
 
 Beyond reconciler-focused E2E, `make tempest-test SERVICE=keystone` runs upstream **Tempest** against a deployed Keystone to validate real OpenStack API behavior (CC-0035). Tempest configuration is versioned per OpenStack release under `tests/tempest/` (`keystone-2025-2`, `keystone-2026-1`), each with its own `tempest.conf` and include/exclude test lists; `tests/tempest/test_retry_helpers.py` adds flaky-test retry handling. Test git refs come from `releases/<release>/test-refs.yaml`.
+
+## Helm Chart Unit Tests
+
+The operator Helm chart is unit-tested with the [`helm-unittest`](https://github.com/helm-unittest/helm-unittest) plugin. `operators/keystone/helm/keystone-operator/tests/` holds 13 specs — one per rendered template (`deployment_test.yaml`, `service_test.yaml`, `clusterrole_test.yaml`, `clusterrolebinding_test.yaml`, `role_test.yaml`, `rolebinding_test.yaml`, `serviceaccount_test.yaml`, `certificate_test.yaml`, `networkpolicy_test.yaml`, `servicemonitor_test.yaml`, `webhook_test.yaml`, `release_namespace_test.yaml`, `schema_validation_test.yaml`). They assert templating behavior across value permutations (webhook on/off, external ServiceAccount, custom resources, namespace-scoped RBAC). These run in the CI `helm-validate` job (alongside `helm lint` and five `helm template` scenarios) via the helm-unittest plugin; there is no dedicated Makefile target.
 
 ## Invalid-CR Fixture Generation
 
@@ -362,19 +371,25 @@ jobs:
       - run: make test-${{ matrix.module == 'common' && 'common' || 'operator OPERATOR='matrix.module }}
       - uses: codecov/codecov-action@v6
 
-  test-integration:            # envtest, integration build tag
-    steps: [ setup-go, run: make test-integration ]
+  test-integration:            # matrix: common, keystone, c5c3 (envtest, integration build tag)
+    strategy:
+      matrix:
+        module: [common, keystone, c5c3]
+    steps: [ setup-go, run: make test-integration${{ matrix.module == 'common' && '-common' || ' OPERATOR='matrix.module }} ]
 
   e2e-operator:
     needs: [build-e2e-images, e2e-infra]
     steps:
       - uses: ./.github/actions/setup-e2e-infra
       - run: ./hack/ci-deploy-operator.sh keystone
-      - run: make e2e OPERATOR=keystone
+      - run: make e2e          # whole-tree, auto-discovery (no OPERATOR=); CC-0088
 
-  e2e-prometheus:  # opt-in kube-prometheus-stack suite
-  e2e-chaos:       # Chaos Mesh suite, see ch. 10 (non-blocking)
+  helm-validate:   # helm lint + 5 helm template scenarios + helm unittest (13 specs)
+  e2e-prometheus:  # opt-in kube-prometheus-stack suite (make e2e-prometheus)
+  e2e-chaos:       # Chaos Mesh suite, see ch. 10 (non-blocking; make e2e-chaos)
   tempest:         # matrix over OpenStack releases (2025.2, 2026.1)
 ```
+
+> Beyond the jobs shown, CI also runs `chainsaw-lint`, `test-shell`, `verify-invalid-cr-fixtures`, `verify-codegen`, and `govulncheck` verification legs. `make e2e` runs Chainsaw over the whole `tests/e2e/` tree (auto-discovery, CC-0088) — it is **not** scoped by `OPERATOR=`; `make e2e-prometheus` and `make e2e-chaos` are separate opt-in targets.
 
 Unit, integration, race, and lint jobs run on every PR (subject to path filters). E2E, Tempest, chaos, and Prometheus suites run against a kind cluster with the operator and its dependencies deployed. The chaos suite is documented in [Chaos E2E Testing](./10-chaos-e2e-testing.md).

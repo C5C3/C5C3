@@ -71,6 +71,7 @@ words:
   - clusterrole
   - clusterrolebinding
   - clustersecretstore
+  - codegen
   - cobaltcore
   - controll
   - controlplane
@@ -203,12 +204,14 @@ words:
   - renovatebot
   - rescoped
   - RHOSO
+  - rolebinding
   - SARIF
   - SASL
   - SBOM
   - SBOMs
   - secretaggregate
   - serviceaccount
+  - servicemonitor
   - shellcheck
   - Sigstore
   - SLSA

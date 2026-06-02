@@ -61,12 +61,12 @@ type ManagerConfig struct {
     // Namespace restricts the manager cache to a single namespace
     // when set (namespace-scoped mode, CC-0043); cluster-scoped otherwise.
     Namespace string
-    // SetupFunc registers controllers and (when enableWebhooks is true) webhooks.
-    SetupFunc func(mgr ctrl.Manager, enableWebhooks bool) error
+    // SetupFunc registers controllers and (when webhooks is true) webhooks.
+    SetupFunc func(mgr ctrl.Manager, webhooks bool) error
 }
 ```
 
-Each operator's `main.go` calls `bootstrap.Run()` with a `ManagerConfig`. The `SetupFunc` receives the manager and an `enableWebhooks` bool (driven by the `--enable-webhooks` flag) so webhook registration can be skipped in environments where it is not wanted.
+Each operator's `main.go` calls `bootstrap.Run()` with a `ManagerConfig`. The `SetupFunc` receives the manager and a `webhooks` bool (driven by the `--enable-webhooks` flag, which defaults to **true**) so webhook registration can be skipped in environments where it is not wanted. `Run` validates the config (a non-nil `Scheme` and a non-empty `LeaderElectionID` are required) and applies flag defaults `--metrics-bind-address :8080`, `--health-probe-bind-address :8081`, `--leader-elect false`, `--sync-period 10m`.
 
 ### conditions/
 
@@ -177,7 +177,7 @@ Implements the config generation pipeline documented in [Config Generation](../0
 | `MergeDefaults(userConfig, defaults map[string]map[string]string) map[string]map[string]string` | Merge user-provided config with operator defaults (user values take precedence) |
 | `CreateImmutableConfigMap(ctx, client, scheme, owner, baseName, namespace string, data map[string]string) (string, error)` | Create an immutable ConfigMap whose name carries a content-hash suffix. Returns the generated ConfigMap **name**. |
 | `PruneImmutableConfigMaps(ctx, client, owner, baseName, namespace, currentName string, retain int) error` | Garbage-collect superseded immutable ConfigMaps for a base name, keeping `currentName` plus the most recent `retain`. |
-| `InjectSecrets(config map[string]map[string]string, secrets map[string]string) map[string]map[string]string` | Assemble connection strings from resolved secret values (e.g., `mysql+pymysql://USERNAME:PASSWORD@HOST:PORT/DB`) |
+| `InjectSecrets(config map[string]map[string]string, secrets map[string]string) map[string]map[string]string` | Substitute `{{KEY}}` placeholders in config values with resolved secret values; unresolved placeholders are left as-is and the input is never mutated |
 | `InjectOsloPolicyConfig(config map[string]map[string]string, policyFilePath string) map[string]map[string]string` | Return a copy of the INI config with `[oslo_policy] policy_file = <path>` set, when policy overrides are present |
 
 The config package directly implements the pipeline from [Config Generation](../05-deployment/03-service-configuration/01-config-generation.md): CRD spec → resolve secrets → apply defaults → render INI → immutable ConfigMap.
@@ -206,7 +206,7 @@ Manages one-shot Jobs and recurring CronJobs.
 | `EnsureCronJob(ctx, client, scheme, owner, cronJob) error` | Create or update a CronJob. |
 | `IsJobComplete(job *batchv1.Job) bool` | Check if a Job has completed successfully. |
 | `IsJobFailed(job *batchv1.Job) bool` | Check if a Job has failed. |
-| `PodSpecHash(spec *corev1.PodSpec) string` | Compute a SHA-256 hash of a PodSpec for change detection. |
+| `PodSpecHash(template *corev1.PodTemplateSpec) string` | Compute a SHA-256 hash of a pod **template** (spec plus metadata/annotations) for change detection, so rotated-credential digests participate in re-run decisions. |
 
 ### secrets/
 
@@ -243,7 +243,7 @@ type PluginSpec struct {
     // ConfigSection is the INI section name (e.g., "keycloak")
     ConfigSection string `json:"configSection"`
     // Config contains key-value pairs for the plugin's INI section
-    Config map[string]string `json:"config"`
+    Config map[string]string `json:"config,omitempty"`
 }
 
 // MiddlewareSpec defines a WSGI middleware filter for api-paste.ini.
@@ -277,7 +277,7 @@ Integrates with cert-manager for TLS certificate provisioning.
 | Function | Description |
 | --- | --- |
 | `EnsureCertificate(ctx, client, scheme *runtime.Scheme, owner client.Object, cert *certmanagerv1.Certificate) (bool, error)` | Create or update a cert-manager `Certificate` CR. Returns true when the certificate is ready. |
-| `IsCertificateReady(ctx, client, key client.ObjectKey) (bool, error)` | Check whether a cert-manager `Certificate` reports a Ready condition. |
+| `IsCertificateReady(cert *certmanagerv1.Certificate) bool` | Return true if the given cert-manager `Certificate` has a Ready condition with status True. (Fetch-by-key readiness lives in `EnsureCertificate`.) |
 | `GetTLSSecret(ctx, client, key client.ObjectKey) (certPEM []byte, keyPEM []byte, err error)` | Retrieve the `tls.crt` / `tls.key` material from the Secret created by cert-manager. |
 
 ### types/
@@ -393,11 +393,11 @@ Provides test infrastructure shared across all operator test suites. Organized i
 
 | Subdirectory | Purpose |
 | --- | --- |
-| `assertions/` | Gomega matchers and test assertion helpers |
-| `builders/` | Fluent builders for creating test CRDs and Kubernetes resources |
-| `envtest/` | Shared envtest setup and teardown utilities |
-| `fake_crds/` | CRD manifests for third-party resources (MariaDB, ESO) needed in envtest |
-| `simulators/` | Simulators for external controllers (e.g., simulating MariaDB Operator status updates) |
+| `assertions/` | `testing.TB`-based assertion helpers (`AssertCondition`, `AssertConditionWithReason`, `AssertConditionMissing`, `AssertResourceExists`, `AssertResourceNotExists`, `EventuallyCondition`) — not Gomega matchers |
+| `builders/` | Fluent builders for test Kubernetes resources (currently `SecretBuilder`) |
+| `envtest/` | Shared envtest setup (`SetupEnvTest`, `SkipIfEnvTestUnavailable`, `SharedScheme`) and auto-discovered fake CRDs |
+| `fake_crds/` | CRD manifests for third-party resources (cert-manager, external-secrets, gateway-api, mariadb-operator, memcached-operator, rabbitmq-operator) needed in envtest |
+| `simulators/` | Simulators for external controllers (e.g. `SimulateMariaDBReady`, `SimulateExternalSecretSync`, `SimulateJobComplete`, `SimulateCertificateReady`) |
 
 ## Secret Flow Design Principle
 

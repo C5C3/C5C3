@@ -83,6 +83,7 @@ Beyond the minimal spec above, the Keystone CR exposes optional fields that driv
 | `autoscaling` | HorizontalPodAutoscaler | CC-0038 |
 | `credentialKeys` | Credential-key generation + staged rotation (`credential_migrate`) | CC-0036 / CC-0081 |
 | `trustFlush` | Hourly `keystone-manage trust_flush` CronJob | CC-0057 |
+| `bootstrap.passwordRotation` | Opt-in scheduled admin-password rotation (split-compute-write CronJob → OpenBao → re-bootstrap) | CC-0108 / CC-0109 |
 | `uwsgi`, `logging`, `strategy`, `terminationGracePeriodSeconds`, `topologySpreadConstraints`, `priorityClassName` | Workload tuning + graceful shutdown | CC-0084 / CC-0098 / CC-0075 |
 
 The operator also runs an **active API health check** (`KeystoneAPIReady`, CC-0067), validates `policyOverrides` with `oslopolicy-validator` before rollout (`PolicyValidReady`, CC-0058), keeps the DB password out of the ConfigMap via a derived `OS_DATABASE__CONNECTION` Secret (CC-0080), and tracks installed/target release for upgrades (`status.installedRelease`, CC-0056). See [Keystone Reconciler](../../09-implementation/04-keystone-reconciler.md) for the full sub-reconciler set.

@@ -113,12 +113,14 @@ spec:
 ```
 
 ::: info CC-0107 — mTLS admission gate
-The listener does not just terminate server TLS; it **requires and verifies a client certificate** (`tls_require_and_verify_client_cert = true`). Server and client certs share a dedicated CA trust domain provisioned by `deploy/flux-system/infrastructure/openbao-ca-issuer.yaml` (a cert-manager `ClusterIssuer`) and `openbao-client-tls-cert.yaml` (the `openbao-client-tls` and `eso-openbao-client-tls` client certs). ESO authenticates with `eso-openbao-client-tls` **on top of** Kubernetes auth — so a leaked Kubernetes SA token alone cannot reach the OpenBao API without also presenting a CA-signed client cert. The ESO `ClusterSecretStore` references the client keypair via `tls.certSecretRef` / `keySecretRef`.
+The listener does not just terminate server TLS; it **requires and verifies a client certificate** (`tls_require_and_verify_client_cert = true`). Server and client certs share a dedicated CA trust domain provisioned by `deploy/flux-system/infrastructure/openbao-ca-issuer.yaml` (a cert-manager `ClusterIssuer`) and `openbao-client-tls-cert.yaml` (the `openbao-client-tls` and `eso-openbao-client-tls` client certs). ESO authenticates with `eso-openbao-client-tls` **on top of** Kubernetes auth — so a leaked Kubernetes SA token alone cannot reach the OpenBao API without also presenting a CA-signed client cert. The ESO `ClusterSecretStore` (named `openbao-cluster-store`, `deploy/eso/clustersecretstore.yaml`, `path: kv-v2`, Kubernetes auth `kubernetes/management` role `eso-management`) references the client keypair via `tls.certSecretRef` / `keySecretRef`. The keystone-operator gates `SecretsReady` on this store reporting Ready before reading any ESO Secret (CC-0047).
 :::
 
 ## Initialization and Unseal
 
-After deployment, OpenBao must be initialized and unsealed. This is a one-time operation.
+After deployment, OpenBao must be initialized and unsealed. In forge this is automated and idempotent by `deploy/openbao/bootstrap/init-unseal.sh` (driven by `hack/deploy-infra.sh`): it initializes with 5 key shares / threshold 3, and **persists the init output (unseal keys + root token) base64-encoded into a Kubernetes Secret `openbao-init-keys` in `openbao-system`** so the script can re-unseal pods on restart. The `kubectl exec` commands below are the conceptual equivalent.
+
+> **Security posture.** Storing the unseal material in a cluster Secret is a deliberate bootstrap/dev convenience (a known interim posture, `TODO(CC-0009)`). The production hardening target is offline / HSM custody or auto-unseal (see below).
 
 ### Phase 0: Initialize
 
@@ -129,8 +131,8 @@ kubectl exec -n openbao-system openbao-0 -- bao operator init \
   -key-threshold=3 \
   -format=json > init-keys.json
 
-# CRITICAL: Store init-keys.json securely (offline, HSM, or split across operators)
-# It contains the unseal keys and the initial root token
+# In forge, init-unseal.sh stores this output in the openbao-init-keys Secret.
+# Production hardening: keep it offline / in an HSM, or use auto-unseal instead.
 ```
 
 ### Phase 0: Unseal
@@ -260,10 +262,10 @@ bao write auth/kubernetes/control-plane/role/eso-control-plane \
 
 ```bash
 # Enable AppRole for CI/CD pipelines
-bao auth enable -path=approle/ci-cd approle
+bao auth enable -path=approle approle
 
 # Create a role for the provisioner pipeline
-bao write auth/approle/ci-cd/role/provisioner \
+bao write auth/approle/role/provisioner \
   token_policies=ci-cd-provisioner \
   token_ttl=1h \
   token_max_ttl=4h \
@@ -354,23 +356,18 @@ path "kv-v2/data/ceph/*" {
   capabilities = ["create", "update", "read"]
 }
 
-# push-admin-app-cred.hcl
-# Allows the PushSecret CR to write the single admin Application Credential back to OpenBao.
-# This is the only Application Credential in the design (issue #30); there are no
-# per-service app-credential paths.
+# push-app-credentials.hcl
+# Allows PushSecret CRs to write per-service Application Credentials back to OpenBao.
+# The <service> segment is operator-generated.
 
-path "kv-v2/data/openstack/admin/app-credential" {
-  capabilities = ["create", "update", "read"]
-}
-
-# push-pod-users.hcl
-# Allows PushSecret CRs to write per-pod service-user passwords back to OpenBao.
-# The <service>/<pod> segments are operator-generated; never readable by a workload pod's role.
-
-path "kv-v2/data/openstack/+/pods/+/user" {
+path "kv-v2/data/openstack/*/app-credential" {
   capabilities = ["create", "update", "read"]
 }
 ```
+
+::: info Planned: per-pod service-user policy
+A `push-pod-users.hcl` granting writes to `kv-v2/data/openstack/+/pods/+/user` (per-pod service-user passwords) is part of the planned per-pod service-user model (per-pod Keystone service users via K-ORC, issue [#30](https://github.com/C5C3/C5C3/issues/30)) and is **not yet present** in the deployed policy set.
+:::
 
 ### Push Keystone Keys Policy
 
@@ -393,6 +390,22 @@ path "kv-v2/metadata/openstack/keystone/+/credential-keys" {
 ```
 
 The `+` single-segment glob matches the CR-name position only; it deliberately does **not** use a trailing `*`, so the read-only `kv-v2/openstack/keystone/db` MariaDB credentials remain unwritable.
+
+### Push Keystone Admin Policy
+
+Scheduled admin-password rotation ("Model B", CC-0109) pushes new admin passwords back to OpenBao via a PushSecret. A dedicated `push-keystone-admin.hcl` policy (bound alongside `eso-management` on the management role) grants write to the single shared bootstrap path:
+
+```hcl
+# push-keystone-admin.hcl
+path "kv-v2/data/bootstrap/keystone-admin" {
+  capabilities = ["create", "update", "read", "delete"]
+}
+path "kv-v2/metadata/bootstrap/keystone-admin" {
+  capabilities = ["create", "update", "read", "delete"]
+}
+```
+
+This is the same key the `keystone-admin` ExternalSecret reads; the PushSecret uses `DeletionPolicy=None` so disabling rotation never clears the live credential (see [Keystone Dependencies → Admin Credential Rotation](./05-keystone-dependencies.md#admin-credential-rotation)).
 
 ### CI/CD Provisioner Policy
 
@@ -427,10 +440,10 @@ path "pki/sign/*" {
 ### Apply Policies
 
 ```bash
-# Apply all policies
-for policy in eso-control-plane eso-hypervisor eso-storage eso-management \
-              push-ceph-keys push-admin-app-cred push-pod-users push-keystone-keys \
-              ci-cd-provisioner pki-issuer; do
+# Apply all policies (deploy/openbao/policies/*.hcl, applied by setup-policies.sh
+# where the policy name is derived from the filename)
+for policy in ci-cd-provisioner eso-control-plane eso-hypervisor eso-management eso-storage \
+              pki-issuer push-app-credentials push-ceph-keys push-keystone-admin push-keystone-keys; do
   bao policy write $policy /path/to/policies/$policy.hcl
 done
 ```
@@ -450,7 +463,7 @@ bao secrets enable -path=pki pki
 for cluster in management control-plane hypervisor storage; do
   bao auth enable -path=kubernetes/$cluster kubernetes
 done
-bao auth enable -path=approle/ci-cd approle
+bao auth enable -path=approle approle
 
 # 3. Apply policies
 # (see above)
@@ -522,8 +535,12 @@ OpenBao exposes Prometheus metrics. For the general monitoring architecture, see
 
 > **Note:** OpenBao, as a fork of HashiCorp Vault, retains the `vault_` metric name prefix for compatibility with existing dashboards and alerting rules.
 
+::: info Planned
+A dedicated OpenBao `ServiceMonitor` (and its `openbao-metrics-token` Secret) is **not yet part of `deploy/`** — only the keystone-operator and infrastructure ServiceMonitors are deployed today. The manifest below is illustrative of the intended scrape configuration.
+:::
+
 ```yaml
-# ServiceMonitor for Prometheus Operator
+# ServiceMonitor for Prometheus Operator (planned)
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

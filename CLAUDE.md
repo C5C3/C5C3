@@ -101,10 +101,11 @@ c5c3/forge/
 - **Secrets via ESO**: Operators read K8s Secrets created by External Secrets Operator from OpenBao — never access OpenBao directly
 - **Managed + Brownfield**: `clusterRef` (operator provisions infra) XOR `host`/`port` (external infra)
 - **Immutable ConfigMaps**: Config content hashed into ConfigMap name — changes trigger rolling restarts
-- **Sub-Reconciler Pattern**: Each reconciler has ordered sub-reconcilers, each setting its own status condition. Keystone's real chain is `secrets → databaseTLS → dbConnectionSecret → config → {fernet | credential | networkPolicy (parallel)} → database → policyValidation → deployment → httpRoute → healthCheck → hpa → bootstrap → trustFlush`
+- **Sub-Reconciler Pattern**: Each reconciler has ordered sub-reconcilers, each setting its own status condition. Keystone's real chain is `secrets → databaseTLS → dbConnectionSecret → config → {fernet | credential | networkPolicy (parallel)} → database → policyValidation → deployment → httpRoute → healthCheck → hpa → bootstrap → trustFlush → passwordRotation`
 - **Database credentials out of ConfigMaps**: the DB password is rendered into a derived `<name>-db-connection` Secret and injected via `OS_DATABASE__CONNECTION`, never written into `keystone.conf` (CC-0080)
 - **Database TLS**: opt-in mTLS to MariaDB/MaxScale via cert-manager from a shared OpenStack DB CA, three modes (NotRequired/ExternallyManaged/Managed) (CC-0106)
 - **Split-compute-write key rotation**: rotation CronJobs write a staging Secret with narrow RBAC; the operator validates and applies to the production Secret, keeping token-forgery primitives out of the CronJob (CC-0081)
+- **Admin password rotation**: an apply side stamps a SHA-256 of the admin password onto the bootstrap pod template so a changed password re-runs `keystone-manage bootstrap` (CC-0108); an opt-in scheduled "Model B" CronJob (`spec.bootstrap.passwordRotation`) mints new passwords via the same split-compute-write boundary and pushes them to OpenBao (CC-0109)
 
 ## Key Patterns for New Operators
 
@@ -112,8 +113,8 @@ When implementing a new service operator, follow the Keystone reference:
 
 1. **Set up** `operators/<service>/` hand-crafted (not `operator-sdk init`, CC-0001): a `main.go` delegating to `common/bootstrap.Run`, plus `api/v1alpha1/`, `internal/controller/`, `config/`, `helm/` directories
 2. **CRD types** in `api/v1alpha1/<service>_types.go` — reuse `commonv1.DatabaseSpec` (incl. `TLS *DatabaseTLSSpec`), `commonv1.CacheSpec`, `commonv1.MessagingSpec`, `commonv1.PolicySpec` from shared types
-3. **Reconciler** with sub-reconciler pattern: `reconcileSecrets()` → `reconcileDatabaseTLS()` → `reconcileDBConnectionSecret()` → `reconcileConfig()` → `reconcileFernetKeys()`/`reconcileCredentialKeys()`/`reconcileNetworkPolicy()` → `reconcileDatabase()` → `reconcilePolicyValidation()` → `reconcileDeployment()` → `reconcileBootstrap()` (Keystone adds `reconcileHTTPRoute`, `reconcileHealthCheck`, `reconcileHPA`, `reconcileTrustFlush`)
-4. **Status conditions** (aggregate `Ready`): `SecretsReady`, `DatabaseTLSReady`, `FernetKeysReady`, `CredentialKeysReady`, `DatabaseReady`, `PolicyValidReady`, `DeploymentReady`, `KeystoneAPIReady`, `HPAReady`, `NetworkPolicyReady`, `HTTPRouteReady`, `BootstrapReady`, `TrustFlushReady`
+3. **Reconciler** with sub-reconciler pattern: `reconcileSecrets()` → `reconcileDatabaseTLS()` → `reconcileDBConnectionSecret()` → `reconcileConfig()` → `reconcileFernetKeys()`/`reconcileCredentialKeys()`/`reconcileNetworkPolicy()` → `reconcileDatabase()` → `reconcilePolicyValidation()` → `reconcileDeployment()` → `reconcileBootstrap()` (Keystone adds `reconcileHTTPRoute`, `reconcileHealthCheck`, `reconcileHPA`, `reconcileTrustFlush`, `reconcilePasswordRotation`)
+4. **Status conditions** (aggregate `Ready`): `SecretsReady`, `DatabaseTLSReady`, `FernetKeysReady`, `CredentialKeysReady`, `DatabaseReady`, `PolicyValidReady`, `DeploymentReady`, `KeystoneAPIReady`, `HPAReady`, `NetworkPolicyReady`, `HTTPRouteReady`, `BootstrapReady`, `TrustFlushReady`, `PasswordRotationReady`
 5. **Config generation**: CRD spec → resolve secrets → apply defaults → render INI → immutable ConfigMap
 6. **Owner references**: `ctrl.SetControllerReference()` on all created resources
 7. **Testing**: Unit tests for config/logic, envtest for reconciler, Chainsaw for E2E

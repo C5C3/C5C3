@@ -172,15 +172,16 @@ The top-level Makefile orchestrates builds across all operators:
 | `make lint` | Run golangci-lint across all modules |
 | `make fmt` / `make format-check` | Apply / verify `gofumpt` formatting |
 | `make govulncheck` | Scan modules for known Go vulnerabilities |
-| `make shellcheck` / `make test-shell` | Lint and unit-test shell scripts (`tests/unit/`) |
+| `make shellcheck` / `make test-shell` | Lint (`hack/*.sh` + operator rotation scripts under `operators/*/internal/controller/scripts/`) and unit-test shell scripts (`tests/unit/`) |
 | `make chainsaw-lint` | Lint all Chainsaw test/config YAML |
 | `make docker-build` | Build container images (requires `OPERATOR=keystone\|c5c3`) |
 | `make helm-package` | Package Helm charts (requires `OPERATOR=keystone\|c5c3`) |
 | `make e2e` | Run Chainsaw E2E tests against a live cluster (see [Testing](./06-testing.md#e2e-tests-with-chainsaw)) |
 | `make e2e-chaos` | Run Chaos Mesh fault-injection E2E (see [Chaos E2E Testing](./10-chaos-e2e-testing.md)) |
 | `make e2e-prometheus` | Run the kube-prometheus-stack observability E2E suite |
-| `make tempest-test` | Run Tempest API conformance tests (requires `SERVICE=keystone`) |
+| `make tempest-test` | Run Tempest API conformance tests (requires `SERVICE=`, e.g. `keystone`) |
 | `make verify-invalid-cr-fixtures` | Verify generated invalid-CR webhook fixtures are current |
+| `make stage-prometheus-dashboard` | Stage the operator Grafana dashboard JSON into `deploy/kind/prometheus/` for the observability E2E |
 | `make sync-crds` | Copy generated CRDs to Helm chart `crds/` directory |
 | `make verify-crd-sync` | Check for CRD drift between controller-gen output and Helm chart |
 | `make deploy-infra` | Deploy infrastructure dependencies (Flux, ESO, OpenBao, MariaDB, Memcached) |
