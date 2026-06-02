@@ -11,6 +11,9 @@ exclude = [
     '^https://localhost',
     '^http://127\.0\.0\.1',
     '^https://127\.0\.0\.1',
+    # docs.openstack.org sits behind a bot filter that intermittently returns
+    # 403 to automated link checkers; the links are valid upstream references.
+    '^https?://docs\.openstack\.org',
 ]
 
 # Maximum number of concurrent network requests
