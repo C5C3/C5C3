@@ -46,6 +46,8 @@ For the CRD type definitions and webhooks, see [CRD Implementation](./03-crd-imp
 │         ▼                                                                   │
 │  reconcileTrustFlush       trust_flush CronJob → TrustFlushReady             │
 │         ▼                                                                   │
+│  reconcilePasswordRotation admin-password rotate CronJob → PasswordRotationReady │
+│         ▼   (Model B, opt-in; runs after Bootstrap seeds the admin cred)     │
 │  setReadyCondition → Ready=True (all aggregated sub-conditions met)          │
 │                                                                             │
 │  Every sub-reconciler is wrapped by instrumentSubReconciler (CC-0089),      │
@@ -532,6 +534,19 @@ The admin password is injected from the `keystone-admin-credentials` Secret (pro
 
 Reconciles a `<name>-trust-flush` CronJob that runs `keystone-manage trust_flush` to purge expired trust delegations (CC-0057, CC-0096). The schedule defaults to hourly (`0 * * * *`, materialized by the defaulting webhook); `spec.trustFlush.suspend` pauses it without deleting the CronJob. Sets `TrustFlushReady`.
 
+### reconcilePasswordRotation()
+
+Reconciles scheduled rotation of the **admin password** ("Model B", CC-0109). It is the final sub-reconciler and runs *after* `reconcileBootstrap` has seeded the initial admin credential, so the rotation CronJob and PushSecret never race the bootstrap seed. The feature is opt-in via `spec.bootstrap.passwordRotation`:
+
+- **Disabled / nil** (the default): tears down every Model B resource and sets `PasswordRotationReady=True` with reason `RotationDisabled` — a clean no-op.
+- **Enabled**: ensures the full split-compute-write rotation chain, mirroring the Fernet/credential-key boundary (CC-0081):
+  1. A `<name>-admin-password-rotate` **CronJob** (on `spec.bootstrap.passwordRotation.schedule`, suspended when `.suspend` is true) runs `scripts/admin_password_rotate.sh`. The script mints a strong password and `PATCH`es it onto a narrow-RBAC **staging** Secret (`<name>-admin-password-rotation`) using the pod's ServiceAccount token — it never touches OpenBao or the production credential.
+  2. The operator **validates** the staged password (length floor 24, default 32) and copies it into an operator-owned **push-source** Secret (`<name>-admin-password-next`).
+  3. A clobber-safe **PushSecret** (`DeletionPolicy=None`, created only once the push-source holds a valid password) mirrors it to OpenBao at `bootstrap/keystone-admin` — the same key the `keystone-admin` ExternalSecret reads.
+  4. ESO syncs the new password down; the apply side (`reconcileBootstrap`, CC-0108) re-runs `keystone-manage bootstrap` to write it into Keystone.
+
+Keeping the privileged write (OpenBao + the production Secret) in the operator — not the CronJob — keeps token-forgery primitives out of the narrow-RBAC CronJob. Sets `PasswordRotationReady`. See [Keystone Dependencies → Admin Credential Rotation](./05-keystone-dependencies.md#admin-credential-rotation) for the full secret flow.
+
 ## Error Handling
 
 | Scenario | Action | Requeue Delay | Condition |
@@ -549,9 +564,10 @@ Reconciles a `<name>-trust-flush` CronJob that runs `keystone-manage trust_flush
 | HPA creation/update failed | Return error, controller-runtime retries | Exponential | `HPAReady=False` |
 | Bootstrap Job failed | Requeue, Job will be retried | 60s | `BootstrapReady=False` |
 | Trust-flush CronJob reconcile failed | Return error, controller-runtime retries | Exponential | `TrustFlushReady=False` |
+| Admin-password rotation reconcile failed / staged password invalid | Return error or requeue; production credential left untouched | Exponential | `PasswordRotationReady=False` |
 | Unrecoverable API error | Return error (controller-runtime handles backoff) | Exponential | — |
 
-Requeue intervals are centralized in `requeue_intervals.go` (e.g. `RequeueSecretPolling=15s`, `RequeueDatabaseWait=30s`, `RequeueBootstrap=60s`, `RequeueDeployment=10s`, `RequeueHealthCheck=10s`).
+Requeue intervals are centralized in `requeue_intervals.go` (e.g. `RequeueSecretPolling=15s`, `RequeueDatabaseWait=30s`, `RequeueBootstrapWait=60s`, `RequeueDeploymentPolling=10s`, `RequeueHealthCheck=10s`, plus `RequeueUpgradeWait=30s` and `RequeueValidationWait=15s`).
 
 All transient errors result in a requeue with appropriate delay. Permanent errors (e.g., invalid CRD spec) are surfaced via conditions and events.
 

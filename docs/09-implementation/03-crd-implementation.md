@@ -367,9 +367,42 @@ type BootstrapSpec struct {
     // require a routable address here (CC-0013).
     // +optional
     PublicEndpoint string `json:"publicEndpoint,omitempty"`
+
+    // PasswordRotation optionally enables scheduled rotation of the admin
+    // password ("Model B", CC-0109). Nil (the default) leaves the feature off
+    // and the sub-reconciler is a clean no-op.
+    // +optional
+    PasswordRotation *PasswordRotationSpec `json:"passwordRotation,omitempty"`
+}
+
+// PasswordRotationSpec configures scheduled admin-password rotation (CC-0109).
+// Opt-in and, by design, single-CR-per-cluster: the push path is the single
+// flat OpenBao key bootstrap/keystone-admin shared with the keystone-admin
+// ExternalSecret.
+type PasswordRotationSpec struct {
+    // Enabled turns on scheduled admin-password rotation. Disabling it tears
+    // down every Model B resource.
+    // +kubebuilder:default=false
+    Enabled bool `json:"enabled,omitempty"`
+
+    // Schedule is a cron expression controlling when a new admin password is
+    // generated. Defaults to monthly at midnight on the 1st.
+    // +kubebuilder:default="0 0 1 * *"
+    Schedule string `json:"schedule,omitempty"`
+
+    // Suspend pauses the CronJob without deleting it or any sibling resource,
+    // matching TrustFlushSpec.Suspend semantics.
+    // +kubebuilder:default=false
+    Suspend bool `json:"suspend,omitempty"`
+
+    // PasswordLength is the length of the generated password.
+    // +kubebuilder:validation:Minimum=24
+    // +kubebuilder:default=32
+    PasswordLength int32 `json:"passwordLength,omitempty"`
 }
 
 // UpgradePhase represents the current phase of a database upgrade (CC-0056).
+// +kubebuilder:validation:Enum=Expanding;Migrating;RollingUpdate;Contracting
 type UpgradePhase string
 
 const (
@@ -532,6 +565,7 @@ Each condition type reflects a discrete reconciliation phase. The `Ready` condit
 | **HTTPRouteReady** | Gateway API HTTPRoute reconciled (or skipped when gateway is nil) (CC-0065) |
 | **BootstrapReady** | Bootstrap Job completed successfully |
 | **TrustFlushReady** | Trust-flush CronJob reconciled (CC-0057) |
+| **PasswordRotationReady** | Admin-password rotation reconciled, or disabled/torn down (CC-0109) |
 
 > A separate informational condition **LoggingHealthy** is set by `reconcileConfig` (stderr-disabled detection) but is **not** part of the aggregate set above — it does not gate `Ready`.
 
@@ -557,6 +591,7 @@ Each condition type reflects a discrete reconciliation phase. The `Ready` condit
 │         HPAReady=True              (HPA configured or skipped)              │
 │         BootstrapReady=False       (running bootstrap job)                  │
 │  t=95s BootstrapReady=True   TrustFlushReady=True                          │
+│         PasswordRotationReady=True (rotation reconciled or disabled)         │
 │         Ready=True                 (all conditions met)                     │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -606,7 +641,7 @@ func (w *KeystoneWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
 }
 ```
 
-**Defaulting webhook** — abridged; the real `Default` also materializes `CredentialKeys.MaxActiveKeys`, a populated `TrustFlush` (hourly schedule), `UWSGI` sub-fields, a baseline `Logging`, the `Resources` requests/limits (CC-0042), and `Database.TLS.Mode` (`require`, CC-0106):
+**Defaulting webhook** — abridged; the real `Default` also materializes `CredentialKeys.MaxActiveKeys`, a populated `TrustFlush` (hourly schedule), `UWSGI` sub-fields, a baseline `Logging`, the `Resources` requests/limits (CC-0042), `Database.TLS.Mode` (`require`, CC-0106), the `Bootstrap.AdminUser` (`admin`) / `Bootstrap.Region` (`RegionOne`) defaults, and — only when `Bootstrap.PasswordRotation.Enabled` — its `Schedule` (`0 0 1 * *`) and `PasswordLength` (32) leaf defaults (CC-0109):
 
 ```go
 func (w *KeystoneWebhook) Default(_ context.Context, obj *Keystone) error {
@@ -627,7 +662,7 @@ func (w *KeystoneWebhook) Default(_ context.Context, obj *Keystone) error {
 }
 ```
 
-**Validation webhook** — abridged; the real `validate` is extensive, covering replicas, credential/fernet cron schedules, cache & database mutual-exclusivity, database TLS, trust-flush cron, uWSGI bounds + cross-field harakiri/keep-alive rules, logging enums + per-logger levels, termination-grace/preStop arithmetic, rollout strategy, autoscaling bounds, networkPolicy ingress, gateway + publicEndpoint host matching, resource requests≤limits, `priorityClassName` existence (via the injected client), and topology-spread selectors:
+**Validation webhook** — abridged; the real `validate` is extensive, covering replicas, credential/fernet cron schedules, cache & database mutual-exclusivity, database TLS, trust-flush cron, uWSGI bounds + cross-field harakiri/keep-alive rules, logging enums + per-logger levels, termination-grace/preStop arithmetic, rollout strategy, autoscaling bounds, networkPolicy ingress, gateway + publicEndpoint host matching, resource requests≤limits, `priorityClassName` existence (via the injected client), topology-spread selectors, and — when `bootstrap.passwordRotation.enabled` — the rotation cron `schedule`, a required `bootstrap.adminPasswordSecretRef.name`, and `passwordLength` ≥ 24 (CC-0109):
 
 ```go
 func (w *KeystoneWebhook) ValidateCreate(ctx context.Context, obj *Keystone) (admission.Warnings, error) {

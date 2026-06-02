@@ -10,6 +10,17 @@ The c5c3-operator currently exists as a **stub**. `operators/c5c3/` contains onl
 Everything below describes the **intended design**, consistent with the Keystone-first strategy: Keystone is the concrete reference implementation today; the c5c3-operator and the remaining service operators follow it. Present-tense descriptions of c5c3-operator behavior are aspirational.
 :::
 
+::: info First implemented slice (CC-0110)
+The prepared plan for turning the stub into a working operator scopes the **first vertical slice to Keystone only**:
+
+- **Infrastructure**: `infrastructure.{database,cache}` → MariaDB + Memcached CRs (RabbitMQ/Valkey and other services arrive with later operators).
+- **Services**: `services.keystone`; `K-ORC` brought up self-credentialed via its own restricted admin Application Credential.
+- **Status conditions implemented first**: `InfrastructureReady`, `KeystoneReady`, `KORCReady`, `AdminCredentialReady`, `CatalogReady`. `ServicesReady` and `ServiceUsersReady` are deferred.
+- **CRDs**: `ControlPlane` and `CredentialRotation` (with a reconciler); `SecretAggregate` lands as **types + CRD YAML only** (no controller) until a follow-up.
+
+Capabilities described below that fall outside this slice — RabbitMQ/Valkey projection, per-pod/per-replica service users (`ServiceUserSpec`, `maxAge`, Ephemeral mode — roadmap P2-P4), the scheduled admin App-Cred re-mint loop, and the full update-phase/rollback state machine — are later slices and are flagged inline where they appear.
+:::
+
 ## Design Principle: Configuration Control Plane
 
 The c5c3-operator serves as the **Configuration Control Plane** for CobaltCore — the single point that translates a high-level desired state (ControlPlane CR) into concrete infrastructure and service resources.
@@ -217,13 +228,15 @@ type ServiceStatus struct {
 | Condition | Description |
 | --- | --- |
 | **Ready** | Aggregate — True when all infrastructure and services are ready |
-| **InfrastructureReady** | All infrastructure CRs (MariaDB, RabbitMQ, Memcached) report Ready |
+| **InfrastructureReady** | All infrastructure CRs (MariaDB, Memcached; RabbitMQ once messaging-backed services land) report Ready |
 | **KeystoneReady** | Keystone CR is Ready |
-| **ServicesReady** | All enabled service CRs are Ready |
+| **ServicesReady** | All enabled service CRs are Ready _(meaningful only once a second service operator exists — deferred)_ |
 | **KORCReady** | K-ORC bootstrap imports and managed resources are available |
 | **AdminCredentialReady** | The restricted admin Application Credential is minted and synced to `orc-system` |
 | **CatalogReady** | All Keystone Service + Endpoint CRs are reconciled |
-| **ServiceUsersReady** | All per-pod service users (per replica slot) are provisioned |
+| **ServiceUsersReady** | All per-pod service users (per replica slot) are provisioned _(roadmap P2 — deferred, not in the first slice)_ |
+
+> The first CC-0110 slice implements `InfrastructureReady`, `KeystoneReady`, `KORCReady`, `AdminCredentialReady`, and `CatalogReady`. `ServicesReady` and `ServiceUsersReady` are documented as the target end-state but are deferred.
 
 ## Orchestration Reconciler
 
@@ -592,7 +605,11 @@ for K-ORC details, [Control Plane — K-ORC](../03-components/01-control-plane/0
 
 ## Per-pod service user reconciler
 
-This sub-reconciler implements the per-pod credential model. CobaltCore goes **straight to
+::: warning Roadmap (P2-P4) — outside the first CC-0110 slice
+Per-pod / per-replica workload service users are **not** part of the first c5c3 slice. The initial `ControlPlane` CRD manages only K-ORC's own admin Application Credential; `ServiceUserSpec`, `maxAge`, the Ephemeral mode, and the `ServiceUsersReady` condition are **not introduced** by the initial CRD and arrive in later roadmap phases. The design below is settled but future.
+:::
+
+This sub-reconciler will implement the per-pod credential model. CobaltCore goes **straight to
 per-pod** (no interim shared-service-user phase); see the
 [Implementation Roadmap](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#implementation-roadmap).
 
