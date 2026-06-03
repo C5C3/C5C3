@@ -118,7 +118,7 @@ The listener does not just terminate server TLS; it **requires and verifies a cl
 
 ## Initialization and Unseal
 
-After deployment, OpenBao must be initialized and unsealed. In forge this is automated and idempotent by `deploy/openbao/bootstrap/init-unseal.sh` (driven by `hack/deploy-infra.sh`): it initializes with 5 key shares / threshold 3, and **persists the init output (unseal keys + root token) base64-encoded into a Kubernetes Secret `openbao-init-keys` in `openbao-system`** so the script can re-unseal pods on restart. The `kubectl exec` commands below are the conceptual equivalent.
+After deployment, OpenBao must be initialized and unsealed. In forge the init/unseal logic exists in two forms: `deploy/openbao/bootstrap/init-unseal.sh` targets the HA, 3-replica production cluster, while `hack/deploy-infra.sh` re-implements an equivalent inline (`openbao_init_unseal`) for the single-replica kind cluster (the production script hardcodes 3 replicas). Both initialize with 5 key shares / threshold 3 and **persist the init output (unseal keys + root token) base64-encoded into a Kubernetes Secret `openbao-init-keys` in `openbao-system`** so pods can be re-unsealed on restart. After unsealing, `deploy-infra.sh` drives only the four configuration scripts — `setup-secret-engines.sh`, `setup-auth.sh`, `setup-policies.sh`, and `write-bootstrap-secrets.sh` (it does **not** invoke `init-unseal.sh` itself). The `kubectl exec` commands below are the conceptual equivalent.
 
 > **Security posture.** Storing the unseal material in a cluster Secret is a deliberate bootstrap/dev convenience (a known interim posture, `TODO(CC-0009)`). The production hardening target is offline / HSM custody or auto-unseal (see below).
 
@@ -441,10 +441,11 @@ path "pki/sign/*" {
 
 ```bash
 # Apply all policies (deploy/openbao/policies/*.hcl, applied by setup-policies.sh
-# where the policy name is derived from the filename)
+# where the policy name is derived from the filename). The script globs the .hcl
+# files and pipes each one to `bao policy write <name> -` via stdin.
 for policy in ci-cd-provisioner eso-control-plane eso-hypervisor eso-management eso-storage \
               pki-issuer push-app-credentials push-ceph-keys push-keystone-admin push-keystone-keys; do
-  bao policy write $policy /path/to/policies/$policy.hcl
+  bao policy write $policy - < /path/to/policies/$policy.hcl
 done
 ```
 
@@ -477,7 +478,7 @@ bao auth enable -path=approle approle
 
 ### Phase 1: Write Bootstrap Secrets
 
-> **Implemented vs planned.** `deploy/openbao/bootstrap/write-bootstrap-secrets.sh` currently writes only the Keystone-first set — `bootstrap/keystone-admin`, `infrastructure/mariadb`, and `openstack/keystone/db` — and generates random values **in-pod** via OpenBao's `sys/tools/random` (an `@generate` marker), so cleartext never appears in process arguments. The fuller multi-service secret set below is planned and uses host-side `openssl` only for illustration.
+> **Implemented vs planned.** `deploy/openbao/bootstrap/write-bootstrap-secrets.sh` currently writes the Keystone-first set — `bootstrap/keystone-admin`, `infrastructure/mariadb`, and `openstack/keystone/db` — and additionally seeds `openstack/keystone/admin/app-credential` with a password-based bootstrap `clouds.yaml` for K-ORC (CC-0110), breaking the chicken-and-egg of the admin application credential. It generates random values **in-pod** via OpenBao's `sys/tools/random` (an `@generate` marker), so cleartext never appears in process arguments, and runs `mark_eso_managed` to stamp `custom_metadata: managed-by=external-secrets` on the ESO-owned paths so the c5c3-operator / Model-B PushSecrets can later overwrite the seeded values. The fuller multi-service secret set below is planned and uses host-side `openssl` only for illustration.
 
 ```bash
 # Keystone admin password

@@ -210,13 +210,13 @@ The DB password is **deliberately kept out of `keystone.conf`** — the earlier 
 
 `spec.database.tls.mode` (`prefer` / `require` / `verify-ca` / `verify-full`) maps to pymysql `ssl_ca` / `ssl_cert` / `ssl_key` / `ssl_verify_*` DSN parameters, merged into the connection URL above. The `DatabaseTLSReady` condition gates the rest of the flow.
 
-**Readiness:** In managed mode the reconciler gates db_sync on a chain of conditions — MariaDB **cluster** health (`isMariaDBClusterReady`), then the `Database`, `User`, and `Grant` CRs each reporting `Ready` — before proceeding. While any of these is not ready, reconciliation requeues at `RequeueDatabaseWait` (30s).
+**Readiness:** In managed mode the reconciler gates db_sync on a chain of conditions — MariaDB **cluster** health (`isMariaDBClusterReady`), then the `Database`, `User`, and `Grant` CRs each reporting `Ready` — before proceeding. While any of these is not ready, reconciliation requeues at `RequeueDatabaseWait` (30s). After the `db_sync` Job completes, the reconciler runs a read-only schema-drift gate (a `<name>-schema-check` Job running `keystone-manage db_sync --check`) and only sets `DatabaseReady=True` / `DatabaseSynced` and records `status.installedRelease` once that check passes.
 
 ## Memcached Interaction
 
 Keystone uses Memcached for token caching and general-purpose caching. The Memcached cluster is managed by the [memcached-operator](../03-components/01-control-plane/06-infrastructure-operators.md#memcached-operator).
 
-**Discovery:** In **managed mode** (`spec.cache.clusterRef`), the operator targets the Memcached cluster Service (e.g. `<clusterRef>:11211`); `spec.cache.replicas` is used to size endpoints where needed. In **brownfield mode**, the comma-joined `spec.cache.servers` list is used directly.
+**Discovery:** In **managed mode** (`spec.cache.clusterRef`), the operator emits the single cluster Service DNS name `<clusterRef>:11211` (the headless Service resolves to all backing pod IPs). In **brownfield mode**, the comma-joined `spec.cache.servers` list is used directly.
 
 **keystone.conf cache configuration** (the operator populates both `[cache] memcache_servers` and `[memcache] servers`):
 
@@ -378,7 +378,7 @@ Two models, both compatible with the apply side above:
 
 1. A `<name>-admin-password-rotate` **CronJob** runs `scripts/admin_password_rotate.sh`, which mints a strong password and `PATCH`es it onto a narrow-RBAC **staging** Secret `<name>-admin-password-rotation` via the pod's ServiceAccount token. The CronJob has no access to OpenBao or the production credential.
 2. The operator **validates** the staged password (length ≥ `passwordLength`/floor 24) and copies it into an operator-owned **push-source** Secret `<name>-admin-password-next`.
-3. A **PushSecret** — created only once the push-source holds a valid password, with `DeletionPolicy=None` so disabling rotation never clobbers the live credential — mirrors it to OpenBao at `bootstrap/keystone-admin`. ESO syncs it down and the apply side re-bootstraps.
+3. A **PushSecret** `<name>-admin-password-backup` — created only once the push-source holds a valid password, with `DeletionPolicy=None` so disabling rotation never clobbers the live credential — mirrors it to OpenBao at `bootstrap/keystone-admin` (property `password`). ESO syncs it down and the apply side re-bootstraps.
 
 Keeping the privileged write (OpenBao plus the production Secret) in the operator — not the CronJob — keeps token-forgery primitives out of the narrow-RBAC CronJob, matching the existing rotation security model. Disabling the feature (or setting `passwordRotation: nil`) tears down every Model B resource and sets `PasswordRotationReady=True`/`RotationDisabled`. Because the push path is the single flat OpenBao key `bootstrap/keystone-admin`, Model B assumes a single Model-B-enabled Keystone CR per cluster.
 

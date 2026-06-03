@@ -8,7 +8,7 @@ CobaltCore uses a **Go Workspace** (`go.work`) to manage multiple operator modul
 
 ```go
 // go.work
-go 1.26.3
+go 1.26.4
 
 use (
     ./internal/common
@@ -95,7 +95,28 @@ Operator SDK and `controller-gen` are still used as **code-generation tooling** 
 │  │   │   ├── dashboards/              # Grafana dashboard JSON              │
 │  │   │   └── helm/                    # Helm chart                          │
 │  │   │       └── keystone-operator/                                         │
-│  │   └── c5c3/                        # Orchestration operator (stub: main.go only) │
+│  │   └── c5c3/                        # Orchestration operator (CC-0110)    │
+│  │       ├── go.mod                                                         │
+│  │       ├── main.go                                                        │
+│  │       ├── Dockerfile                                                     │
+│  │       ├── api/v1alpha1/            # ControlPlane / CredentialRotation   │
+│  │       │   │                        #   / SecretAggregate + webhook       │
+│  │       │   ├── controlplane_types.go                                      │
+│  │       │   ├── credentialrotation_types.go                                │
+│  │       │   ├── secretaggregate_types.go                                   │
+│  │       │   ├── controlplane_webhook.go                                    │
+│  │       │   └── zz_generated.deepcopy.go                                   │
+│  │       ├── internal/                                                      │
+│  │       │   ├── controller/           # Orchestration reconciler           │
+│  │       │   │   ├── controlplane_controller.go                             │
+│  │       │   │   └── reconcile_*.go     # one file per sub-reconciler       │
+│  │       │   ├── metrics/                                                   │
+│  │       │   └── testutil/                                                  │
+│  │       ├── config/                  # Kubebuilder metadata                │
+│  │       │   ├── crd/                                                       │
+│  │       │   └── webhook/                                                   │
+│  │       └── helm/                    # Helm chart                          │
+│  │           └── c5c3-operator/                                             │
 │  │                                                                          │
 │  ├── hack/                            # CI/dev helper scripts               │
 │  │   ├── deploy-infra.sh / teardown-infra.sh                                │
@@ -136,7 +157,7 @@ Each operator module references the shared library via a `replace` directive for
 // operators/keystone/go.mod
 module github.com/c5c3/forge/operators/keystone
 
-go 1.26.3
+go 1.26.4
 
 require (
     github.com/c5c3/forge/internal/common v0.0.0
@@ -152,6 +173,21 @@ replace github.com/c5c3/forge/internal/common => ../../internal/common
 ```
 
 > **Note:** The `replace` directive is only relevant when building outside the Go Workspace (e.g., in CI without `go.work`). Within the workspace, `go.work`'s `use` directive takes precedence.
+
+The orchestration operator depends on more than the shared library. `operators/c5c3/go.mod` additionally requires the **keystone** module (it imports `keystonev1alpha1` to project `Keystone` CRs) and the **K-ORC** API (`github.com/k-orc/openstack-resource-controller/v2`, for the admin `ApplicationCredential`/`Service`/`Endpoint` CRs it creates), so it carries a second `replace` directive:
+
+```go
+// operators/c5c3/go.mod (excerpt)
+require (
+    github.com/c5c3/forge/internal/common v0.0.0
+    github.com/c5c3/forge/operators/keystone v0.0.0
+    github.com/k-orc/openstack-resource-controller/v2 v2.5.0
+    // ...
+)
+
+replace github.com/c5c3/forge/internal/common  => ../../internal/common
+replace github.com/c5c3/forge/operators/keystone => ../keystone
+```
 
 ## Makefile Targets
 

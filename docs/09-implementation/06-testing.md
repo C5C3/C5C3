@@ -94,7 +94,7 @@ Rather than hand-rolling envtest scaffolding per package, operators reuse a shar
 | `assertions/` | `testing.TB`-based helpers — `AssertCondition`, `AssertConditionWithReason`, `AssertConditionMissing`, `AssertResourceExists`, `AssertResourceNotExists`, `EventuallyCondition` |
 | `builders/` | Fluent builders for test Kubernetes resources (currently a `SecretBuilder`) |
 | `envtest/` | Shared envtest bootstrap (`SetupEnvTest`, `SkipIfEnvTestUnavailable`, `SharedScheme`) used by every integration test |
-| `fake_crds/` | Minimal CRD manifests for third-party resources (cert-manager, external-secrets, gateway-api, mariadb-operator, memcached-operator, rabbitmq-operator) registered in envtest |
+| `fake_crds/` | Minimal CRD manifests for third-party resources (cert-manager, external-secrets, gateway-api, k-orc, mariadb-operator, memcached-operator, rabbitmq-operator) registered in envtest — `k-orc` provides the OpenStack Resource Controller CRDs (`ApplicationCredential`, `Service`, `Endpoint`) the c5c3-operator depends on (CC-0110) |
 | `simulators/` | Simulate external controllers that do not run in envtest — `SimulateMariaDBReady`, `SimulateExternalSecretSync`, `SimulateJobComplete`, `SimulateCertificateReady`, … |
 
 Integration tests should use these helpers instead of re-implementing setup, secret creation, or status simulation.
@@ -235,8 +235,9 @@ func TestKeystoneReconciler_CreatesDeployment(t *testing.T) {
 │  │   └── ... (44 total)                                                     │
 │  ├── keystone-operator/             # operator-level (e.g. network-policy)  │
 │  ├── infrastructure/                # chaos-mesh-health, flux-web-health,   │
-│  │                                  #   infra-stack-health (4 suites)       │
-│  └── c5c3/                          # placeholder (.gitkeep); no E2E yet    │
+│  │                                  #   infra-stack-health,                 │
+│  │                                  #   no-prometheus-when-disabled         │
+│  └── c5c3/                          # full-controlplane-keystone (CC-0110)  │
 │                                                                             │
 │  tests/e2e-chaos/   Chaos Mesh suite (ch. 10)                               │
 │  tests/tempest/     Tempest config per release (keystone-2025-2, -2026-1)  │
@@ -318,7 +319,7 @@ status:
 
 ### Test Scenarios
 
-The Keystone suite has grown to 44 scenario directories (≈49 Chainsaw E2E suites in total: keystone 44, infrastructure 4, keystone-operator 1; `tests/e2e/c5c3/` is an empty placeholder with no suites yet, and the chaos suite is counted separately under ch. 10). The table below is illustrative, not exhaustive:
+The Keystone suite has grown to 44 scenario directories (50 Chainsaw E2E suites in total: keystone 44, infrastructure 4, keystone-operator 1, c5c3 1 — the c5c3 suite `full-controlplane-keystone` exercises the ControlPlane → Keystone orchestration chain (CC-0110); the chaos suite is counted separately under ch. 10). The table below is illustrative, not exhaustive:
 
 | Scenario | Description | Validates |
 | --- | --- | --- |
@@ -367,7 +368,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.work   # Go 1.26.3
+          go-version-file: go.work   # Go 1.26.4
       - run: make test-${{ matrix.module == 'common' && 'common' || 'operator OPERATOR='matrix.module }}
       - uses: codecov/codecov-action@v6
 

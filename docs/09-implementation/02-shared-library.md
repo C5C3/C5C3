@@ -214,7 +214,7 @@ Provides helpers for ESO-based secret workflows. Operators never interact with O
 
 | Function | Description |
 | --- | --- |
-| `WaitForExternalSecret(ctx, client, key client.ObjectKey) (bool, error)` | Check if an ExternalSecret has synced and the target K8s Secret exists. Returns true when ready. |
+| `WaitForExternalSecret(ctx, client, key client.ObjectKey) (bool, error)` | Check whether the ExternalSecret reports a Ready condition (status True), indicating ESO has synced it. Returns true when ready. (Target-Secret existence and key checks live in `IsSecretReady`.) |
 | `IsSecretReady(ctx, client, key client.ObjectKey, expectedKeys ...string) (bool, error)` | Verify that a K8s Secret exists and contains the expected keys. |
 | `IsClusterSecretStoreReady(ctx, client, name string) (bool, error)` | Verify that the named ESO `ClusterSecretStore` reports a Ready condition before reading from it. |
 | `EnsurePushSecret(ctx, client, scheme *runtime.Scheme, owner client.Object, ps *esov1alpha1.PushSecret) error` | Create or update a PushSecret CR to write operator-generated secrets back to OpenBao. |
@@ -396,7 +396,7 @@ Provides test infrastructure shared across all operator test suites. Organized i
 | `assertions/` | `testing.TB`-based assertion helpers (`AssertCondition`, `AssertConditionWithReason`, `AssertConditionMissing`, `AssertResourceExists`, `AssertResourceNotExists`, `EventuallyCondition`) — not Gomega matchers |
 | `builders/` | Fluent builders for test Kubernetes resources (currently `SecretBuilder`) |
 | `envtest/` | Shared envtest setup (`SetupEnvTest`, `SkipIfEnvTestUnavailable`, `SharedScheme`) and auto-discovered fake CRDs |
-| `fake_crds/` | CRD manifests for third-party resources (cert-manager, external-secrets, gateway-api, mariadb-operator, memcached-operator, rabbitmq-operator) needed in envtest |
+| `fake_crds/` | CRD manifests for third-party resources (cert-manager, external-secrets, gateway-api, k-orc, mariadb-operator, memcached-operator, rabbitmq-operator) needed in envtest — `k-orc` provides the OpenStack Resource Controller CRDs (`ApplicationCredential`, `Service`, `Endpoint`) used by the c5c3-operator (CC-0110) |
 | `simulators/` | Simulators for external controllers (e.g. `SimulateMariaDBReady`, `SimulateExternalSecretSync`, `SimulateJobComplete`, `SimulateCertificateReady`) |
 
 ## Secret Flow Design Principle

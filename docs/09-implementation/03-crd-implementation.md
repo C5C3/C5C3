@@ -126,7 +126,7 @@ type KeystoneSpec struct {
     // +optional
     Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 
-    // UWSGI tunes the uWSGI server running the Keystone API (CC-0084).
+    // UWSGI configures the uWSGI application server parameters (CC-0040).
     // When unset, the defaulting webhook materializes sensible defaults.
     // +optional
     UWSGI *UWSGISpec `json:"uwsgi,omitempty"`
@@ -209,7 +209,7 @@ type TrustFlushSpec struct {
     Args []string `json:"args,omitempty"`
 }
 
-// UWSGISpec tunes the uWSGI server running the Keystone API (CC-0084).
+// UWSGISpec defines the uWSGI application server parameters (CC-0040).
 type UWSGISpec struct {
     // Processes is the number of uWSGI worker processes.
     // +kubebuilder:validation:Minimum=1
