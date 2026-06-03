@@ -418,6 +418,15 @@ A project-scoped admin App Cred carrying `role:admin` satisfies every K-ORC oper
 catalog (`service`/`endpoint`) writes — even under `enforce_scope=True` (verified; see
 [the admin App Cred section](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#the-admin-application-credential)).
 
+> **Self-service invariant.** Keystone only lets a user create an Application Credential **for
+> themselves** — `POST /v3/users/{user_id}/application_credentials` is hard-rejected unless the
+> calling token's user *is* `{user_id}` (`ForbiddenAction`; the `create_application_credential`
+> policy is `RULE_OWNER`, not an admin rule, so there is **no admin override**). `resource.userRef`
+> must therefore be the **same** user that `cloudCredentialsRef` authenticates as — here both are
+> `admin`. The credential is additionally **project-scoped** and may carry only **roles the user
+> already holds in that project** (no privilege escalation, no `system` scope). The same rule
+> constrains the brownfield [Credential Bridge](../06-operations/03-brownfield-integration.md#step-3-create-application-credentials).
+
 ```yaml
 apiVersion: openstack.k-orc.cloud/v1alpha1
 kind: ApplicationCredential

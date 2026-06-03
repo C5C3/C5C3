@@ -311,6 +311,19 @@ All imported resources should show `status.conditions` with `type: Available, st
 
 With the brownfield resources imported, K-ORC can create **managed** Application Credentials that reference the **unmanaged** (imported) users. This is the credential-bridge pattern, specific to brownfield — the greenfield control plane instead provisions [per-pod real users](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#per-pod-service-users) for the workloads it owns. Here the App Creds reference the `brownfield-*` user CRs.
 
+::: warning Each App Cred must be minted *as its own user* (self-service)
+Keystone only lets a user create an Application Credential **for themselves**:
+`POST /v3/users/{user_id}/application_credentials` is hard-rejected unless the calling token's user
+*is* `{user_id}` (`ForbiddenAction: "Cannot create an application credential for another user."` —
+no admin override). The shared **admin** `clouds.yaml` from Step 1 therefore **cannot** mint App
+Creds for the imported `nova`/`glance`/… users. Each `ApplicationCredential` below must set
+`cloudCredentialsRef` to a `clouds.yaml` that authenticates **as that same service user** — so every
+imported user needs its own password-based `clouds.yaml` (its brownfield password), provisioned like
+the admin one in Step 1 but per user. The resulting credential is **project-scoped** and limited to
+**roles that user already holds** (no escalation, no `system` scope). This is the same self-service
+limit that led greenfield to use [real per-pod users instead of App Creds](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#self-service-minting-makes-app-creds-no-simpler-than-passwords).
+:::
+
 ```yaml
 # Nova Application Credential
 apiVersion: openstack.k-orc.cloud/v1alpha1
@@ -321,7 +334,7 @@ metadata:
 spec:
   cloudCredentialsRef:
     cloudName: brownfield
-    secretName: brownfield-k-orc-clouds-yaml
+    secretName: brownfield-nova-clouds-yaml   # authenticates AS the nova user (self-service — see note above)
   resource:
     name: brownfield-nova-app-credential
     description: "Nova service authentication (brownfield)"
@@ -341,7 +354,7 @@ metadata:
 spec:
   cloudCredentialsRef:
     cloudName: brownfield
-    secretName: brownfield-k-orc-clouds-yaml
+    secretName: brownfield-glance-clouds-yaml   # authenticates AS the glance user (self-service — see note above)
   resource:
     name: brownfield-glance-app-credential
     description: "Glance service authentication (brownfield)"
@@ -361,7 +374,7 @@ metadata:
 spec:
   cloudCredentialsRef:
     cloudName: brownfield
-    secretName: brownfield-k-orc-clouds-yaml
+    secretName: brownfield-neutron-clouds-yaml   # authenticates AS the neutron user (self-service — see note above)
   resource:
     name: brownfield-neutron-app-credential
     description: "Neutron service authentication (brownfield)"
@@ -381,7 +394,7 @@ metadata:
 spec:
   cloudCredentialsRef:
     cloudName: brownfield
-    secretName: brownfield-k-orc-clouds-yaml
+    secretName: brownfield-cinder-clouds-yaml   # authenticates AS the cinder user (self-service — see note above)
   resource:
     name: brownfield-cinder-app-credential
     description: "Cinder service authentication (brownfield)"
@@ -401,7 +414,7 @@ metadata:
 spec:
   cloudCredentialsRef:
     cloudName: brownfield
-    secretName: brownfield-k-orc-clouds-yaml
+    secretName: brownfield-placement-clouds-yaml   # authenticates AS the placement user (self-service — see note above)
   resource:
     name: brownfield-placement-app-credential
     description: "Placement service authentication (brownfield)"
