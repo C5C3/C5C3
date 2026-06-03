@@ -1,24 +1,18 @@
 # C5C3 Operator
 
-The c5c3-operator is the planned central orchestration operator in CobaltCore. It will read a single `ControlPlane` CR and from it create, configure, and monitor all infrastructure and OpenStack service CRs. This page documents the ControlPlane CRD, the orchestration reconciler, infrastructure lifecycle, service CR projection, K-ORC integration, and rollout strategy.
+The c5c3-operator is the central orchestration operator in CobaltCore. It reads a single `ControlPlane` CR and from it creates, configures, and monitors the infrastructure and OpenStack service CRs of a control plane. This page documents the ControlPlane CRD, the orchestration reconciler, the infrastructure lifecycle, service CR projection, K-ORC integration, and the rollout strategy.
 
 For the high-level architecture, see [Control Plane — C5C3 Operator](../03-components/01-control-plane/01-c5c3-operator.md). For CRD definitions, see [CRDs](../04-architecture/01-crds.md).
 
-::: warning Status: planned — not yet implemented
-The c5c3-operator currently exists as a **stub**. `operators/c5c3/` contains only a `main.go` that starts a controller-runtime manager via the shared [`bootstrap`](./02-shared-library.md#bootstrap) package (leader-election ID `c5c3.openstack.c5c3.io`); its `SetupFunc` registers **no controllers** yet (`// +kubebuilder:scaffold:builder`). There is no `api/`, no `ControlPlane`/`SecretAggregate`/`CredentialRotation` Go types, and no orchestration reconciler in forge.
+::: info Status: first slice implemented (CC-0110)
+The **Keystone-first vertical slice is built** in `operators/c5c3/`. `main.go` (leader-election ID `c5c3.openstack.c5c3.io`) registers the `ControlPlaneReconciler`, the `CredentialRotationReconciler`, and the `ControlPlane` validating/defaulting webhook. What is implemented today:
 
-Everything below describes the **intended design**, consistent with the Keystone-first strategy: Keystone is the concrete reference implementation today; the c5c3-operator and the remaining service operators follow it. Present-tense descriptions of c5c3-operator behavior are aspirational.
-:::
+- **Infrastructure**: `infrastructure.{database,cache}` → MariaDB + Memcached CRs (RabbitMQ/Valkey and other backing services arrive with later service operators).
+- **Services**: `services.keystone` → an owned `Keystone` CR; K-ORC is brought up self-credentialed via its own restricted admin Application Credential.
+- **Status conditions**: `InfrastructureReady`, `KeystoneReady`, `KORCReady`, `AdminCredentialReady`, `CatalogReady`, aggregated into `Ready`.
+- **CRDs**: `ControlPlane` and `CredentialRotation` (both with reconcilers); `SecretAggregate` ships as **types + CRD YAML only** (no controller; reconciler deferred to CC-0023, read-only RBAC).
 
-::: info First implemented slice (CC-0110)
-The prepared plan for turning the stub into a working operator scopes the **first vertical slice to Keystone only**:
-
-- **Infrastructure**: `infrastructure.{database,cache}` → MariaDB + Memcached CRs (RabbitMQ/Valkey and other services arrive with later operators).
-- **Services**: `services.keystone`; `K-ORC` brought up self-credentialed via its own restricted admin Application Credential.
-- **Status conditions implemented first**: `InfrastructureReady`, `KeystoneReady`, `KORCReady`, `AdminCredentialReady`, `CatalogReady`. `ServicesReady` and `ServiceUsersReady` are deferred.
-- **CRDs**: `ControlPlane` and `CredentialRotation` (with a reconciler); `SecretAggregate` lands as **types + CRD YAML only** (no controller) until a follow-up.
-
-Capabilities described below that fall outside this slice — RabbitMQ/Valkey projection, per-pod/per-replica service users (`ServiceUserSpec`, `maxAge`, Ephemeral mode — roadmap P2-P4), the scheduled admin App-Cred re-mint loop, and the full update-phase/rollback state machine — are later slices and are flagged inline where they appear.
+Capabilities that fall **outside this slice** are flagged inline where they appear and remain planned: RabbitMQ/Valkey projection, multi-service orchestration (Glance/Placement/Nova/Neutron/Cinder), per-pod/per-replica service users (`ServiceUserSpec`, `maxAge`, Ephemeral mode — roadmap P2-P4), the scheduled admin App-Cred re-mint loop, and the full update-phase/rollback state machine (the `UpdatingServices`/`Verifying`/`RollingBack` phases are reserved enum values but not yet active).
 :::
 
 ## Design Principle: Configuration Control Plane
@@ -42,6 +36,8 @@ The ControlPlane CRD is the top-level API for an entire OpenStack deployment. Us
 
 ### Go Type Definition
 
+The types below are reproduced from `operators/c5c3/api/v1alpha1/controlplane_types.go` (abridged with `// ...` where comments are trimmed).
+
 ```go
 package v1alpha1
 
@@ -53,10 +49,10 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
-// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.updatePhase"
+// +kubebuilder:printcolumn:name="Release",type="string",JSONPath=".spec.openStackRelease"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// ControlPlane is the Schema for the controlplanes API.
+// ControlPlane is the Schema for the controlplanes API (CC-0110).
 type ControlPlane struct {
     metav1.TypeMeta   `json:",inline"`
     metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -65,145 +61,182 @@ type ControlPlane struct {
     Status ControlPlaneStatus `json:"status,omitempty"`
 }
 
-// ControlPlaneSpec defines the desired state of the entire OpenStack deployment.
+// ControlPlaneSpec defines the desired state of a ControlPlane.
 type ControlPlaneSpec struct {
-    // OpenStackRelease is the target OpenStack release (e.g. "2025.2").
-    // The c5c3-operator resolves this to concrete image tags.
+    // OpenStackRelease is the release the control plane targets, e.g. "2025.2".
+    // The reconciler projects this into each service CR's image tag.
     // +kubebuilder:validation:Pattern=`^\d{4}\.\d$`
     OpenStackRelease string `json:"openStackRelease"`
 
-    // Region is the OpenStack region name.
+    // Region is the OpenStack region name applied across the control plane.
     // +kubebuilder:default="RegionOne"
+    // +optional
     Region string `json:"region,omitempty"`
 
-    // Infrastructure defines shared infrastructure clusters.
+    // Infrastructure declares the shared backing services (database, cache).
     Infrastructure InfrastructureSpec `json:"infrastructure"`
 
-    // Services defines per-service configuration.
+    // Services declares the per-service configuration projected into service CRs.
     Services ServicesSpec `json:"services"`
 
-    // Global defines cluster-wide settings (TLS, monitoring, policy).
+    // Global defines oslo.policy overrides applied across every service.
+    // Per-service overrides take precedence over these global rules.
     // +optional
-    Global *GlobalSpec `json:"global,omitempty"`
+    Global *commonv1.PolicySpec `json:"global,omitempty"`
 
-    // KORC configures K-ORC integration.
-    // +optional
-    KORC *KORCSpec `json:"korc,omitempty"`
+    // KORC configures the K-ORC integration (admin application credential +
+    // bootstrap resources). Required.
+    KORC KORCSpec `json:"korc"`
 }
 
-// InfrastructureSpec defines shared infrastructure clusters.
+// InfrastructureSpec declares the shared backing services. Both fields reuse the
+// canonical commonv1 shapes so the ControlPlane and the per-service CRs validate
+// database/cache the same way.
 type InfrastructureSpec struct {
-    Database    InfraDatabaseSpec    `json:"database"`
-    Messaging   InfraMessagingSpec   `json:"messaging"`
-    Cache       InfraCacheSpec       `json:"cache"`
-    Valkey      InfraValkeySpec      `json:"valkey"`
+    // Database — managed (clusterRef) XOR brownfield (host). Enforced by webhook.
+    Database commonv1.DatabaseSpec `json:"database"`
+    // Cache — managed (clusterRef) XOR brownfield (servers). Enforced by webhook.
+    Cache commonv1.CacheSpec `json:"cache"`
 }
 
-// InfraDatabaseSpec defines the MariaDB Galera cluster.
-type InfraDatabaseSpec struct {
-    Replicas     int32  `json:"replicas"`
-    StorageClass string `json:"storageClass,omitempty"`
-    StorageSize  string `json:"storageSize,omitempty"`
-}
-
-// InfraMessagingSpec defines the RabbitMQ cluster.
-type InfraMessagingSpec struct {
-    Replicas int32 `json:"replicas"`
-}
-
-// InfraCacheSpec defines the Memcached deployment.
-type InfraCacheSpec struct {
-    Replicas int32 `json:"replicas"`
-}
-
-// InfraValkeySpec defines the Valkey cluster.
-type InfraValkeySpec struct {
-    Replicas int32 `json:"replicas"`
-}
-
-// GlobalSpec defines cluster-wide settings applied to all services.
-type GlobalSpec struct {
-    // TLS configures cluster-wide TLS.
-    // +optional
-    TLS *TLSSpec `json:"tls,omitempty"`
-
-    // PolicyOverrides defines global oslo.policy rules applied to all services.
-    // Per-service policyOverrides take precedence over global rules.
-    // +optional
-    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
-}
-
-// ServicesSpec defines per-service configuration.
+// ServicesSpec declares the per-service configuration. Today only Keystone is
+// modeled; additional services are added as optional pointer fields as the
+// operator grows.
 type ServicesSpec struct {
-    Keystone  *KeystoneServiceSpec  `json:"keystone,omitempty"`
-    Nova      *NovaServiceSpec      `json:"nova,omitempty"`
-    Neutron   *NeutronServiceSpec   `json:"neutron,omitempty"`
-    Glance    *GlanceServiceSpec    `json:"glance,omitempty"`
-    Cinder    *CinderServiceSpec    `json:"cinder,omitempty"`
-    Placement *PlacementServiceSpec `json:"placement,omitempty"`
+    Keystone ServiceKeystoneSpec `json:"keystone"`
 }
 
-// KeystoneServiceSpec defines Keystone-specific settings in the ControlPlane.
-type KeystoneServiceSpec struct {
-    Enabled         bool                 `json:"enabled"`
-    Replicas        int32                `json:"replicas"`
-    Fernet          *FernetServiceSpec   `json:"fernet,omitempty"`
+// ServiceKeystoneSpec is a CURATED LOCAL subset of the knobs the ControlPlane
+// exposes for Keystone — intentionally NOT an import of keystonev1alpha1.KeystoneSpec.
+// The reconciler PROJECTS this into a Keystone CR; the database, cache, and Fernet
+// rotation schedule are DERIVED from the ControlPlane rather than set here.
+type ServiceKeystoneSpec struct {
+    // +optional
+    // +kubebuilder:validation:Minimum=1
+    Replicas *int32 `json:"replicas,omitempty"`
+    // +optional
+    Image *commonv1.ImageSpec `json:"image,omitempty"`
+    // +optional
     PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+    // +optional
+    RotationInterval *metav1.Duration `json:"rotationInterval,omitempty"`
 }
 
-// NovaServiceSpec defines Nova-specific settings in the ControlPlane.
-type NovaServiceSpec struct {
-    Enabled         bool                 `json:"enabled"`
-    Replicas        NovaReplicasSpec     `json:"replicas"`
-    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+// KORCSpec configures the K-ORC integration.
+type KORCSpec struct {
+    AdminCredential AdminCredentialSpec `json:"adminCredential"`
 }
 
-// NeutronServiceSpec defines Neutron-specific settings in the ControlPlane.
-type NeutronServiceSpec struct {
-    Enabled         bool                 `json:"enabled"`
-    Replicas        int32                `json:"replicas"`
-    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+// AdminCredentialSpec declares the admin OpenStack credential and the
+// application-credential rotation policy.
+type AdminCredentialSpec struct {
+    // CloudCredentialsRef references the clouds.yaml Secret + cloud entry K-ORC
+    // authenticates as.
+    CloudCredentialsRef CloudCredentialsRef `json:"cloudCredentialsRef"`
+    // PasswordSecretRef references the admin password used to (re-)mint the AC.
+    PasswordSecretRef commonv1.SecretRefSpec `json:"passwordSecretRef"`
+    // ApplicationCredential declares the admin application-credential policy.
+    ApplicationCredential ApplicationCredentialSpec `json:"applicationCredential"`
+    // BootstrapResources declares OpenStack resources K-ORC bootstraps alongside
+    // the admin credential. Minimal {Kind, Name} shape at L1.
+    // +optional
+    BootstrapResources []BootstrapResourceSpec `json:"bootstrapResources,omitempty"`
 }
 
-// GlanceServiceSpec defines Glance-specific settings in the ControlPlane.
-type GlanceServiceSpec struct {
-    Enabled         bool                 `json:"enabled"`
-    Replicas        int32                `json:"replicas"`
-    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+type CloudCredentialsRef struct {
+    CloudName string `json:"cloudName"`
+    // +kubebuilder:default="k-orc-clouds-yaml"
+    // +optional
+    SecretName string `json:"secretName,omitempty"`
 }
 
-// CinderServiceSpec defines Cinder-specific settings in the ControlPlane.
-type CinderServiceSpec struct {
-    Enabled         bool                 `json:"enabled"`
-    Replicas        CinderReplicasSpec   `json:"replicas"`
-    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+// ApplicationCredentialSpec declares the K-ORC admin application-credential policy.
+type ApplicationCredentialSpec struct {
+    // Restricted defaults to true (least-privilege baseline). NOTE the reconciler
+    // INVERTS this into K-ORC's Unrestricted field (restricted=true => Unrestricted=false).
+    // +kubebuilder:default=true
+    // +optional
+    Restricted *bool `json:"restricted,omitempty"`
+    // +optional
+    AccessRules []AccessRule `json:"accessRules,omitempty"`
+    Rotation RotationSpec `json:"rotation"`
 }
 
-// PlacementServiceSpec defines Placement-specific settings in the ControlPlane.
-type PlacementServiceSpec struct {
-    Enabled         bool                 `json:"enabled"`
-    Replicas        int32                `json:"replicas"`
-    PolicyOverrides *commonv1.PolicySpec `json:"policyOverrides,omitempty"`
+type AccessRule struct {
+    Service string `json:"service"`
+    Method  string `json:"method"`
+    Path    string `json:"path"`
 }
 
-// ControlPlaneStatus defines the observed state of the ControlPlane.
+// RotationMode selects how the admin application credential is rotated.
+// +kubebuilder:validation:Enum=PasswordDriven;Scheduled;Manual
+type RotationMode string
+
+const (
+    // RotationModePasswordDriven re-mints the AC whenever the admin password
+    // changes. This is the default and the only mode active at L1.
+    RotationModePasswordDriven RotationMode = "PasswordDriven"
+    // RotationModeScheduled — surfaced for schema stability; logic deferred.
+    RotationModeScheduled RotationMode = "Scheduled"
+    // RotationModeManual rotates only when a CredentialRotation CR requests it.
+    RotationModeManual RotationMode = "Manual"
+)
+
+type RotationSpec struct {
+    // +kubebuilder:default=PasswordDriven
+    // +optional
+    Mode RotationMode `json:"mode,omitempty"`
+}
+
+type BootstrapResourceSpec struct {
+    Kind string `json:"kind"`
+    Name string `json:"name"`
+}
+
+// UpdatePhase represents the current phase of a control-plane update. The enum
+// surfaces FUTURE phases alongside the active ones so the schema is stable; the
+// reserved phases are never set by the current reconciler.
+// +kubebuilder:validation:Enum=Idle;Updating;UpdatingServices;Verifying;RollingBack
+type UpdatePhase string
+
+const (
+    UpdatePhaseIdle             UpdatePhase = "Idle"
+    UpdatePhaseUpdating         UpdatePhase = "Updating"
+    UpdatePhaseUpdatingServices UpdatePhase = "UpdatingServices" // reserved; not yet implemented
+    UpdatePhaseVerifying        UpdatePhase = "Verifying"        // reserved; not yet implemented
+    UpdatePhaseRollingBack      UpdatePhase = "RollingBack"      // reserved; not yet implemented
+)
+
+// ControlPlaneStatus defines the observed state of a ControlPlane.
 type ControlPlaneStatus struct {
-    // Conditions represent the latest available observations.
+    // +optional
     Conditions []metav1.Condition `json:"conditions,omitempty"`
-
-    // UpdatePhase tracks the current rollout phase.
-    // +kubebuilder:validation:Enum=Idle;Validating;UpdatingInfra;UpdatingKeystone;UpdatingServices;Verifying;Complete;RollingBack
-    UpdatePhase string `json:"updatePhase,omitempty"`
-
-    // Services contains per-service status.
+    // +optional
+    ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+    // +optional
+    UpdatePhase UpdatePhase `json:"updatePhase,omitempty"`
+    // Services reports per-service readiness, keyed by service name (e.g. "keystone").
+    // +optional
     Services map[string]ServiceStatus `json:"services,omitempty"`
+    // +optional
+    AdminApplicationCredential *AdminApplicationCredentialStatus `json:"adminApplicationCredential,omitempty"`
+    // +optional
+    CatalogReady bool `json:"catalogReady,omitempty"`
 }
 
-// ServiceStatus reports the status of a single service.
 type ServiceStatus struct {
-    Ready   bool   `json:"ready"`
-    Version string `json:"version,omitempty"`
-    Message string `json:"message,omitempty"`
+    Ready bool `json:"ready"`
+    // +optional
+    Release string `json:"release,omitempty"`
+}
+
+type AdminApplicationCredentialStatus struct {
+    // +optional
+    ID string `json:"id,omitempty"`
+    // +optional
+    Restricted bool `json:"restricted,omitempty"`
+    // +optional
+    LastRotation *metav1.Time `json:"lastRotation,omitempty"`
 }
 ```
 
@@ -211,118 +244,108 @@ type ServiceStatus struct {
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `openStackRelease` | `string` | Target OpenStack release (e.g. `2025.2`). Resolved to image tags by the operator. |
-| `region` | `string` | OpenStack region name (default: `RegionOne`) |
-| `infrastructure.database` | `InfraDatabaseSpec` | MariaDB Galera cluster size and storage |
-| `infrastructure.messaging` | `InfraMessagingSpec` | RabbitMQ cluster size |
-| `infrastructure.cache` | `InfraCacheSpec` | Memcached replica count |
-| `infrastructure.valkey` | `InfraValkeySpec` | Valkey cluster size |
-| `services.<name>` | `*ServiceSpec` | Per-service settings (enabled, replicas, service-specific options) |
-| `global.tls` | `TLSSpec` | Cluster-wide TLS configuration |
-| `global.policyOverrides` | `*PolicySpec` | Global oslo.policy rules applied to all services (per-service overrides take precedence) |
-| `services.<name>.policyOverrides` | `*PolicySpec` | Per-service oslo.policy rules (overrides global rules on name collision) |
-| `korc` | `*KORCSpec` | K-ORC integration (bootstrap resource imports) |
+| `openStackRelease` | `string` | Target OpenStack release, e.g. `2025.2` (pattern `^\d{4}\.\d$`). Projected verbatim into the Keystone image tag. |
+| `region` | `string` | OpenStack region name (default `RegionOne`) |
+| `infrastructure.database` | `commonv1.DatabaseSpec` | Shared MariaDB — managed (`clusterRef`) XOR brownfield (`host`) |
+| `infrastructure.cache` | `commonv1.CacheSpec` | Shared Memcached — managed (`clusterRef`) XOR brownfield (`servers`) |
+| `services.keystone` | `ServiceKeystoneSpec` | Curated Keystone knobs (`replicas`, `image`, `policyOverrides`, `rotationInterval`) — required |
+| `global` | `*commonv1.PolicySpec` | Global oslo.policy rules applied to all services (per-service overrides win on name collision) |
+| `services.keystone.policyOverrides` | `*commonv1.PolicySpec` | Per-service oslo.policy rules (override global rules on collision) |
+| `korc` | `KORCSpec` | **Required.** K-ORC admin credential + bootstrap resources |
+| `korc.adminCredential.passwordSecretRef.name` | `string` | **Required by the webhook.** The admin password the AC is minted from |
+
+> **Planned (later slices):** `infrastructure.messaging` / `infrastructure.valkey`, additional `services.*` (Nova/Neutron/Glance/Cinder/Placement), and cluster-wide `global.tls` are not part of the current CRD. They are documented as the target end-state in [CRDs](../04-architecture/01-crds.md) and arrive with the corresponding service operators.
 
 ### Status Conditions
 
 | Condition | Description |
 | --- | --- |
-| **Ready** | Aggregate — True when all infrastructure and services are ready |
-| **InfrastructureReady** | All infrastructure CRs (MariaDB, Memcached; RabbitMQ once messaging-backed services land) report Ready |
-| **KeystoneReady** | Keystone CR is Ready |
-| **ServicesReady** | All enabled service CRs are Ready _(meaningful only once a second service operator exists — deferred)_ |
-| **KORCReady** | K-ORC bootstrap imports and managed resources are available |
-| **AdminCredentialReady** | The restricted admin Application Credential is minted and synced to `orc-system` |
-| **CatalogReady** | All Keystone Service + Endpoint CRs are reconciled |
-| **ServiceUsersReady** | All per-pod service users (per replica slot) are provisioned _(roadmap P2 — deferred, not in the first slice)_ |
+| **Ready** | Aggregate — True only when all sub-conditions below are True |
+| **InfrastructureReady** | All managed infrastructure CRs (MariaDB, Memcached) report Ready; True immediately when only brownfield infra is used |
+| **KeystoneReady** | The projected Keystone CR reports Ready |
+| **KORCReady** | The admin Application Credential is minted and reports `Available` |
+| **AdminCredentialReady** | The minted credential is committed to the operator-owned Secret and mirrored to OpenBao |
+| **CatalogReady** | The Keystone identity `Service` + public `Endpoint` K-ORC CRs are registered |
 
-> The first CC-0110 slice implements `InfrastructureReady`, `KeystoneReady`, `KORCReady`, `AdminCredentialReady`, and `CatalogReady`. `ServicesReady` and `ServiceUsersReady` are documented as the target end-state but are deferred.
+The aggregate `Ready` is recomputed on **every** status write (including in-progress requeues), so `status.ready` reflects the current convergence state rather than staying absent until the whole chain passes. Each condition carries an `observedGeneration`.
+
+> **Planned:** `ServicesReady` (meaningful only once a second service operator exists) and `ServiceUsersReady` (per-pod service users, roadmap P2) are documented as the target end-state but are **not** set by the current reconciler.
 
 ## Orchestration Reconciler
 
-The c5c3-operator reconciler will read the ControlPlane CR and execute a phased deployment:
+`Reconcile` fetches the ControlPlane CR and runs five sub-reconcilers **in dependency order**. Each call is routed through `instrumentSubReconciler` (emitting duration + error metrics under a `sub_reconciler` label) and sets its own status condition; a sub-reconciler that requeues or errors short-circuits the chain and writes status immediately.
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    c5c3-operator RECONCILIATION FLOW                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ControlPlane CR changed (or requeue timer fires)                           │
-│         │                                                                   │
-│         ▼                                                                   │
-│  ┌─────────────────────────────┐                                            │
-│  │ Phase 1: Infrastructure     │                                            │
-│  │                             │                                            │
-│  │ Create/update:              │                                            │
-│  │ ├── MariaDB CR              │  → MariaDB Operator provisions cluster     │
-│  │ ├── RabbitMQ CR             │  → RabbitMQ Operator provisions cluster    │
-│  │ ├── Memcached CR            │  → Memcached Operator provisions pods      │
-│  │ └── Valkey CR               │  → Valkey Operator provisions cluster      │
-│  │                             │                                            │
-│  │ Wait: all infra CRs Ready   │                                            │
-│  └──────────┬──────────────────┘                                            │
-│             │ InfrastructureReady=True                                      │
-│             ▼                                                               │
-│  ┌─────────────────────────────┐                                            │
-│  │ Phase 2: Keystone           │                                            │
-│  │                             │                                            │
-│  │ Create Keystone CR with:    │                                            │
-│  │ ├── clusterRef → mariadb    │  (infrastructure reference)                │
-│  │ ├── clusterRef → memcached  │  (infrastructure reference)                │
-│  │ └── image tag from release  │  (resolved from openStackRelease)          │
-│  │                             │                                            │
-│  │ Wait: Keystone CR Ready     │                                            │
-│  └──────────┬──────────────────┘                                            │
-│             │ KeystoneReady=True                                            │
-│             ▼                                                               │
-│  ┌─────────────────────────────┐                                            │
-│  │ Phase 3: K-ORC Setup        │                                            │
-│  │                             │                                            │
-│  │ Mint admin App Cred         │  (restricted, from admin password —        │
-│  │ → k-orc-clouds-yaml         │   K-ORC's only credential)                 │
-│  │                             │                                            │
-│  │ Import bootstrap resources: │                                            │
-│  │ ├── Domain (unmanaged)      │                                            │
-│  │ ├── Project (unmanaged)     │                                            │
-│  │ └── Roles (unmanaged)       │                                            │
-│  │                             │                                            │
-│  │ Create managed resources:   │                                            │
-│  │ ├── Services + Endpoints    │                                            │
-│  │ └── Per-pod Users + grants  │  (one real user per replica slot;          │
-│  │                             │   NO per-service Application Credentials)  │
-│  └──────────┬──────────────────┘                                            │
-│             │ KORCReady=True                                                │
-│             ▼                                                               │
-│  ┌─────────────────────────────┐                                            │
-│  │ Phase 4: Remaining Services │                                            │
-│  │                             │                                            │
-│  │ Create service CRs:         │                                            │
-│  │ ├── Glance CR               │                                            │
-│  │ ├── Placement CR            │                                            │
-│  │ ├── Nova CR                 │                                            │
-│  │ ├── Neutron CR              │                                            │
-│  │ └── Cinder CR               │                                            │
-│  │                             │                                            │
-│  │ All with clusterRef to      │                                            │
-│  │ shared infra CRs            │                                            │
-│  └──────────┬──────────────────┘                                            │
-│             │ ServicesReady=True                                            │
-│             ▼                                                               │
-│  Ready=True (all conditions met)                                            │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+ControlPlane CR changed (or requeue timer fires)
+   │
+   ▼
+reconcileInfrastructure   → MariaDB + Memcached CRs (managed mode); nothing in brownfield
+   │                        Sets: InfrastructureReady
+   ▼  (gate: InfrastructureReady)
+reconcileKeystone         → projects services.keystone into an owned Keystone CR
+   │                        Sets: KeystoneReady
+   ▼  (gate: none — mints unconditionally; defers if admin password absent)
+reconcileKORC             → mints the admin K-ORC ApplicationCredential, stamps the
+   │                        admin-password-hash annotation, re-mints on change
+   │                        Sets: KORCReady
+   ▼  (gate: KORCReady + clouds.yaml ExternalSecret Ready)
+reconcileAdminCredential  → commits the minted AC to an operator-owned Secret and
+   │                        PushSecret-mirrors it to OpenBao
+   │                        Sets: AdminCredentialReady
+   ▼  (gate: AdminCredentialReady)
+reconcileCatalog          → registers the identity Service + public Endpoint (K-ORC)
+   │                        Sets: CatalogReady, status.catalogReady
+   ▼
+Ready = AllTrue(InfrastructureReady, KeystoneReady, KORCReady,
+                AdminCredentialReady, CatalogReady)
 ```
+
+### reconcileInfrastructure
+
+Reconciles the shared backing services. In **managed mode** (`clusterRef` set) it create-or-updates an owned child per service in a single pass before gating on readiness:
+
+- **MariaDB** (`k8s.mariadb.com`): a minimal but admissible spec — `replicas: 3`, Galera enabled, `storage.size: 100Gi` (TLS/issuerRefs are a platform concern, deliberately left to the deploy stack).
+- **Memcached** (`memcached.c5c3.io/v1beta1`): handled as an `unstructured.Unstructured` because `memcached.c5c3.io` ships no Go module; `spec.replicas` is set from `infrastructure.cache.replicas`.
+
+`InfrastructureReady` flips True once every managed child reports Ready. In **brownfield mode** (`host`/`servers` set) nothing is provisioned and `InfrastructureReady` is True immediately. All children are created in the ControlPlane's **own namespace** (`childNamespace(cp) == cp.Namespace`) so owner references stay valid (cross-namespace owner refs are rejected and never GC'd).
+
+### reconcileKeystone
+
+Gated on `InfrastructureReady`. Projects `services.keystone` into an owned Keystone CR named **`<cp.Name>-keystone`** in the ControlPlane's namespace:
+
+- **Image**: `ghcr.io/c5c3/keystone:<openStackRelease>` (e.g. tag `2025.2`), unless `services.keystone.image` overrides the whole reference. There is no release→upstream-version tag resolution.
+- **Database / Cache**: the `infrastructure.{database,cache}` specs are reused **verbatim**, so the Keystone CR points at the same backing services.
+- **Bootstrap**: `bootstrap.adminPasswordSecretRef` is set to `korc.adminCredential.passwordSecretRef` (Keystone and K-ORC share the admin-password source); `bootstrap.region` from `spec.region`.
+- **Replicas**: from `services.keystone.replicas` when set (else the Keystone operator's own default).
+- **Policy**: `projectPolicyOverrides(spec.global, services.keystone.policyOverrides)` (per-service wins).
+- **Rotation**: `services.keystone.rotationInterval` is converted by `intervalToCron` and applied to **both** `fernet.rotationSchedule` and `credentialKeys.rotationSchedule`. Only daily (`0 0 * * *`) and weekly (`0 0 * * 0`) schedules are representable; the webhook rejects any other interval.
+
+`KeystoneReady` mirrors the child Keystone CR's `Ready` condition.
+
+### reconcileKORC, reconcileAdminCredential, reconcileCatalog
+
+See [K-ORC Integration](#k-orc-integration) below for the full credential and catalog flow.
+
+### Field indexer and Secret watch
+
+`SetupWithManager` registers a field indexer under:
+
+```go
+const ControlPlaneSecretNameIndexKey = "spec.korc.adminCredential.passwordSecretRef.name"
+```
+
+The extractor returns the (deduplicated, non-empty) set of Secret names a ControlPlane references — today just the admin-password Secret. The controller `Watches(&corev1.Secret{})` and `secretToControlPlaneMapper` uses the index for an O(1) reverse lookup from a Secret event to the referencing ControlPlane(s). Because the admin-password Secret is ESO-managed (not owned by the ControlPlane), an owner-ref watch would never fire — the index-backed watch is what wakes the ControlPlane when its admin password rotates. This mirrors the keystone operator's `KeystoneSecretNameIndexKey`.
 
 ## Infrastructure Lifecycle and Dynamic Endpoint Discovery
 
-The c5c3-operator will create infrastructure clusters at runtime. Endpoints are **not** known at CR creation time — they are to be discovered dynamically from infrastructure CR status fields.
+The c5c3-operator creates infrastructure clusters at runtime. Endpoints are **not** known at CR creation time — they are discovered dynamically from infrastructure CR status fields.
 
 ### Endpoint Resolution
 
-When the c5c3-operator creates a service CR (e.g. Keystone), it sets `clusterRef` fields pointing to the infrastructure CRs:
+When the c5c3-operator creates a service CR (e.g. Keystone), it reuses the ControlPlane's infrastructure spec, which carries `clusterRef` in managed mode:
 
 ```yaml
-# c5c3-operator creates this Keystone CR
+# c5c3-operator projects this onto the Keystone CR
 spec:
   database:
     clusterRef:
@@ -366,23 +389,16 @@ c5c3-operator creates:                Service operators create:
 └──────────────────┘                   │   glance, cinder         │
                                        ├──────────────────────────┤
 ┌──────────────────┐                   │ Topology Operator CRs:   │
-│ RabbitMQ CR      │                   │   Vhost: nova            │
-│ (Cluster)        │ ◀───────────────  │   User:  nova            │
-│                  │   clusterRef      │   Permission: nova (rw)  │
-└──────────────────┘                   │   Vhost: neutron         │
-                                       │   User:  neutron         │
-┌──────────────────┐                   │   Permission: neutron    │
-│ Memcached CR     │  (shared, no      │   Vhost: cinder          │
-│ (Pods)           │   per-service     │   User:  cinder          │
-└──────────────────┘   resources)      │   Permission: cinder     │
-                                       └──────────────────────────┘
+│ Memcached CR     │  (shared, no      │   Vhost / User / Perm    │
+│ (Pods)           │   per-service     │   (RabbitMQ, future)     │
+└──────────────────┘   resources)      └──────────────────────────┘
 ```
 
-In managed mode, each service operator uses the shared `messaging/` library (see [Shared Library](./02-shared-library.md#messaging)) to create RabbitMQ Topology Operator CRs (`Vhost`, `User`, `Permission`) — analogous to how they use the `database/` library for MariaDB CRs. In brownfield mode, no Topology CRs are created; the operator uses explicit hosts directly.
+> **Planned:** RabbitMQ (`messaging`) and Valkey are not yet projected by the c5c3-operator — only the MariaDB and Memcached cluster-level CRs are created today. In managed mode each future messaging-backed service operator will use the shared `messaging/` library (see [Shared Library](./02-shared-library.md#messaging)) to create RabbitMQ Topology Operator CRs (`Vhost`, `User`, `Permission`), analogous to the `database/` library for MariaDB. In brownfield mode no Topology CRs are created.
 
 ## ControlPlane-to-Service CR Projection
 
-The c5c3-operator will translate the ControlPlane CR into per-service CRs. This section shows a concrete example of the intended projection.
+The c5c3-operator translates the ControlPlane CR into per-service CRs. This section shows a concrete example of the projection that runs today.
 
 ### Input: ControlPlane CR
 
@@ -391,113 +407,118 @@ apiVersion: c5c3.io/v1alpha1
 kind: ControlPlane
 metadata:
   name: production
+  namespace: openstack
 spec:
   openStackRelease: "2025.2"
   region: RegionOne
   infrastructure:
     database:
-      replicas: 3
-      storageClass: fast-ssd
-    messaging:
-      replicas: 3
+      clusterRef:
+        name: mariadb
     cache:
+      clusterRef:
+        name: memcached
       replicas: 3
   services:
     keystone:
-      enabled: true
       replicas: 3
-      fernet:
-        maxActiveKeys: 3
-        rotationInterval: 24h
-    nova:
-      enabled: true
-      replicas:
-        api: 3
-        scheduler: 2
-        conductor: 2
+      rotationInterval: 24h
+  korc:
+    adminCredential:
+      cloudCredentialsRef:
+        cloudName: admin
+        secretName: k-orc-clouds-yaml
+      passwordSecretRef:
+        name: keystone-admin-credentials
+      applicationCredential:
+        restricted: true
+        rotation:
+          mode: PasswordDriven
 ```
 
 ### Output: Keystone CR (Managed Mode)
 
-The c5c3-operator translates `services.keystone.fernet.rotationInterval: 24h` into a cron expression for the Keystone CRD's `rotationSchedule` field (e.g., `"0 0 * * *"` for daily rotation).
+The c5c3-operator translates `services.keystone.rotationInterval: 24h` into the daily cron expression `"0 0 * * *"` for the Keystone CR's `fernet.rotationSchedule` and `credentialKeys.rotationSchedule`. The projected child is named `<cp.Name>-keystone` and lives in the ControlPlane's own namespace.
 
 ```yaml
 apiVersion: keystone.openstack.c5c3.io/v1alpha1
 kind: Keystone
 metadata:
-  name: keystone
-  namespace: openstack
+  name: production-keystone        # <cp.Name>-keystone
+  namespace: openstack             # = ControlPlane namespace (childNamespace)
   ownerReferences:
     - kind: ControlPlane
       name: production
 spec:
   image:
     repository: ghcr.io/c5c3/keystone
-    tag: "28.0.0"               # resolved from openStackRelease: 2025.2
-  replicas: 3                    # from services.keystone.replicas
+    tag: "2025.2"                  # = spec.openStackRelease (verbatim)
+  replicas: 3                       # from services.keystone.replicas
   database:
     clusterRef:
-      name: mariadb              # references MariaDB CR created by c5c3-operator
-    database: keystone
-    secretRef:
-      name: keystone-db-credentials
+      name: mariadb                # reused verbatim from infrastructure.database
   cache:
     clusterRef:
-      name: memcached            # references Memcached CR created by c5c3-operator
-    backend: dogpile.cache.pymemcache
+      name: memcached              # reused verbatim from infrastructure.cache
   fernet:
-    maxActiveKeys: 3             # from services.keystone.fernet
     rotationSchedule: "0 0 * * *"  # derived from rotationInterval: 24h
+  credentialKeys:
+    rotationSchedule: "0 0 * * *"  # same schedule applied to credential keys
   bootstrap:
     adminPasswordSecretRef:
-      name: keystone-admin-credentials
-    region: RegionOne            # from ControlPlane.spec.region
+      name: keystone-admin-credentials  # = korc.adminCredential.passwordSecretRef
+    region: RegionOne              # from ControlPlane.spec.region
 ```
+
+> **Planned (multi-service projection):** the example above is the Keystone-only slice. Projecting Nova/Neutron/Glance/Cinder/Placement CRs (each with their own `clusterRef` to the shared infra) is a later slice; the multi-service ControlPlane shape and the per-service projection are documented as the target end-state.
 
 ### Policy Projection
 
-When the c5c3-operator creates service CRs, it merges global and per-service policy overrides:
+When the c5c3-operator creates a service CR, it merges global and per-service policy overrides via `projectPolicyOverrides` (`internal/controller/helpers.go`):
 
-- **Global rules** (`global.policyOverrides`) serve as the base layer for all services
+- **Global rules** (`spec.global`) are the base layer for all services
 - **Per-service rules** (`services.<name>.policyOverrides`) override global rules when rule names collide
 - **Per-service `configMapRef`** takes precedence over the global `configMapRef`
 
-**Projection logic:**
-
 ```go
+// projectPolicyOverrides merges a global policy (base) with a per-service policy
+// (overrides) into a single freshly allocated *commonv1.PolicySpec. Per-service
+// values win on conflict; inputs are never mutated or aliased.
 func projectPolicyOverrides(global, perService *commonv1.PolicySpec) *commonv1.PolicySpec {
     if global == nil && perService == nil {
         return nil
     }
-    result := &commonv1.PolicySpec{}
-
-    // ConfigMapRef: per-service wins over global
-    if perService != nil && perService.ConfigMapRef != nil {
-        result.ConfigMapRef = perService.ConfigMapRef
-    } else if global != nil && global.ConfigMapRef != nil {
-        result.ConfigMapRef = global.ConfigMapRef
+    if global == nil {
+        return copyPolicySpec(perService)
+    }
+    if perService == nil {
+        return copyPolicySpec(global)
     }
 
-    // Rules: merge global as base, per-service overrides
-    result.Rules = map[string]string{}
-    if global != nil {
+    merged := &commonv1.PolicySpec{}
+    // Rules: global is the base, per-service overrides on key conflict.
+    if global.Rules != nil || perService.Rules != nil {
+        rules := make(map[string]string, len(global.Rules)+len(perService.Rules))
         for k, v := range global.Rules {
-            result.Rules[k] = v
+            rules[k] = v
         }
-    }
-    if perService != nil {
         for k, v := range perService.Rules {
-            result.Rules[k] = v // per-service wins
+            rules[k] = v
         }
+        merged.Rules = rules
     }
-    if len(result.Rules) == 0 {
-        result.Rules = nil
+    // ConfigMapRef: per-service wins when set, else fall back to global.
+    switch {
+    case perService.ConfigMapRef != nil:
+        merged.ConfigMapRef = perService.ConfigMapRef.DeepCopy()
+    case global.ConfigMapRef != nil:
+        merged.ConfigMapRef = global.ConfigMapRef.DeepCopy()
     }
-    return result
+    return merged
 }
 ```
 
-**Example — ControlPlane with global and per-service policies:**
+Note `spec.global` **is** the `*commonv1.PolicySpec` directly — the policy rules sit under `spec.global`, not under a nested `spec.global.policyOverrides`.
 
 ```yaml
 apiVersion: c5c3.io/v1alpha1
@@ -506,117 +527,79 @@ metadata:
   name: production
 spec:
   global:
-    policyOverrides:
-      rules:
-        "admin_required": "role:admin"         # Base rule for all services
-        "service_role": "role:service"
+    rules:
+      "admin_required": "role:admin"     # base rule for all services
+      "service_role": "role:service"
   services:
-    nova:
-      enabled: true
-      replicas:
-        api: 3
-        scheduler: 2
-        conductor: 2
+    keystone:
       policyOverrides:
         rules:
-          "compute:create": "role:member"
-          "compute:delete": "role:admin"
-```
-
-**Projected Nova CR:**
-
-```yaml
-apiVersion: nova.openstack.c5c3.io/v1alpha1
-kind: Nova
-spec:
-  policyOverrides:
-    rules:
-      # From global
-      "admin_required": "role:admin"
-      "service_role": "role:service"
-      # From per-service
-      "compute:create": "role:member"
-      "compute:delete": "role:admin"
+          "identity:create_user": "role:admin"
 ```
 
 ### Alternative: Keystone CR (Brownfield Mode)
 
-When infrastructure is managed externally (see [Brownfield Integration](../06-operations/03-brownfield-integration.md)), service CRs use explicit endpoints instead of `clusterRef`:
+When infrastructure is managed externally (see [Brownfield Integration](../06-operations/03-brownfield-integration.md)), the ControlPlane's `infrastructure.{database,cache}` use explicit endpoints instead of `clusterRef`, and the projected Keystone CR inherits them verbatim:
 
 ```yaml
 apiVersion: keystone.openstack.c5c3.io/v1alpha1
 kind: Keystone
 metadata:
-  name: keystone
+  name: production-keystone
   namespace: openstack
 spec:
   image:
     repository: ghcr.io/c5c3/keystone
-    tag: "28.0.0"
+    tag: "2025.2"
   replicas: 3
   database:
-    host: external-db.customer.com     # Brownfield: explicit host
+    host: external-db.customer.com     # brownfield: explicit host
     port: 3306
     database: keystone
     secretRef:
       name: keystone-db-credentials
   cache:
-    servers:                            # Brownfield: explicit server list
+    servers:                            # brownfield: explicit server list
       - external-mc-1.customer.com:11211
       - external-mc-2.customer.com:11211
-    backend: dogpile.cache.pymemcache
-  fernet:
-    maxActiveKeys: 3
-    rotationSchedule: "0 0 * * 0"
   bootstrap:
     adminPasswordSecretRef:
       name: keystone-admin-credentials
     region: RegionOne
 ```
 
-**Hybrid design principle:**
-- **Managed (default):** `clusterRef` → Operator resolves endpoint dynamically, creates per-service DB/User/vhost
-- **Brownfield:** `host`/`port` → Operator uses external infrastructure directly, creates NO MariaDB Database CRs
-- Mutual exclusivity: `clusterRef` XOR `host` — validation error if both are set
+**Hybrid design principle** (enforced today by the `ControlPlane` validating webhook):
+- **Managed (default):** `clusterRef` → operator provisions the cluster CR; service operator resolves endpoints dynamically
+- **Brownfield:** `host`/`servers` → operator provisions nothing; external infrastructure used directly
+- Mutual exclusivity: the webhook requires **exactly one** of `database.clusterRef`/`database.host` and **exactly one** of `cache.clusterRef`/`cache.servers`
 
 ## K-ORC Integration
 
-After Keystone is Ready, the c5c3-operator drives K-ORC to manage the Keystone identity
-lifecycle. The model (issue [#30](https://github.com/C5C3/C5C3/issues/30)) has K-ORC authenticate
-with a **single restricted, project-scoped admin Application Credential** — the design's *only*
-App Cred — and provision **one real Keystone service user + password per workload pod**. There are
-**no per-service Application Credentials for workloads**.
+After Keystone is Ready, the c5c3-operator drives [K-ORC](../03-components/01-control-plane/05-korc.md) to manage the Keystone identity lifecycle. The model (issue [#30](https://github.com/C5C3/C5C3/issues/30)) has K-ORC authenticate with a **single restricted, project-scoped admin Application Credential** — the design's *only* App Cred.
 
-1. **Mint the admin Application Credential** from the admin password, push it to OpenBao, and let
-   ESO materialize `k-orc-clouds-yaml` in `orc-system` (K-ORC's `clouds.yaml`). This is the only
-   App Cred created. See [admin credential flow](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#k-orc-admin-credential-flow).
-2. **Import bootstrap resources** (`managementPolicy: unmanaged`): Domain, Service Project, Roles —
-   created by the Keystone Bootstrap Job.
-3. **Create Services and Endpoints** (`managementPolicy: managed`): one Service + Endpoint pair per
-   OpenStack service (reachable at project scope — verified, no system-scoped admin needed).
-4. **Create per-pod Users + role grants** (`managementPolicy: managed`): for each credentialed
-   service, one `User` CR per replica slot (`svc-<service>-<ordinal>`) with an operator-generated
-   password supplied via `User.passwordRef`, plus `Role`/grant CRs into the stable service project.
+What is **built today** (CC-0110) is the admin credential plus the Keystone catalog entry:
 
-The per-pod provisioning, garbage collection, and rotation logic is the
-[Per-pod service user reconciler](#per-pod-service-user-reconciler) below. For the full credential
-lifecycle, see [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md);
-for K-ORC details, [Control Plane — K-ORC](../03-components/01-control-plane/05-korc.md).
+1. **`reconcileKORC` — mint the admin Application Credential.** It computes the SHA-256 of the admin password, then create-or-updates an owned K-ORC `ApplicationCredential` named `<cp.Name>-admin-app-credential` in the ControlPlane namespace. The spec's `restricted` is **inverted** into K-ORC's `Unrestricted` field (`restricted: true` → `Unrestricted: false`). The password hash is stamped onto the AC via the `forge.c5c3.io/admin-password-hash` annotation; a later pass that computes a different hash re-mints. `KORCReady` flips True once the AC reports `Available`. A missing K-ORC CRD surfaces `KORCCRDNotInstalled` rather than crash-looping.
+2. **`reconcileAdminCredential` — commit and mirror.** Gated on `KORCReady` **and** the K-ORC `clouds.yaml` ExternalSecret being Ready in the ControlPlane namespace. It ensures the operator-owned Secret K-ORC writes the minted credential into (clobber-safe: the operator owns only metadata/owner-ref, never `.data`), then ensures a **PushSecret** (`DeletionPolicy: None`) mirroring it to OpenBao at `openstack/keystone/admin/app-credential` via the `openbao-cluster-store`. Sets `AdminCredentialReady`. See [admin credential flow](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#k-orc-admin-credential-flow).
+3. **`reconcileCatalog` — register the identity catalog entry.** Gated on `AdminCredentialReady`. It create-or-updates two owned K-ORC CRs (both `managementPolicy: managed`): an identity `Service` `<cp.Name>-identity-service` (`type: identity`, name `keystone`) and a public `Endpoint` `<cp.Name>-identity-endpoint` (`interface: public`, URL `http://keystone.<namespace>.svc:5000/v3`). Sets `CatalogReady` and `status.catalogReady`.
+
+The admin credential is also reflected into `status.adminApplicationCredential` (`id`, `restricted`, `lastRotation`) on every pass.
+
+> **Planned (roadmap P2-P4):** bootstrap resource imports beyond the admin credential, a Service + Endpoint pair **per** OpenStack service, and **per-pod service users** (one real Keystone user per workload replica slot, with no per-service Application Credentials) are not part of the current slice — only the single admin AC and the single identity Service/Endpoint are built. The per-pod design is documented next.
+
+For K-ORC details, see [Control Plane — K-ORC](../03-components/01-control-plane/05-korc.md); for the full credential lifecycle, [Credential Lifecycle](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md).
 
 ## Per-pod service user reconciler
 
 ::: warning Roadmap (P2-P4) — outside the first CC-0110 slice
-Per-pod / per-replica workload service users are **not** part of the first c5c3 slice. The initial `ControlPlane` CRD manages only K-ORC's own admin Application Credential; `ServiceUserSpec`, `maxAge`, the Ephemeral mode, and the `ServiceUsersReady` condition are **not introduced** by the initial CRD and arrive in later roadmap phases. The design below is settled but future.
+Per-pod / per-replica workload service users are **not** part of the current c5c3 slice. The `ServiceUserSpec`, `maxAge`, the Ephemeral mode, and the `ServiceUsersReady` condition are **not** introduced by the current CRD and arrive in later roadmap phases. The admin Application Credential portion (`AdminCredentialSpec` / `ApplicationCredentialSpec` / `RotationSpec`) **is** built and is documented under [ControlPlane CRD](#controlplane-crd) above. The design below is settled but future.
 :::
 
-This sub-reconciler will implement the per-pod credential model. CobaltCore goes **straight to
-per-pod** (no interim shared-service-user phase); see the
-[Implementation Roadmap](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#implementation-roadmap).
+This sub-reconciler will implement the per-pod credential model. CobaltCore goes **straight to per-pod** (no interim shared-service-user phase); see the [Implementation Roadmap](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#implementation-roadmap).
 
-### ControlPlane spec additions
+### ControlPlane spec additions (planned)
 
-Each service spec carries an optional `serviceUser`, and `KORCSpec` carries the admin credential
-configuration. Passwords never appear in the spec — they are generated by the operator.
+Each service spec would carry an optional `serviceUser`. Passwords never appear in the spec — they are generated by the operator.
 
 ```go
 // ServiceUserSpec declares the per-pod Keystone service user for a service's pods.
@@ -630,8 +613,7 @@ type ServiceUserSpec struct {
     Roles []string `json:"roles,omitempty"`
 
     // Mode selects the credential granularity.
-    // PerReplica (default): one stable user per replica slot, pre-provisioned from the
-    //   replica count; rotation on intentional recreation.
+    // PerReplica (default): one stable user per replica slot, pre-provisioned.
     // Ephemeral: one user per pod instance via pod-watch; rotation on every restart.
     // None: this service's pods need no OpenStack credential.
     // +kubebuilder:validation:Enum=PerReplica;Ephemeral;None
@@ -643,38 +625,9 @@ type ServiceUserSpec struct {
     // +optional
     MaxAge *metav1.Duration `json:"maxAge,omitempty"`
 }
-
-// AdminCredentialSpec configures K-ORC's single admin Application Credential.
-type AdminCredentialSpec struct {
-    // PasswordSecretRef is the admin password (root of trust) used only to bootstrap/rotate
-    // the admin App Cred. Never rendered into a workload pod.
-    PasswordSecretRef commonv1.SecretRefSpec `json:"passwordSecretRef"`
-
-    // ApplicationCredential configures the minted admin App Cred.
-    ApplicationCredential AdminAppCredSpec `json:"applicationCredential"`
-}
-
-type AdminAppCredSpec struct {
-    // Restricted (default true) prevents the App Cred from minting further app creds or trusts.
-    // +kubebuilder:default=true
-    Restricted bool `json:"restricted,omitempty"`
-    // AccessRules optionally narrows the App Cred to the identity/catalog endpoints.
-    // +optional
-    AccessRules []AccessRule `json:"accessRules,omitempty"`
-    // Rotation configures password-driven re-mint (the only supported mode).
-    // +optional
-    Rotation *AdminAppCredRotation `json:"rotation,omitempty"`
-}
-
-type AdminAppCredRotation struct {
-    // +kubebuilder:validation:Enum=PasswordDriven
-    // +kubebuilder:default=PasswordDriven
-    Mode         string `json:"mode,omitempty"`
-    IntervalDays int32  `json:"intervalDays,omitempty"`
-}
 ```
 
-### Reconciliation logic
+### Reconciliation logic (planned)
 
 ```text
 reconcileServiceUsers(ctx, cp):
@@ -692,139 +645,85 @@ reconcileServiceUsers(ctx, cp):
   setCondition(ServiceUsersReady, allSlotsReady)
 ```
 
-* **PerReplica** derives `desired` from the service's configured replica count (StatefulSet
-  ordinals) or the node set (per-node DaemonSet, `svc-<service>-<node>`). Users are
-  **pre-provisioned**, so credentials exist before pods start.
-* **Ephemeral** instead runs a **pod-watch**: a `User` CR is created per pod (owner-referenced to
-  the pod) and deleted when the pod terminates. A start-time guard requeues the pod's credential
-  until the `User`/Secret is Ready.
-* **`maxAge`** marks a slot's `User` CR for recreation once its credential exceeds `maxAge`,
-  triggering a rolling pod recreation rather than an in-place password change.
+* **PerReplica** derives `desired` from the service's configured replica count (StatefulSet ordinals) or the node set (per-node DaemonSet). Users are **pre-provisioned**, so credentials exist before pods start.
+* **Ephemeral** runs a **pod-watch**: a `User` CR is created per pod (owner-referenced to the pod) and deleted when the pod terminates.
+* **`maxAge`** marks a slot's `User` CR for recreation once its credential exceeds `maxAge`, triggering a rolling pod recreation rather than an in-place password change.
 
 ### Garbage collection (finalizer + sweeper)
 
-* **Finalizer (primary):** each per-pod `User`/grant CR carries a finalizer; K-ORC's own finalizer
-  deletes the Keystone user before the CR is removed, revoking tokens and grants immediately.
-* **Sweeper (backstop):** a periodic reconcile lists Keystone users carrying the `svc-<service>-…`
-  naming prefix / c5c3-managed tag and deletes any with no live pod-identity or owner — covering
-  force-deleted pods or lost nodes where a finalizer was skipped. Orphan deletions are logged.
-
-### RBAC additions
-
-```go
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch          // Ephemeral pod-watch
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets;pushsecrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=openstack.k-orc.cloud,resources=users;roles;applicationcredentials;services;endpoints;projects;domains,verbs=get;list;watch;create;update;patch;delete
-```
+* **Finalizer (primary):** each per-pod `User`/grant CR carries a finalizer; K-ORC's own finalizer deletes the Keystone user before the CR is removed, revoking tokens and grants immediately.
+* **Sweeper (backstop):** a periodic reconcile lists Keystone users carrying the `svc-<service>-…` naming prefix / c5c3-managed tag and deletes any with no live pod-identity or owner — covering force-deleted pods or lost nodes.
 
 ## SecretAggregate CRD
 
-The `SecretAggregate` CRD (planned) will merge multiple Kubernetes Secrets into a single aggregated Secret. This is useful when a service needs credentials from multiple sources in a single mount.
+The `SecretAggregate` CRD ships today as **types + CRD YAML only** — there is **no controller**. The reconciler is deferred to CC-0023, and the operator RBAC for this kind is **read-only** (`get`/`list`/`watch`) until that reconciler lands, so the operator can observe `SecretAggregate` CRs without write access to a kind it does not yet manage. The L1 spec is a minimal placeholder:
 
 ```go
-// SecretAggregate aggregates multiple K8s Secrets into one.
+// SecretAggregate aggregates the Secrets produced by a control plane into a
+// single materialized Secret (CC-0110). TYPES ONLY at L1 — reconciler deferred
+// to CC-0023.
 type SecretAggregateSpec struct {
-    // Sources lists the Secrets to aggregate.
-    Sources []SecretSource `json:"sources"`
-    // Target defines the output Secret.
-    Target SecretTarget `json:"target"`
-}
-
-type SecretSource struct {
-    // SecretRef references a source Secret.
-    SecretRef corev1.LocalObjectReference `json:"secretRef"`
-    // Keys selects specific keys from the source (empty = all keys).
+    // TargetSecretName is the name of the materialized aggregate Secret the
+    // (deferred, CC-0023) reconciler will produce.
     // +optional
-    Keys []string `json:"keys,omitempty"`
-}
-
-type SecretTarget struct {
-    // Name of the aggregated output Secret.
-    Name string `json:"name"`
+    TargetSecretName string `json:"targetSecretName,omitempty"`
 }
 ```
 
-**Example:**
-
-```yaml
-apiVersion: c5c3.io/v1alpha1
-kind: SecretAggregate
-metadata:
-  name: nova-all-credentials
-  namespace: openstack
-spec:
-  sources:
-    - secretRef:
-        name: nova-db-credentials
-    - secretRef:
-        name: nova-rabbitmq-credentials
-    - secretRef:
-        name: ceph-client-nova
-      keys:
-        - key
-  target:
-    name: nova-aggregated-credentials
-```
-
-> `SecretAggregate` merges **infrastructure** secrets (DB, RabbitMQ, Ceph). The per-pod Keystone
-> credential is **not** aggregated here — it is mounted into exactly one pod and injected via env
-> (`OS_KEYSTONE_AUTHTOKEN__{USERNAME,PASSWORD}`), see the
-> [per-pod service user reconciler](#per-pod-service-user-reconciler).
+> **Planned (CC-0023):** the richer source/target shape — selecting specific keys from multiple source Secrets and merging them into one mounted Secret (DB, RabbitMQ, Ceph credentials) — is the target design. The per-pod Keystone credential is **not** aggregated here: it is mounted into exactly one pod and injected via env (`OS_KEYSTONE_AUTHTOKEN__{USERNAME,PASSWORD}`), see the [per-pod service user reconciler](#per-pod-service-user-reconciler).
 
 ## CredentialRotation CRD
 
-The `CredentialRotation` CRD (planned) automates rotation of the **single admin Application
-Credential** — K-ORC's only credential. It is **not** used for workload service users: those
-rotate by **pod recreation** (D4), not by an in-place credential swap, so they need no
-`CredentialRotation` object (see [Credential Lifecycle — Credential Rotation](../05-deployment/01-gitops-fluxcd/01-credential-lifecycle.md#credential-rotation)).
+The `CredentialRotation` CRD requests a one-shot rotation of a control-plane credential. Today the only supported target is the **K-ORC admin Application Credential**. It is **not** used for workload service users — those rotate by **pod recreation** (D4), not an in-place credential swap.
 
-> **Not to be confused with the already-built keystone-operator key rotation.** Keystone today
-> rotates **cryptographic keys** — Fernet token keys and credential *encryption* keys
-> (`reconcile_fernet.go`, `reconcile_credential.go`, `rotation_staging.go`,
-> `rotation_validation.go`; see [Keystone Dependencies](./05-keystone-dependencies.md#fernet-key-lifecycle)).
-> That is a distinct mechanism in the keystone-operator. The admin **password** itself rotates via
-> the [admin credential rotation](./05-keystone-dependencies.md#admin-credential-rotation) design
-> (re-run of the idempotent bootstrap Job). This `CredentialRotation` CRD rotates only the admin
-> *Application Credential* derived from that password, and does not yet exist in forge.
+> **Not to be confused with the keystone-operator key rotation.** Keystone rotates **cryptographic keys** — Fernet token keys and credential *encryption* keys (`reconcile_fernet.go`, `reconcile_credential.go`; see [Keystone Dependencies](./05-keystone-dependencies.md#fernet-key-lifecycle)). The admin **password** itself rotates via the [admin credential rotation](./05-keystone-dependencies.md#admin-credential-rotation) design. This `CredentialRotation` CRD rotates only the admin *Application Credential* derived from that password.
 
 ```go
-// CredentialRotation rotates the admin Application Credential (the only supported target).
+// CredentialRotation requests a one-shot rotation of a control-plane credential.
 type CredentialRotationSpec struct {
-    // Target is the credential to rotate. The only supported value is adminApplicationCredential;
-    // workload service users rotate by pod recreation and are not targets here.
+    // Target — only "adminApplicationCredential" is supported at L1.
     // +kubebuilder:validation:Enum=adminApplicationCredential
-    // +kubebuilder:default=adminApplicationCredential
-    Target string `json:"target"`
-    // Schedule defines the rotation timing.
-    Schedule RotationSchedule `json:"schedule"`
-    // GracePeriodDays is the overlap where both the old and new admin App Cred are valid.
-    // +kubebuilder:default=1
-    GracePeriodDays int32 `json:"gracePeriodDays,omitempty"`
-}
+    Target RotationTarget `json:"target"`
 
-type RotationSchedule struct {
-    // IntervalDays is the rotation interval in days.
-    IntervalDays int32 `json:"intervalDays"`
-    // PreRotationDays is how many days before expiry to mint the successor.
-    PreRotationDays int32 `json:"preRotationDays"`
+    // Bootstrap requests an idempotent initial mint rather than a rotation.
+    // +optional
+    Bootstrap bool `json:"bootstrap,omitempty"`
+
+    // ReMint forces a fresh mint even if the current credential is still valid.
+    // +optional
+    ReMint bool `json:"reMint,omitempty"`
+
+    // DEFERRED (read-but-ignored at L1; setting any emits a
+    // "ScheduledRotationDeferred" event): scheduled-rotation cadence fields.
+    // +optional
+    IntervalDays *int32 `json:"intervalDays,omitempty"`
+    // +optional
+    PreRotationDays *int32 `json:"preRotationDays,omitempty"`
+    // +optional
+    GracePeriodDays *int32 `json:"gracePeriodDays,omitempty"`
 }
 ```
 
-**Rotation flow (restricted + password-driven re-mint, D2):**
+### How it works (the "nudge")
+
+The `CredentialRotationReconciler` **never mints the credential itself** — it nudges the ControlPlane reconciler:
+
+1. It locates the target ControlPlane in the CredentialRotation's **own namespace** (the L1 contract is one ControlPlane per namespace): zero → `Ready=False` reason `NoControlPlane` (requeue); more than one → `Ready=False` reason `AmbiguousControlPlane` (no requeue).
+2. For a **`bootstrap`** request it is a no-op if the admin AC already exists, otherwise it waits for `reconcileKORC` to mint it.
+3. For a **rotation**, it nudges when `reMint: true` or the admin password hash differs from the AC's `forge.c5c3.io/admin-password-hash` annotation. The nudge simply **clears** that annotation on the AC CR; on its next pass `reconcileKORC` sees the mismatch and re-mints, re-stamping the fresh hash. Clearing (rather than deleting the AC) avoids any window where the admin credential is absent.
+
+> **Planned:** the scheduled-rotation fields (`intervalDays`, `preRotationDays`, `gracePeriodDays`) and the two-credential pre-rotation/grace overlap are accepted by the schema but **deferred** — the reconciler reads-and-ignores them and emits a `ScheduledRotationDeferred` event so an operator knows the loop is not yet active.
 
 ```text
 Day 0:  Restricted admin App Cred active (minted from the admin password)
        │
-Day 83: Pre-rotation (intervalDays=90, preRotationDays=7)
-       │
+Day 83: Pre-rotation (intervalDays=90, preRotationDays=7)   ← PLANNED
        ├── operator re-mints a fresh RESTRICTED admin App Cred from the admin password
        ├── new credential written to K8s Secret → PushSecret → OpenBao
-       ├── ESO updates k-orc-clouds-yaml (orc-system); K-ORC picks up the new clouds.yaml
+       ├── ESO updates k-orc-clouds-yaml; K-ORC picks up the new clouds.yaml
        └── old App Cred still valid (grace window)
        │
-Day 84: Grace period ends (gracePeriodDays=1)
-       │
+Day 84: Grace period ends (gracePeriodDays=1)               ← PLANNED
        └── old admin App Cred deleted from Keystone
 ```
 
@@ -832,99 +731,108 @@ For the full credential lifecycle, see [Credential Lifecycle](../05-deployment/0
 
 ## Rollout Strategy
 
-The c5c3-operator will implement phased updates inspired by ConfigHub's ChangeSets concept. When the ControlPlane CR changes, the operator is designed to track progress through well-defined phases:
+::: warning Planned — phased update/rollback state machine
+The `updatePhase` field exists today, but only `Idle` and `Updating` are active. The `UpdatingServices`, `Verifying`, and `RollingBack` phases are **reserved** enum values the current reconciler never sets, and there is no rollback logic yet. The phased-update model below is the target design.
+:::
 
-### Update Phases
+When the ControlPlane CR changes, the operator is designed to track progress through well-defined phases, inspired by ConfigHub's ChangeSets concept.
 
-| Phase | Description | Rollback Trigger |
-| --- | --- | --- |
-| `Validating` | Validate new spec against current state (dry-run) | Validation failure |
-| `UpdatingInfra` | Update infrastructure CRs (MariaDB, RabbitMQ, Memcached) | Infrastructure CR fails to reconcile |
-| `UpdatingKeystone` | Update Keystone CR | Keystone fails health checks |
-| `UpdatingServices` | Update remaining service CRs | Any service fails health checks |
-| `Verifying` | Run post-update verification (Tempest if enabled) | Verification failure |
-| `Complete` | All updates applied and verified | — |
-| `RollingBack` | Reverting to previous known-good state | — |
+### Update Phases (target design)
+
+| Phase | Status | Description | Rollback Trigger |
+| --- | --- | --- | --- |
+| `Idle` | **active** | No update in progress | — |
+| `Updating` | **active** | A release update has started | — |
+| `UpdatingServices` | reserved | Per-service CRs are being updated | Any service fails health checks |
+| `Verifying` | reserved | Post-update verification (Tempest if enabled) | Verification failure |
+| `RollingBack` | reserved | Reverting to the previous known-good state | — |
 
 ### Phase Tracking
 
 ```yaml
 status:
-  updatePhase: UpdatingServices
+  updatePhase: Updating
+  observedGeneration: 7
   conditions:
     - type: Ready
       status: "False"
-      reason: UpdateInProgress
-      message: "Updating Nova and Neutron CRs"
+      reason: NotAllReady
+      message: "One or more sub-conditions are not ready"
     - type: InfrastructureReady
       status: "True"
     - type: KeystoneReady
-      status: "True"
-    - type: ServicesReady
       status: "False"
-      reason: "NovaUpdating"
+      reason: WaitingForKeystone
   services:
     keystone:
-      ready: true
-      version: "28.0.0"
-    nova:
       ready: false
-      version: "32.1.0"
-      message: "Rolling update in progress"
-    neutron:
-      ready: true
-      version: "27.0.1"
+      release: "2025.2"
+  adminApplicationCredential:
+    id: "a1b2c3..."
+    restricted: true
+  catalogReady: false
 ```
 
-### Rollback
+### Rollback (planned)
 
-On failure in any phase, the c5c3-operator reverts to the previous known-good state:
+On failure in any phase, the c5c3-operator is designed to revert to the previous known-good state by reverting infrastructure/service CR specs to their previous values; FluxCD keeps the reverted state aligned with the previous Git commit. `updatePhase` would transition to `RollingBack` and then back to `Idle` once the rollback succeeds.
 
-1. **Infrastructure rollback**: Revert infrastructure CR specs to previous values
-2. **Service rollback**: Revert service CR specs (image tags, replica counts)
-3. **GitOps alignment**: The reverted state matches the previous Git commit — FluxCD ensures consistency
+## Validation and Defaulting Webhook
 
-The `updatePhase` transitions to `RollingBack` and then to `Complete` once the rollback succeeds.
+`operators/c5c3/api/v1alpha1/controlplane_webhook.go` registers a `ControlPlaneWebhook` (a typed `admission.Defaulter`/`Validator`). It **defaults** `region` (`RegionOne`), `korc.adminCredential.cloudCredentialsRef.secretName` (`k-orc-clouds-yaml`), `applicationCredential.restricted` (`true`), and `rotation.mode` (`PasswordDriven`) for callers that bypass the CRD schema defaults. It **validates**:
+
+- `openStackRelease` matches `^\d{4}\.\d$`;
+- exactly one of `database.clusterRef` / `database.host`;
+- exactly one of `cache.clusterRef` / `cache.servers`;
+- `korc.adminCredential.passwordSecretRef.name` is set;
+- `services.keystone.rotationInterval` (when set) is a positive whole number of days (only daily/weekly schedules are representable — mirrors `intervalToCron`).
 
 ## Controller Setup
 
-> **Planned wiring.** The current stub registers no controllers — `operators/c5c3/main.go`'s `SetupFunc` is empty (`// +kubebuilder:scaffold:builder — register controllers here`). The `ControlPlaneReconciler`, its `Owns(...)` set, and the RBAC markers below are the target wiring once the CRD and reconciler are implemented.
+`SetupWithManager` registers the field indexer (before the watches), then `Owns` every child CR the sub-reconcilers project and `Watches` Secrets so an admin-password rotation wakes the owning ControlPlane via the indexer.
 
 ```go
 func (r *ControlPlaneReconciler) SetupWithManager(mgr ctrl.Manager) error {
+    if err := registerControlPlaneSecretNameIndex(context.Background(), mgr.GetFieldIndexer()); err != nil {
+        return err
+    }
+
+    // memcached.c5c3.io ships no Go module: owned as unstructured carrying memcachedGVK.
+    memcached := &unstructured.Unstructured{}
+    memcached.SetGroupVersionKind(memcachedGVK)
+
     return ctrl.NewControllerManagedBy(mgr).
         For(&c5c3v1alpha1.ControlPlane{}).
         Owns(&mariadbv1alpha1.MariaDB{}).
-        Owns(&rabbitmqv1beta1.RabbitmqCluster{}).
-        Owns(&memcachedv1alpha1.Memcached{}).
-        Owns(&valkeyv1alpha1.Valkey{}).
         Owns(&keystonev1alpha1.Keystone{}).
-        Owns(&novav1alpha1.Nova{}).
-        Owns(&neutronv1alpha1.Neutron{}).
-        Owns(&glancev1alpha1.Glance{}).
-        Owns(&cinderv1alpha1.Cinder{}).
-        Owns(&placementv1alpha1.Placement{}).
+        Owns(&orcv1alpha1.ApplicationCredential{}).
+        Owns(&orcv1alpha1.Service{}).
+        Owns(&orcv1alpha1.Endpoint{}).
+        Owns(memcached).
+        Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(
+            secretToControlPlaneMapper(mgr.GetClient()),
+        )).
         Complete(r)
 }
 ```
 
-**RBAC markers:**
+**RBAC markers** (as coded on `ControlPlaneReconciler` — note `secretaggregates` is **read-only** and there are no service-operator groups beyond keystone yet):
 
 ```go
 // +kubebuilder:rbac:groups=c5c3.io,resources=controlplanes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=c5c3.io,resources=controlplanes/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=c5c3.io,resources=controlplanes/finalizers,verbs=update
-// +kubebuilder:rbac:groups=c5c3.io,resources=secretaggregates;credentialrotations,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=keystone.openstack.c5c3.io,resources=keystones,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=nova.openstack.c5c3.io,resources=novas,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=neutron.openstack.c5c3.io,resources=neutrons,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=glance.openstack.c5c3.io,resources=glances,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=cinder.openstack.c5c3.io,resources=cinders,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=placement.openstack.c5c3.io,resources=placements,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=c5c3.io,resources=credentialrotations,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=c5c3.io,resources=credentialrotations/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=c5c3.io,resources=secretaggregates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=k8s.mariadb.com,resources=mariadbs,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rabbitmq.com,resources=rabbitmqclusters,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rabbitmq.com,resources=vhosts;users;permissions;queues;exchanges;bindings;policies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=memcached.c5c3.io,resources=memcacheds,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=valkey.c5c3.io,resources=valkeys,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=openstack.k-orc.cloud,resources=services;endpoints;users;applicationcredentials;domains;projects;roles,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=keystone.openstack.c5c3.io,resources=keystones,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=openstack.k-orc.cloud,resources=applicationcredentials;services;endpoints,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets;pushsecrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=external-secrets.io,resources=clustersecretstores,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 ```
+
+> **Planned:** RBAC for the additional service-operator groups (`nova.openstack.c5c3.io`, `neutron.…`, `glance.…`, `cinder.…`, `placement.…`), RabbitMQ/Valkey, and K-ORC `users`/`roles`/`projects`/`domains` is added as those projections and the per-pod service-user reconciler land.

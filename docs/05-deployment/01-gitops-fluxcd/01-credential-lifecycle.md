@@ -42,10 +42,12 @@ See [OpenBao Secret Management](../02-secret-management.md) for the complete doc
 
 ::: tip Target architecture (issue [#30](https://github.com/C5C3/C5C3/issues/30))
 This chapter describes the **target** credential model for the control plane. The
-`c5c3-operator` that implements it currently exists only as a stub
-(see [C5C3 Operator](../../09-implementation/08-c5c3-operator.md)); the
+`c5c3-operator` that implements it has built its first slice (CC-0110): the admin
+Application Credential is minted, committed, and rotated today (see
+[C5C3 Operator](../../09-implementation/08-c5c3-operator.md)), while the per-pod
+service-user model below remains the target end-state. The
 [Implementation Roadmap](#implementation-roadmap) at the end of this page breaks the
-model into the incremental steps that forge will build. K-ORC capabilities and the
+model into the incremental steps that forge builds. K-ORC capabilities and the
 Keystone policy behavior below were verified against upstream source.
 :::
 
@@ -974,9 +976,9 @@ follows; each is reflected in the model above.
 
 ## Implementation Roadmap
 
-The `c5c3-operator` is a stub today; this model is built incrementally in forge. CobaltCore goes
-**straight to per-pod** (no interim shared-service-user phase). The detailed reconciler design,
-CRD types, and RBAC live in
+The `c5c3-operator` has built its admin-credential slice (CC-0110); this model is completed
+incrementally in forge. CobaltCore goes **straight to per-pod** (no interim shared-service-user
+phase). The detailed reconciler design, CRD types, and RBAC live in
 [C5C3 Operator — Per-pod service user reconciler](../../09-implementation/08-c5c3-operator.md#per-pod-service-user-reconciler).
 
 | Phase | Scope | Delivers |

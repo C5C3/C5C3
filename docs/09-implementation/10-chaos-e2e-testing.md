@@ -61,7 +61,7 @@ WITH_CHAOS_MESH=true make deploy-infra
 # deploy-infra.sh then runs: kubectl apply -k deploy/kind/chaos-mesh
 ```
 
-The overlay's `release.yaml` pins `version: ">=2.6.0 <3.0.0"` and `dependsOn: cert-manager`; it does not set the resource/dashboard `--set` overrides shown in older drafts. For NetworkChaos, `deploy-infra.sh` also loads the required kernel modules (`ip_set`, `xt_set`, `sch_netem`).
+The overlay's `release.yaml` pins `version: ">=2.6.0 <3.0.0"` and `dependsOn: cert-manager`. `release.yaml` itself carries no `values:` block — the dashboard-disable (`dashboard.create: false`) and reduced-resource overrides are applied via a kustomize **patch** in the overlay's `kustomization.yaml` (not the `--set` form shown in older drafts). For NetworkChaos, `deploy-infra.sh` also loads the required kernel modules (`ip_set`, `ip_set_hash_ip`, `ip_set_hash_net`, `xt_set`, `sch_netem`, `sch_tbf`) — gated on `WITH_CHAOS_MESH=true` and skipped on non-Linux hosts.
 
 > The default flag is `WITH_CHAOS_MESH=false` (opt-in). There is no `SKIP_CHAOS_MESH` flag.
 
@@ -103,9 +103,9 @@ e2e-chaos:
 ```makefile
 .PHONY: e2e-chaos
 e2e-chaos: ## Run chaos E2E tests (requires Chaos Mesh in cluster)
-	@kubectl cluster-info >/dev/null 2>&1 || { echo "no reachable cluster"; exit 1; }
+	@kubectl version --request-timeout=2s >/dev/null 2>&1 || { echo 'kubectl is not configured or no cluster is reachable' >&2; exit 1; }
 	@kubectl get ns chaos-mesh >/dev/null 2>&1 || { \
-	  echo "chaos-mesh namespace missing — run WITH_CHAOS_MESH=true make deploy-infra"; exit 1; }
+	  echo 'chaos-mesh is not installed; run `WITH_CHAOS_MESH=true make deploy-infra` first' >&2; exit 1; }
 	chainsaw test --config tests/e2e-chaos/chainsaw-config.yaml tests/e2e-chaos/
 ```
 

@@ -216,7 +216,7 @@ For image build details and tag schema, see [Build Pipeline](../08-container-ima
 
 ## Sub-Reconciler Pattern
 
-The main `Reconcile` function calls sub-reconcilers in order. Each sub-reconciler handles one responsibility, sets its own status condition, and returns early (requeue) if its precondition is not met. Every call is wrapped by `instrumentSubReconciler` (CC-0089), which records per-step duration and error metrics. Three sub-reconcilers with no cross-dependency — `reconcileFernetKeys`, `reconcileCredentialKeys`, `reconcileNetworkPolicy` — run concurrently in a `reconcileParallelGroup`.
+The main `Reconcile` function calls sub-reconcilers in order. Each sub-reconciler handles one responsibility, sets its own status condition, and returns early (requeue) if its precondition is not met. Every call is wrapped by `instrumentSubReconciler` (CC-0089), which records per-step duration (`keystone_operator_reconcile_duration_seconds`) and error (`..._reconcile_errors_total`) metrics under a `sub_reconciler` label. The operator's `internal/metrics` package registers three further metrics: `..._key_rotation_age_seconds` (per CR and key type), `..._db_sync_total` (terminal-state counter) and `..._db_sync_duration_seconds`. Three sub-reconcilers with no cross-dependency — `reconcileFernetKeys`, `reconcileCredentialKeys`, `reconcileNetworkPolicy` — run concurrently in a `reconcileParallelGroup`.
 
 > **Note:** `reconcileConfig()` runs early (after secrets and the DB-connection Secret) because the rendered `keystone.conf.d/` ConfigMap is required by the parallel key group, the `db_sync` Job, and the Deployment.
 >
@@ -398,7 +398,7 @@ Validates the rendered oslo.policy overrides **before** the Deployment is update
 
 Creates or updates a Kubernetes `NetworkPolicy` restricting ingress and egress traffic for Keystone API pods (CC-0039). It runs in the parallel group alongside the key reconcilers (it has no data dependency on the Deployment):
 
-- When `spec.networkPolicy` is set: creates a NetworkPolicy allowing ingress on TCP 5000 from specified sources and auto-deriving egress rules for DNS, MariaDB, and Memcached.
+- When `spec.networkPolicy` is set: creates a NetworkPolicy allowing ingress on TCP 5000 from specified sources and auto-deriving egress rules for DNS (always), plus MariaDB (TCP 3306) and Memcached (TCP 11211) **only in managed mode** — i.e. when `spec.database.clusterRef` / `spec.cache.clusterRef` are set. In brownfield mode no MariaDB/Memcached egress rule is auto-derived (the external host is outside the cluster).
 - When `spec.networkPolicy` is nil: deletes any existing NetworkPolicy, allowing unrestricted traffic.
 
 ### reconcileDeployment()
@@ -436,7 +436,8 @@ func (r *KeystoneReconciler) reconcileDeployment(ctx context.Context,
                             },
                         },
                         VolumeMounts: []corev1.VolumeMount{
-                            {Name: "config", MountPath: "/etc/keystone",
+                            {Name: "config",
+                                MountPath: "/etc/keystone/keystone.conf.d/",
                                 ReadOnly: true},
                             {Name: "fernet-keys",
                                 MountPath: "/etc/keystone/fernet-keys",
@@ -554,20 +555,21 @@ Keeping the privileged write (OpenBao + the production Secret) in the operator �
 | ESO Secret not yet synced | Requeue, wait for ESO | 15s | `SecretsReady=False` |
 | DB client cert not ready | Requeue, wait for cert-manager | 15s | `DatabaseTLSReady=False` |
 | MariaDB not ready | Requeue, wait for MariaDB Operator | 30s | `DatabaseReady=False` |
-| db_sync Job failed | Requeue, Job will be retried | 60s | `DatabaseReady=False` |
+| db_sync Job in progress | Requeue, poll until complete | 30s (`RequeueDatabaseWait`) | `DatabaseReady=False` |
 | Fernet/credential key generation failed | Requeue with backoff | 30s | `FernetKeysReady` / `CredentialKeysReady=False` |
-| Policy validation Job failed | Requeue, do not roll out Deployment | 30s | `PolicyValidReady=False` |
+| Policy validation Job in progress | Requeue, do not roll out Deployment | 15s (`RequeueValidationWait`) | `PolicyValidReady=False` |
 | NetworkPolicy creation failed | Return error, controller-runtime retries | Exponential | `NetworkPolicyReady=False` |
 | Deployment not available | Requeue, wait for rollout | 10s | `DeploymentReady=False` |
 | HTTPRoute reconcile failed / Gateway API absent | Requeue or surface in condition | varies | `HTTPRouteReady=False` |
 | API health check failed | Requeue, re-probe endpoint | 10s | `KeystoneAPIReady=False` |
 | HPA creation/update failed | Return error, controller-runtime retries | Exponential | `HPAReady=False` |
-| Bootstrap Job failed | Requeue, Job will be retried | 60s | `BootstrapReady=False` |
+| Bootstrap Job in progress | Requeue, poll until complete | 60s (`RequeueBootstrapWait`) | `BootstrapReady=False` |
 | Trust-flush CronJob reconcile failed | Return error, controller-runtime retries | Exponential | `TrustFlushReady=False` |
 | Admin-password rotation reconcile failed / staged password invalid | Return error or requeue; production credential left untouched | Exponential | `PasswordRotationReady=False` |
+| db_sync / policy-validation / bootstrap Job **failed** | Return error, controller-runtime retries | Exponential | respective `*Ready=False` |
 | Unrecoverable API error | Return error (controller-runtime handles backoff) | Exponential | — |
 
-Requeue intervals are centralized in `requeue_intervals.go` (e.g. `RequeueSecretPolling=15s`, `RequeueDatabaseWait=30s`, `RequeueBootstrapWait=60s`, `RequeueDeploymentPolling=10s`, `RequeueHealthCheck=10s`, plus `RequeueUpgradeWait=30s` and `RequeueValidationWait=15s`).
+The fixed `RequeueAfter` delays above apply to the **in-progress** (`!done`) path — the operator polls a Job that is still running. A *failed* Job is different: the sub-reconciler returns an error and controller-runtime applies exponential backoff (it does not re-run the Job on a fixed timer). Requeue intervals are centralized in `requeue_intervals.go` (e.g. `RequeueSecretPolling=15s`, `RequeueDatabaseWait=30s`, `RequeueBootstrapWait=60s`, `RequeueDeploymentPolling=10s`, `RequeueHealthCheck=10s`, `RequeueValidationWait=15s`, plus `RequeueUpgradeWait=30s`).
 
 All transient errors result in a requeue with appropriate delay. Permanent errors (e.g., invalid CRD spec) are surfaced via conditions and events.
 

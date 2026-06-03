@@ -73,14 +73,17 @@ words:
   - clustersecretstore
   - codegen
   - cobaltcore
+  - commonv
   - controll
   - controlplane
   - controlplaneio
+  - controlplanes
   - corev
   - cosign
   - coverprofile
   - cpus
   - credentialrotation
+  - credentialrotations
   - creds
   - crds
   - crossplane
@@ -140,9 +143,11 @@ words:
   - Keyspace
   - keystoneauth
   - keystonemiddleware
+  - keystonev
   - knowledges
   - Kolla
   - korc
+  - KORCCRD
   - Krkn
   - Kubebuilder
   - kubeconf
@@ -212,6 +217,7 @@ words:
   - SBOM
   - SBOMs
   - secretaggregate
+  - secretaggregates
   - serviceaccount
   - servicemonitor
   - shellcheck

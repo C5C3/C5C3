@@ -64,13 +64,13 @@ The implementation follows a **Keystone-first** strategy: the Keystone Operator 
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Current status:** Phases 1 and 2 are implemented — the Keystone Operator is a complete reference implementation. Phase 3a has begun: the c5c3-operator currently exists as a manager **stub** (`operators/c5c3/main.go` starts a controller-runtime manager via the shared [`bootstrap`](./02-shared-library.md#bootstrap) package but registers no controllers yet); the ControlPlane CRD and orchestration reconciler are not yet built. Phase 3b operators (Glance, Placement, Nova, Neutron, Cinder) are planned.
+> **Current status:** Phases 1 and 2 are implemented — the Keystone Operator is a complete reference implementation. **Phase 3a is largely implemented** (CC-0110, the Keystone-first slice): the c5c3-operator ships the `ControlPlane` and `CredentialRotation` CRDs with working reconcilers, plus the `SecretAggregate` CRD as a types-only placeholder (its reconciler is deferred to CC-0023). The orchestration reconciler provisions the infrastructure (MariaDB + Memcached) and the Keystone CR, then integrates with [K-ORC](../03-components/01-control-plane/05-korc.md) to mint the admin `ApplicationCredential` and register the identity `Service`/`Endpoint` in the catalog. Still planned within Phase 3a: multi-service orchestration, per-pod service users, and the phased rollback strategy (the `updatePhase` values `UpdatingServices`/`Verifying`/`RollingBack` are reserved but not yet active). Phase 3b operators (Glance, Placement, Nova, Neutron, Cinder) are planned.
 
 ## Technology Stack
 
 | Component | Version | Purpose |
 | --- | --- | --- |
-| **Go** | 1.26.3 | Operator implementation language |
+| **Go** | 1.26.4 | Operator implementation language |
 | **Operator SDK** | 1.38+ | Code-generation tooling (markers); not used for project scaffolding |
 | **controller-runtime** | 0.24+ | Reconciler framework, manager, caching |
 | **Kubebuilder** | 4.x | Code generation markers for CRDs, RBAC, webhooks |
@@ -97,7 +97,7 @@ Keystone is the ideal starting point for implementation:
 - [Keystone Dependencies](./05-keystone-dependencies.md) — Secret flow, MariaDB, Memcached, Fernet rotation
 - [Testing](./06-testing.md) — Unit, integration (envtest), E2E (Chainsaw)
 - [CI/CD & Packaging](./07-ci-cd-and-packaging.md) — GitHub Actions, Helm charts, FluxCD
-- [C5C3 Operator](./08-c5c3-operator.md) — ControlPlane CRD, orchestration reconciler, rollout strategy (planned)
+- [C5C3 Operator](./08-c5c3-operator.md) — ControlPlane CRD, orchestration reconciler, K-ORC admin credential, rollout strategy
 - [OpenBao Deployment](./09-openbao-deployment.md) — Deployment, initialization, secret engines, policies
 - [Chaos E2E Testing](./10-chaos-e2e-testing.md) — Chaos Mesh fault injection, resilience scenarios
 

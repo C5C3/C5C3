@@ -78,6 +78,8 @@ CI/CD is split across several workflows under `.github/workflows/`:
 | `cleanup-images.yaml` | Daily cron pruning GHCR tags. |
 | `deploy-docs.yaml` | VitePress build + GitHub Pages deploy. |
 
+Dependency bumps are automated by **Renovate** (`renovate.json`, `config:recommended`): besides Go modules and GitHub Actions, custom regex managers track the OpenStack `source-refs.yaml`/`test-refs.yaml` (git tags / PyPI) and the tool pins in `hack/`. Renovate complements the daily `check-base-image-updates.yaml` digest check above.
+
 The `ci.yaml` job graph (illustrative — pinned action SHAs and `if:` gating omitted):
 
 ```text
@@ -94,7 +96,7 @@ changes ─┬─ lint, format-check (gofumpt v0.9.2), shellcheck, test-shell
                                                        → helm-push → github-release
 ```
 
-Pinned tool versions live in `ci.yaml`: `CONTROLLER_GEN_VERSION=v0.20.1`, `GOFUMPT_VERSION=v0.9.2`, `GOLANGCI_LINT_VERSION=v2.11.4` (govulncheck uses `@latest` intentionally). The Go version comes from `go.work` (1.26.3).
+Pinned tool versions live in `ci.yaml`: `CONTROLLER_GEN_VERSION=v0.20.1`, `GOFUMPT_VERSION=v0.9.2`, `GOLANGCI_LINT_VERSION=v2.11.4` (govulncheck uses `@latest` intentionally). The Go version comes from `go.work` (1.26.4).
 
 ### Multi-arch image build
 
@@ -181,7 +183,9 @@ Each operator ships with a Helm chart for deployment:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Chart.yaml** (chart `version` and `appVersion` are **not** kept in sync — CI overrides the chart version from the git tag at release time):
+The same layout applies to the orchestration operator at `operators/c5c3/helm/c5c3-operator/`, whose `crds/` directory ships the three `c5c3.io` CRDs (`c5c3.io_controlplanes.yaml`, `c5c3.io_credentialrotations.yaml`, `c5c3.io_secretaggregates.yaml`). It has no `networkpolicy.yaml` template (the opt-in operator NetworkPolicy, CC-0090, is currently keystone-only). Both charts are published the same way: `helm-push` and `github-release` iterate the built operators and push each chart to `oci://ghcr.io/c5c3/charts`.
+
+**Chart.yaml** (Keystone shown; chart `version` and `appVersion` are **not** kept in sync — CI overrides the chart version from the git tag at release time):
 
 ```yaml
 apiVersion: v2

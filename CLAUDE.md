@@ -44,7 +44,7 @@ C5C3/
 | Document | What It Defines |
 |---|---|
 | [01-project-setup.md](docs/09-implementation/01-project-setup.md) | Go workspace (`go.work`), monorepo layout (`c5c3/forge/`), Makefile targets, developer prerequisites |
-| [02-shared-library.md](docs/09-implementation/02-shared-library.md) | `internal/common/` packages: conditions, config, database, deployment, job, secrets, plugins, policy, tls, types |
+| [02-shared-library.md](docs/09-implementation/02-shared-library.md) | `internal/common/` packages: bootstrap, conditions, config, database, deployment, job, secrets, plugins, policy, tls, types, testutil |
 | [03-crd-implementation.md](docs/09-implementation/03-crd-implementation.md) | Go type definitions, Kubebuilder markers, validation/defaulting webhooks, versioning strategy |
 | [04-keystone-reconciler.md](docs/09-implementation/04-keystone-reconciler.md) | Sub-reconciler pattern, reconciliation flow, controller setup, RBAC markers, error handling |
 | [05-keystone-dependencies.md](docs/09-implementation/05-keystone-dependencies.md) | OpenBao/ESO secret flow, MariaDB/Memcached interaction, Fernet lifecycle, bootstrap process |
@@ -59,6 +59,7 @@ C5C3/
 c5c3/forge/
 ├── go.work                        # Go 1.25 workspace
 ├── internal/common/               # Shared library (all operators depend on this)
+│   ├── bootstrap/                 # Manager initialization (main.go delegates here)
 │   ├── conditions/                # Status condition helpers
 │   ├── config/                    # INI config rendering (Go structs, no templates)
 │   ├── database/                  # MariaDB CR interaction + db_sync jobs
@@ -68,7 +69,8 @@ c5c3/forge/
 │   ├── plugins/                   # Plugin/middleware config rendering
 │   ├── policy/                    # oslo.policy file rendering + validation
 │   ├── tls/                       # cert-manager integration
-│   └── types/                     # Shared Go types (ImageSpec, DatabaseSpec, etc.)
+│   ├── types/                     # Shared Go types (ImageSpec, DatabaseSpec, etc.)
+│   └── testutil/                  # Test utilities, fake CRDs, simulators
 ├── operators/
 │   ├── keystone/                  # Reference implementation
 │   ├── glance/
@@ -84,7 +86,7 @@ c5c3/forge/
 
 | Component | Version | Purpose |
 |---|---|---|
-| Go | 1.26.3 | Operator language |
+| Go | 1.26.4 | Operator language |
 | Operator SDK | 1.38+ | Code generation (markers); not used for scaffolding |
 | controller-runtime | 0.24+ | Reconciler framework |
 | Kubebuilder | 4.x | CRD/RBAC/webhook markers |
