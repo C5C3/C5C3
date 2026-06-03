@@ -179,6 +179,7 @@ words:
   - objectstore
   - ofproto
   - OIDC
+  - OSISM
   - openbao
   - openstackclusters
   - openvswitch
@@ -205,6 +206,7 @@ words:
   - rescoped
   - RHOSO
   - rolebinding
+  - rollouts
   - SARIF
   - SASL
   - SBOM
